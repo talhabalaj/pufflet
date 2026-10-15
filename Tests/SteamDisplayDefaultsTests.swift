@@ -52,10 +52,12 @@ struct SteamDisplayDefaultsTests {
         [steam-host] pufflet1 display-resolution=0
 
         """)
-        let custom = SteamDisplayDefaults.diagnostic(retinaQuery: retina.replacingOccurrences(of: "REG_SZ    n", with: "REG_SZ    Y"),
-                                                    dpiQuery: dpi.replacingOccurrences(of: "0x60", with: "0xc0"), migrated: false)
-        #expect(custom.contains("display-retina=1\n"))
-        #expect(custom.contains("display-dpi=192\n"))
+        for value in ["Y", "yes", "t", "TRUE", "1"] {
+            let custom = SteamDisplayDefaults.diagnostic(retinaQuery: retina.replacingOccurrences(of: "REG_SZ    n", with: "REG_SZ    " + value),
+                                                        dpiQuery: dpi.replacingOccurrences(of: "0x60", with: "0xc0"), migrated: false)
+            #expect(custom.contains("display-retina=1\n"))
+            #expect(custom.contains("display-dpi=192\n"))
+        }
         let unknown = SteamDisplayDefaults.diagnostic(retinaQuery: "private account or path", dpiQuery: "error", migrated: false)
         #expect(unknown.contains("display-mode=-1\n"))
         #expect(!unknown.contains("private"))

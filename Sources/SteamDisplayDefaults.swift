@@ -28,7 +28,7 @@ nonisolated enum SteamDisplayDefaults {
 
     static func diagnostic(retinaQuery: String, dpiQuery: String, migrated: Bool) -> String {
         let retina = value(named: "RetinaMode", type: "REG_SZ", in: retinaQuery)?.lowercased()
-        let enabled = retina.map { ["y", "yes", "true", "1"].contains($0) ? 1 : 0 } ?? -1
+        let enabled = retina.flatMap(\.first).map { "yt1".contains($0) ? 1 : 0 } ?? -1
         let dpi = value(named: "LogPixels", type: "REG_DWORD", in: dpiQuery).flatMap { value -> UInt32? in
             value.hasPrefix("0x") ? UInt32(value.dropFirst(2), radix: 16) : UInt32(value)
         }
