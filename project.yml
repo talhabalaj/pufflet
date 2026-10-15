@@ -79,6 +79,8 @@ targets:
     sources:
       - path: Tests
         excludes: ["*.test.mjs", Fixtures]
+      - path: Tests/Fixtures/runtime-download-server.py
+        buildPhase: resources
     dependencies:
       - target: SteamLibrary
     settings:

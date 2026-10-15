@@ -4,6 +4,8 @@ import Synchronization
 import Testing
 @testable import SteamLibrary
 
+nonisolated private final class RuntimeTestBundleToken: NSObject { }
+
 nonisolated private final class RuntimeHTTPFixture {
     let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
     let server = Process()
@@ -23,7 +25,7 @@ nonisolated private final class RuntimeHTTPFixture {
         let payload = Data(repeating: 0x5a, count: 8 * 1024 * 1024)
         try payload.write(to: root.appendingPathComponent("payload.bin"))
         server.executableURL = URL(filePath: "/usr/bin/python3")
-        let script = URL(filePath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/runtime-download-server.py")
+        let script = try #require(Bundle(for: RuntimeTestBundleToken.self).url(forResource: "runtime-download-server", withExtension: "py"))
         server.arguments = [script.path, root.path]
         try server.run()
         let ready = root.appendingPathComponent("ready.json")

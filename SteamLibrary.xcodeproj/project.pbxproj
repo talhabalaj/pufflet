@@ -49,6 +49,7 @@
 		CF6FC705C9880C4EA3479BAE /* SteamAuthAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E50BEC1308D9D0823E5BDD /* SteamAuthAPI.swift */; };
 		D2293112D39C527EC6BF02DE /* LICENSE-EXCEPTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 32C4EF4A710A294167C8F32A /* LICENSE-EXCEPTION.md */; };
 		DCCFAF0B4BA756292AFCB1DD /* LibrarySettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187C8758A15233306D44E94E /* LibrarySettingsTests.swift */; };
+		E20B69F5F21B1755CA91FEE6 /* runtime-download-server.py in Resources */ = {isa = PBXBuildFile; fileRef = 5C6D4C7B3E1397FB778A5F7B /* runtime-download-server.py */; };
 		E69FF22F4B30690A1CB6E7EF /* SteamClientPackages.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03A53237E1587ADD890785B /* SteamClientPackages.swift */; };
 		E80E8182086DB195C11BE949 /* SteamArtworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */; };
 		F9EE12E3E087AF5070AED393 /* RuntimeDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F72FF9E4601204C664F1F1A /* RuntimeDownloader.swift */; };
@@ -91,6 +92,7 @@
 		5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamArtworkStore.swift; sourceTree = "<group>"; };
 		546AF6304774AF1764B15223 /* SteamHeadlessSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamHeadlessSession.swift; sourceTree = "<group>"; };
 		5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySettings.swift; sourceTree = "<group>"; };
+		5C6D4C7B3E1397FB778A5F7B /* runtime-download-server.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "runtime-download-server.py"; sourceTree = "<group>"; };
 		5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAuthenticationTests.swift; sourceTree = "<group>"; };
 		5F106E48207FE519F2B0EBCE /* AppIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentity.swift; sourceTree = "<group>"; };
 		65E4E882E929A1484E556891 /* RuntimeSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSetup.swift; sourceTree = "<group>"; };
@@ -174,6 +176,15 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		6BFF56938DA9A41282EFDCAA /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				5C6D4C7B3E1397FB778A5F7B /* runtime-download-server.py */,
+			);
+			name = Fixtures;
+			path = Tests/Fixtures;
+			sourceTree = "<group>";
+		};
 		8DFBEF12C858952B1D616CBC /* Notices */ = {
 			isa = PBXGroup;
 			children = (
@@ -211,6 +222,7 @@
 			isa = PBXGroup;
 			children = (
 				8E13AC664FEDFF4121EFC1DD /* Config */,
+				6BFF56938DA9A41282EFDCAA /* Fixtures */,
 				30AF51E7E7C50BA5D7A3AE5C /* Packages */,
 				49956BD9C52D73CD44BA026D /* Resources */,
 				DB6573EAAEC6551A58DF4108 /* Sources */,
@@ -279,6 +291,7 @@
 			buildConfigurationList = 788B3101E34040618929C11B /* Build configuration list for PBXNativeTarget "SteamLibraryTests" */;
 			buildPhases = (
 				4F4D4B994F898C6D9533A59C /* Sources */,
+				E614D27049A80FAD1A078572 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -370,6 +383,14 @@
 				6CA6A4D42CE2E581D1929B7B /* RuntimeDefaults.plist in Resources */,
 				8ADFFFB310113FB796BCD5C4 /* dock-notices.txt in Resources */,
 				09DC218BC775B560748B2BB9 /* dockhost.exe in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E614D27049A80FAD1A078572 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E20B69F5F21B1755CA91FEE6 /* runtime-download-server.py in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

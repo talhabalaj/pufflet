@@ -155,7 +155,9 @@ cached bytes never bypass the trust anchor. Installation and active-version
 publication rules are unchanged.
 
 `RuntimeDownloaderTests` runs a loopback HTTP server through an internal test-only
-policy seam. Production URL/HTTPS policy remains unchanged. It records actual
+policy seam. The server script is a test-bundle resource, located using a class in
+the test bundle rather than a build-machine source path, so packaged tests can run
+on a separate Cloud worker without the checkout. Production URL/HTTPS policy remains unchanged. It records actual
 Range headers and checks nonzero offset resume after pause, real byte progress,
 expired-URL fallback, corrupt/missing opaque records, dropped-connection recovery,
 and cancellation before requests start. The fixture never contacts GitHub.
