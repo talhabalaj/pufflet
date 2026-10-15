@@ -138,9 +138,18 @@ export function validateReleaseInput({ workflowId, ref, sha, output }) {
 }
 
 export async function startBuild(client, { workflowId, repositoryId, ref }) {
-  const references = await client.list(`${resourcePath('scmRepositories', repositoryId)}/gitReferences?limit=200`);
-  const matches = references.filter(reference => reference.attributes?.canonicalName === ref && reference.attributes?.isDeleted !== true);
-  if (matches.length !== 1) throw new Error('Expected exactly one matching Git ref in Xcode Cloud. Confirm repository access and allow time for the new tag to appear.');
+  // GitHub can trigger Actions before Apple's repository mirror indexes the tag.
+  // Retry only discovery GETs; the build-creation POST below remains one-shot.
+  const refDeadline = Math.min(client.deadline, client.now() + 300_000);
+  let matches;
+  for (;;) {
+    if (client.now() >= refDeadline) throw new Error('Release ref did not appear in Xcode Cloud before the discovery deadline. Confirm repository access.');
+    const references = await client.list(`${resourcePath('scmRepositories', repositoryId)}/gitReferences?limit=200`);
+    matches = references.filter(reference => reference.attributes?.canonicalName === ref && reference.attributes?.isDeleted !== true);
+    if (matches.length > 1) throw new Error('Expected exactly one matching Git ref in Xcode Cloud.');
+    if (matches.length === 1) break;
+    await client.sleep(Math.max(0, Math.min(10_000, refDeadline - client.now())));
+  }
   const document = await client.request('/v1/ciBuildRuns', {
     method: 'POST',
     body: { data: { type: 'ciBuildRuns', attributes: { clean: true }, relationships: {

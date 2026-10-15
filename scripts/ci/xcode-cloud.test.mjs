@@ -173,6 +173,32 @@ test('start selects an exact canonical ref across pages and sends supported rela
   assert.equal(calls.length, 3);
 });
 
+test('start waits for Apple to index a new tag and creates exactly one build', async () => {
+  let now = 0, reads = 0, posts = 0;
+  const client = createClient({ env, now: () => now, deadline: 100_000,
+    sleep: async ms => { now += ms; }, fetchImpl: async (_, options) => {
+      if (options.method === 'GET') return json({ data: ++reads < 3 ? [] : [{ id: 'ref-1', attributes: { canonicalName: ref } }] });
+      posts += 1;
+      return json({ data: { id: 'build-1', type: 'ciBuildRuns' } });
+    } });
+  assert.equal(await startBuild(client, { workflowId: 'workflow-1', repositoryId: 'repository-1', ref }), 'build-1');
+  assert.equal(reads, 3); assert.equal(posts, 1); assert.equal(now, 20_000);
+});
+
+test('start never posts for an absent, deleted or ambiguous ref', async () => {
+  for (const references of [[], [{ id: 'deleted', attributes: { canonicalName: ref, isDeleted: true } }],
+    ['a', 'b'].map(id => ({ id, attributes: { canonicalName: ref } }))]) {
+    let now = 0, posts = 0;
+    const client = createClient({ env, now: () => now, deadline: 20_000,
+      sleep: async ms => { now += ms; }, fetchImpl: async (_, options) => {
+        if (options.method === 'POST') posts += 1;
+        return json({ data: references });
+      } });
+    await assert.rejects(startBuild(client, { workflowId: 'workflow-1', repositoryId: 'repository-1', ref }), /discovery deadline|exactly one/);
+    assert.equal(posts, 0);
+  }
+});
+
 test('POST failures never retry, while GET server failures can retry without exposing bodies', async () => {
   let calls = 0;
   const client = createClient({ env, fetchImpl: async () => { calls += 1; return new Response('sensitive Apple error body', { status: 503 }); }, sleep: async () => {} });
