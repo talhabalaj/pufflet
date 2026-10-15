@@ -17,12 +17,8 @@ const result = JSON.parse(require('node:fs').readFileSync(process.argv[2], 'utf8
 if (result.artifactType !== 'STAPLED_NOTARIZED_ARCHIVE' || !result.artifactId || !result.commitSha) throw new Error('A verified Xcode Cloud notarized artifact is required.');
 JS
 tar -xf "$artifact_path" -C "$extract_dir"
-# Require exactly the Pufflet product.
-app_path="$(find "$extract_dir" -type d \( -name Pufflet.app \) -print)"
-if [[ -z "$app_path" || "$app_path" == *$'\n'* ]]; then
-  printf 'Expected exactly one Pufflet.app in the notarized artifact.\n' >&2
-  exit 1
-fi
+# Apple names the export after the scheme; keep signed contents untouched.
+app_path="$(python3 "$repo_root/scripts/ci/cloud-app.py" "$extract_dir")"
 plist="$app_path/Contents/Info.plist"
 plist_value() { /usr/libexec/PlistBuddy -c "Print :$1" "$plist"; }
 [[ "$(plist_value CFBundleIdentifier)" == me.balaj.SteamLibrary ]]
