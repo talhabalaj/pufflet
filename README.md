@@ -4,7 +4,7 @@
 
 A native SwiftUI home for installed Windows Steam games on Apple silicon Macs. A grid of Steam artwork, a small Play popover, and native QR/password/Steam Guard sign-in. Opening the library does not start Wine or desktop Steam.
 
-[Website](https://pufflet.apps.balaj.me) · [Release setup](CI.md)
+[Website and download](https://pufflet.apps.balaj.me) · [Latest release](https://github.com/talhabalaj/pufflet/releases/latest) · [Release setup](CI.md)
 
 ## Use
 
@@ -40,9 +40,9 @@ Preferences, Keychain sessions, caches, logs and Wine prefixes are separate. Exi
 
 ## Updates and distribution
 
-Sparkle 2.10 validates signed feeds and update archives before extraction. Automatic checks are enabled; automatic downloads are opt-in in Settings. Requested update restarts are deferred while a Steam/game session is active.
+Sparkle 2.10 validates signed feeds and update archives before extraction. Automatic checks are enabled; automatic downloads are opt-in in Settings. Requested update restarts are deferred while a Steam/game session or runtime installation is active.
 
-The release pipeline is ported from Said: Xcode Cloud tests, archives, signs and notarizes; GitHub verifies the stapled artifact and publishes versioned assets to GitHub Releases, verifies anonymous downloads, and promotes the verified manifest and signed appcast together. The site does not offer a download until the first verified release is published. Service activation and unverified steps are documented in [CI.md](CI.md).
+The release pipeline is ported from Said: Xcode Cloud tests, archives, signs and notarizes; GitHub verifies the stapled artifact and publishes versioned assets to GitHub Releases, verifies anonymous downloads, and promotes the verified manifest and signed appcast together. The website offers the current verified release. Service activation and validation evidence are documented in [CI.md](CI.md).
 
 ## Checks
 
@@ -53,7 +53,7 @@ npm run typecheck --prefix site
 npm run build --prefix site
 ```
 
-Swift tests cover installed manifests, installed-runtime resolution, download checksums/size, resumable transfer progress and cancellation, atomic publication/reuse, archive traversal and symlink escapes, cancellation/retry, authentication framing, launch metadata and artwork URLs. Release tests cover cloud provenance, signed-feed validation, immutable publication and version ordering. A real game launch has been checked locally; extended gameplay, controllers, overlay, cloud saves, offline mode and a full Sparkle replacement/restart have not been verified.
+Swift tests cover installed manifests, installed-runtime resolution, download checksums/size, resumable transfer progress and cancellation, atomic publication/reuse, archive traversal and symlink escapes, cancellation/retry, authentication framing, launch metadata and artwork URLs. Release tests cover cloud provenance, signed-feed validation, immutable publication and version ordering. The user confirmed normal game rendering with runtime revision 2. A real Sparkle upgrade from notarized build 3 to build 6 replaced and restarted the installed app, retained library settings and Steam sign-in, and passed signature/ticket/Gatekeeper checks afterward. Extended gameplay, controllers, overlay, cloud saves and offline Steam mode have not been verified.
 
 ## License and upstreams
 
