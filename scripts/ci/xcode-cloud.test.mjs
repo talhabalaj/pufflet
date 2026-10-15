@@ -262,6 +262,7 @@ test('release input rejects unpinned commits and noncanonical refs', () => {
 test('cloud hook preserves project settings and uses increasing integer cloud builds', async () => {
  const directory=await mkdtemp(join(tmpdir(),'pufflet-cloud-hook-'));
  try {
+  execFileSync('git',['init','--quiet',directory],{stdio:'pipe'});
   await mkdir(join(directory,'SteamLibrary.xcodeproj'),{recursive:true});
   await mkdir(join(directory,'Runtime'),{recursive:true});
   await writeFile(join(directory,'Runtime/bootstrap-runtime.sh'),'exit 0\n');
