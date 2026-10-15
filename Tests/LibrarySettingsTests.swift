@@ -13,6 +13,7 @@ struct LibrarySettingsTests {
         "AppState" { "appid" "123" "name" "Example" "installdir" "Example" "StateFlags" "4" }
         """#
         try Data(manifest.utf8).write(to: apps.appendingPathComponent("appmanifest_123.acf"))
+        try FileManager.default.createDirectory(at: apps.appendingPathComponent("common/Example"), withIntermediateDirectories: true)
         let suite = "PuffletTests." + UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }

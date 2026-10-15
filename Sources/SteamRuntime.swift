@@ -33,6 +33,7 @@ nonisolated struct RuntimeSnapshot: Sendable {
 nonisolated struct SteamRuntime: Sendable {
     let installation: SteamInstallation
     let dockBridge: URL
+    var logDirectory: URL? = nil
 
     enum RuntimeError: LocalizedError {
         case missingSetup, launchFailed(String)
@@ -97,7 +98,7 @@ nonisolated struct SteamRuntime: Sendable {
         guard FileManager.default.isExecutableFile(atPath: installation.wine.path),
               FileManager.default.fileExists(atPath: installation.steamExecutable.path),
               FileManager.default.fileExists(atPath: dockBridge.path) else { throw RuntimeError.missingSetup }
-        let logs = AppIdentity.logs
+        let logs = logDirectory ?? AppIdentity.logs
         try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true,
                                                attributes: [.posixPermissions: 0o700])
         let log = logs.appendingPathComponent("wine.log")
@@ -147,23 +148,28 @@ nonisolated struct SteamRuntime: Sendable {
         try spawn(arguments, extraEnvironment: extraEnvironment)
     }
 
-    private func spawn(_ arguments: [String], extraEnvironment: [String: String] = [:]) throws -> Process {
+    func startSessionHost(_ arguments: [String], environment: [String: String], input: Pipe, output: Pipe) throws -> Process {
+        try spawn(arguments, extraEnvironment: environment, input: input, output: output)
+    }
+
+    private func spawn(_ arguments: [String], extraEnvironment: [String: String] = [:], input: Pipe? = nil, output: Pipe? = nil) throws -> Process {
         guard FileManager.default.isExecutableFile(atPath: installation.wine.path) else { throw RuntimeError.missingSetup }
-        let folder = AppIdentity.logs
+        let folder = logDirectory ?? AppIdentity.logs
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let log = folder.appendingPathComponent("wine.log")
         if !FileManager.default.fileExists(atPath: log.path) {
             FileManager.default.createFile(atPath: log.path, contents: nil, attributes: [.posixPermissions: 0o600])
         }
-        let output = try FileHandle(forWritingTo: log)
-        defer { try? output.close() }
-        try output.seekToEnd()
+        let logOutput = try FileHandle(forWritingTo: log)
+        defer { try? logOutput.close() }
+        try logOutput.seekToEnd()
         let process = Process()
         process.executableURL = installation.wine
         process.arguments = arguments
         process.environment = environment().merging(extraEnvironment) { _, value in value }
         process.currentDirectoryURL = installation.prefix
-        process.standardOutput = output; process.standardError = output
+        process.standardInput = input ?? FileHandle.nullDevice
+        process.standardOutput = output ?? logOutput; process.standardError = logOutput
         try process.run()
         return process
     }

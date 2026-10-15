@@ -1,18 +1,28 @@
 import Foundation
 
 nonisolated enum SteamLaunchConfiguration {
-    enum ConfigurationError: Error { case invalidCache, missingEntry }
+    enum ConfigurationError: LocalizedError, Equatable {
+        case invalidCache, missingEntry, missingExecutable
+        var errorDescription: String? {
+            switch self {
+            case .missingExecutable: "This game’s executable is missing. Choose Repair installation to let Steam restore its files."
+            default: "Steam could not read this game’s launch configuration."
+            }
+        }
+    }
 
     @concurrent static func option(for game: SteamGame, caches: [URL]) async throws -> UInt32 {
+        var missingExecutable = false
         for cache in caches {
             guard let size = try? cache.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 256 * 1024 * 1024,
                   let bytes = try? Data(contentsOf: cache),
-                  let metadata = try? metadata(for: game.id, in: bytes),
-                  let option = choose(from: metadata, game: game, executableExists: { relative in
-                      FileManager.default.fileExists(atPath: game.folder.appendingPathComponent(relative).path)
-                  }) else { continue }
-            return option
+                  let metadata = try? metadata(for: game.id, in: bytes) else { continue }
+            if let option = choose(from: metadata, game: game, executableExists: { relative in
+                FileManager.default.fileExists(atPath: game.folder.appendingPathComponent(relative).path)
+            }) { return option }
+            if choose(from: metadata, game: game, executableExists: { _ in true }) != nil { missingExecutable = true }
         }
+        if missingExecutable { throw ConfigurationError.missingExecutable }
         throw SteamError.authenticationFailed("Steam has no Windows launch entry matching this installation. Open desktop Steam to verify the game’s files and refresh its configuration.")
     }
 

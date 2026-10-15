@@ -21,7 +21,7 @@ struct SteamLaunchConfigurationTests {
     }
 
     @Test(arguments: [UInt32(0x07564428), UInt32(0x07564429)])
-    func readsRequestedAppFromBothCacheFormats(_ version: UInt32) throws {
+    func readsRequestedAppFromBothCacheFormats(_ version: UInt32) async throws {
         var payload = Data()
         let strings = ["appinfo", "config", "launch", "7", "executable"]
         func integer<T: FixedWidthInteger>(_ value: T) -> Data {
@@ -44,6 +44,17 @@ struct SteamLaunchConfigurationTests {
             cache.append(integer(UInt32(strings.count)))
             for string in strings { cache.append(contentsOf: string.utf8); cache.append(0) }
         }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("appinfo.vdf")
+        try cache.write(to: file)
+        let game = SteamGame(id: "10", name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: root)
+        await #expect(throws: SteamLaunchConfiguration.ConfigurationError.missingExecutable) {
+            try await SteamLaunchConfiguration.option(for: game, caches: [file])
+        }
+        try Data([0]).write(to: root.appendingPathComponent("game.exe"))
+        #expect(try await SteamLaunchConfiguration.option(for: game, caches: [file]) == 7)
         let metadata = try SteamLaunchConfiguration.metadata(for: "10", in: cache)
         #expect(metadata["appinfo"]?["config"]?["launch"]?["7"]?["executable"]?.text == "game.exe")
         #expect(throws: SteamLaunchConfiguration.ConfigurationError.self) { try SteamLaunchConfiguration.metadata(for: "20", in: cache) }

@@ -156,6 +156,8 @@ nonisolated struct SteamInstallation: Sendable {
                 guard let size = try? manifest.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 2_000_000,
                       let text = try? String(contentsOf: manifest, encoding: .utf8),
                       let game = try? Self.game(from: text, steamApps: apps) else { continue }
+                var directory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: game.folder.path, isDirectory: &directory), directory.boolValue else { continue }
                 found[game.id] = game
             }
         }

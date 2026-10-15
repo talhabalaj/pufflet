@@ -41,9 +41,8 @@ struct LibraryView: View {
                 Button("Downloads", systemImage: "arrow.down.circle") { model.showsDownloads.toggle() }
                     .popover(isPresented: $model.showsDownloads) { DownloadsView(model: model) }
                 Button("Steam account", systemImage: "person.crop.circle") { model.showsAccount = true }
-                    .disabled(!model.canChangeLibrary)
                 Button("Refresh library", systemImage: "arrow.clockwise") { model.refresh() }
-                    .disabled(!model.canChangeLibrary || model.ownedLibrary.isRefreshing)
+                    .disabled(model.ownedLibrary.isRefreshing)
                     .keyboardShortcut("r", modifiers: .command)
                 Menu("Steam options", systemImage: "ellipsis") {
                     Button("Set Up Pufflet…") { model.showsSetup = true }
@@ -95,8 +94,11 @@ struct LibraryView: View {
         .task { if !AppIdentity.isRunningTests { await model.observeRuntime() } }
         .sheet(isPresented: $model.showsSetup) { RuntimeOnboardingView(model: model) }
         .onChange(of: model.account.accountName) { model.accountChanged() }
-        .sheet(isPresented: $model.showsAccount) { SteamAccountView(account: model.account) }
+        .sheet(isPresented: $model.showsAccount) { SteamAccountView(account: model.account, sessionActive: !model.canManageAccount) }
         .alert("Steam needs attention", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
+            if model.headless.persistentEnabled, let id = model.repairGameID, let entry = model.entries.first(where: { $0.id == id }) {
+                Button("Repair installation") { model.errorMessage = nil; model.repair(entry) }
+            }
             Button("Open desktop Steam") { Task { await model.openSteam() } }
             Button("Close", role: .cancel) { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
@@ -174,7 +176,7 @@ private struct GameActions: View {
                     close(); model.install(game)
                 } label: { Label("Install", systemImage: "arrow.down.circle.fill").frame(maxWidth: .infinity) }
                     .buttonStyle(.glassProminent).controlSize(.large)
-                    .disabled(model.downloads.jobs.contains { $0.id == game.id && [.queued, .preparing, .installing].contains($0.state) } || model.isStoppingDownload || model.phase != .idle || model.headless.isActive && model.activeDownloadID == nil)
+                    .disabled(!model.canInstall || model.downloads.jobs.contains { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) })
             } else {
                 Button {
                     close(); Task { await model.play(game) }
@@ -183,7 +185,7 @@ private struct GameActions: View {
                           systemImage: model.isPlaying(game) ? "arrow.up.forward" : "play.fill").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent).controlSize(.large)
-                .disabled(model.isLaunching(game) || model.hasDownloadWork || (model.headless.isActive && !model.isPlaying(game)))
+                .disabled(model.isLaunching(game) || (!model.isPlaying(game) && (!model.canPlay || model.downloads.jobs.contains { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) })))
                 .keyboardShortcut(.return, modifiers: [])
             }
             HStack {
@@ -196,6 +198,10 @@ private struct GameActions: View {
                 Spacer()
                 Menu {
                     if let installed = game.installation {
+                        if model.headless.persistentEnabled {
+                            Button("Repair installation…") { close(); model.repair(game) }
+                                .disabled(!model.canInstall || model.isPlaying(game))
+                        }
                         Button("Launch using desktop Steam") { close(); Task { await model.playInDesktopSteam(installed) } }
                             .disabled(!model.canChangeLibrary)
                     }

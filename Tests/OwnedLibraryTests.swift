@@ -51,7 +51,7 @@ import Testing
         #expect(LibraryGame.merge(installed: [installed], owned: []).map(\.id) == ["10"])
     }
 
-    @Test func queueIsAccountScopedAndRestartsRequireExplicitRetry() throws {
+    @Test func queueIsAccountScopedAndRestartsResumePendingWork() throws {
         let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
         let queue = SteamDownloadQueue(root: root)
         queue.activate(account: 1)
@@ -61,8 +61,11 @@ import Testing
         #expect(queue.jobs.count == 1)
         queue.update("10", state: .installing)
         let restored = SteamDownloadQueue(root: root); restored.activate(account: 1)
-        #expect(restored.jobs.first?.state == .interrupted)
-        #expect(!restored.hasPendingWork)
+        #expect(restored.jobs.first?.state == .queued)
+        #expect(restored.hasPendingWork)
+        let fallback = SteamDownloadQueue(root: root); fallback.activate(account: 1, resumePending: false)
+        #expect(fallback.jobs.first?.state == .interrupted)
+        #expect(!fallback.hasPendingWork)
         restored.activate(account: 2)
         #expect(restored.jobs.isEmpty)
         restored.activate(account: 1)
@@ -286,6 +289,8 @@ import Testing
         #expect(model.canChangeLibrary)
         queue.enqueue(.init(id: "10", name: "Fixture", estimatedBytes: nil), destination: root)
         #expect(model.hasDownloadWork)
+        #expect(model.canPlay)
+        #expect(model.canInstall)
         #expect(!model.canChangeLibrary)
         queue.stopWaiting()
         model.phase = .openingSteam

@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
-    enum State: String, Codable, Sendable { case queued, preparing, installing, completed, failed, stopped, interrupted }
+    enum State: String, Codable, Sendable { case queued, preparing, installing, paused, completed, failed, stopped, interrupted }
     let id: String
     let name: String
     let destination: URL
@@ -17,11 +17,11 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
     private(set) var accountKey: String?
     private let root: URL
     init(root: URL = AppIdentity.support.appendingPathComponent("Downloads")) { self.root = root }
-    var hasPendingWork: Bool { jobs.contains { [.queued, .preparing, .installing].contains($0.state) } }
+    var hasPendingWork: Bool { jobs.contains { [.queued, .preparing, .installing, .paused].contains($0.state) } }
     var next: GameDownload? { jobs.first { $0.state == .queued } }
     var active: GameDownload? { jobs.first { [.preparing, .installing].contains($0.state) } }
 
-    func activate(account: UInt64?) {
+    func activate(account: UInt64?, resumePending: Bool = true) {
         let key = account.map { SHA256.hash(data: Data(String($0).utf8)).map { String(format: "%02x", $0) }.joined() }
         guard key != accountKey else { return }
         accountKey = key; jobs = []; storageError = nil
@@ -32,7 +32,11 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
             UInt32(job.id).map { $0 > 0 && $0 <= Int32.max } == true && ids.insert(job.id).inserted && job.destination.isFileURL
         }.map { job in
             var job = job
-            if [.preparing, .installing, .queued].contains(job.state) { job.state = .interrupted; job.error = "Interrupted. Retry to let Steam check existing files and continue." }
+            if [.preparing, .installing, .queued].contains(job.state) {
+                job.state = resumePending ? .queued : .interrupted
+                job.error = resumePending ? nil : "Interrupted. Retry to let Steam check existing files and continue."
+            }
+            if job.state == .paused { job.state = .interrupted; job.error = "Paused before Pufflet closed. Retry to continue existing files." }
             return job
         }
     }
@@ -40,7 +44,7 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
     func enqueue(_ game: OwnedSteamGame, destination: URL) {
         guard accountKey != nil else { return }
         if let index = jobs.firstIndex(where: { $0.id == game.id }) {
-            guard ![.queued, .preparing, .installing].contains(jobs[index].state) else { return }
+            guard ![.queued, .preparing, .installing, .paused].contains(jobs[index].state) else { return }
             jobs[index] = GameDownload(id: game.id, name: game.name, destination: destination)
         } else { jobs.append(GameDownload(id: game.id, name: game.name, destination: destination)) }
         save()

@@ -11,16 +11,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let model, model.hasDownloadWork else { return .terminateNow }
-        let alert = NSAlert()
-        alert.messageText = "A game download is in progress"
-        alert.informativeText = "Keep Pufflet open to finish, or stop downloading and quit. Existing files will be kept for Retry."
-        alert.addButton(withTitle: "Keep downloading")
-        alert.addButton(withTitle: "Stop and quit")
-        guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+        guard let model, model.headless.isActive || model.hasDownloadWork else { return .terminateNow }
+        if model.hasDownloadWork {
+            let alert = NSAlert()
+            alert.messageText = "A game download is in progress"
+            alert.informativeText = "Keep Pufflet open to finish, or quit and let Steam resume existing files when Pufflet reopens."
+            alert.addButton(withTitle: "Keep downloading")
+            alert.addButton(withTitle: "Quit")
+            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+        }
         Task {
-            await model.stopDownloads()
-            sender.reply(toApplicationShouldTerminate: !model.hasDownloadWork && !model.headless.isActive)
+            do {
+                try await model.shutdownSession()
+                sender.reply(toApplicationShouldTerminate: true)
+            } catch {
+                model.errorMessage = error.localizedDescription
+                sender.reply(toApplicationShouldTerminate: false)
+            }
         }
         return .terminateLater
     }
@@ -39,7 +46,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #else
         ApplicationInstance.enforce()
         #endif
-        _model = State(initialValue: LibraryModel())
+        if AppIdentity.isRunningTests {
+            // Isolate even the host's initial window: fixtures must opt into
+            // their own data, and no test startup may scan the normal library.
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent("PuffletTestHost-" + UUID().uuidString)
+            let suite = "PuffletTestHost." + UUID().uuidString
+            guard let defaults = UserDefaults(suiteName: suite) else { preconditionFailure("Could not isolate the test host preferences.") }
+            let settings = LibrarySettings(defaults: defaults, support: root, home: root)
+            defaults.removePersistentDomain(forName: suite)
+            _model = State(initialValue: LibraryModel(settings: settings, headless: SteamHeadlessSession(paths: .init(support: root)),
+                ownedLibrary: SteamOwnedLibrary(cache: root.appendingPathComponent("Owned")),
+                downloads: SteamDownloadQueue(root: root.appendingPathComponent("Queue")), paths: .init(support: root)))
+        } else {
+            _model = State(initialValue: LibraryModel())
+        }
     }
 
     var body: some Scene {
@@ -60,9 +80,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     .disabled(!AppUpdater.shared.isAvailable || model.headless.isActive)
             }
             CommandMenu("Steam") {
-                Button("Steam account…") { model.showsAccount = true }.disabled(!model.canChangeLibrary)
+                Button("Steam account…") { model.showsAccount = true }
                 Button("Open Steam") { Task { await model.openSteam() } }
-                Button("Refresh library") { model.refresh() }.disabled(!model.canChangeLibrary).keyboardShortcut("r")
+                Button("Refresh library") { model.refresh() }.keyboardShortcut("r")
             }
         }
         Settings {

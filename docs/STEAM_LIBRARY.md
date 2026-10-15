@@ -14,13 +14,32 @@ The grid merges owned metadata with real installed records by App ID. All games 
 
 ## Valve-managed installs
 
-The pinned Dock fork is `c98338578678f9e4ba64b7459744472afe97331d`; its lower-level interface and initial proof are documented in [DOCK_INSTALL_SPIKE.md](DOCK_INSTALL_SPIKE.md). Native Install passes the selected destination to Valve's verified Steam client. There is no custom depot downloader. The destination is registered even when empty. Pufflet preserves existing library registry entries and app manifests; it does not fabricate complete ACFs.
+The pinned Dock fork is `3c14dcc3d206fec11fa42d250b4a492fb25cad2a`; its lower-level interface and initial proof are documented in [DOCK_INSTALL_SPIKE.md](DOCK_INSTALL_SPIKE.md). Native Install passes the selected destination to Valve's verified Steam client. There is no custom depot downloader. The destination is registered even when empty. Pufflet preserves existing library registry entries and app manifests; it does not fabricate complete ACFs.
 
-Only one install runs at a time. Additional requests queue in order. The Downloads popover shows queued/preparing/installing/completed/failed/stopped/interrupted states. The displayed byte counter measures **Steam aggregate work**, including verification and installation, rather than network traffic. The optional pre-install size is an approximate public-depot estimate and can differ from Valve's chosen content and dependencies.
+Pufflet submits each install to one persistent Valve session; Valve schedules queued work and shared dependencies. Play uses that same session. The Downloads popover shows queued/preparing/installing/paused/completed/failed/stopped/interrupted states. The displayed byte counter measures **Steam aggregate work**, including verification and installation, rather than network traffic. The optional pre-install size is an approximate public-depot estimate and can differ from Valve's chosen content and dependencies.
 
-Completion requires the host to exit successfully, the numeric install-complete report, exact Steam API state `4`, exact complete ACF state `4`, and discovery of the corresponding installed record in the requested destination. Progress reaching its total is insufficient.
+Completion requires the per-app successful install-result and numeric install-complete report, exact Steam API state `4`, exact complete ACF state `4`, and discovery of the corresponding installed record in the requested destination. Progress reaching its total is insufficient.
 
-Stop stops the private Wine download session and the exact child Pufflet started, keeping existing content. Retry asks Steam to check those files and install again; this is not a promise of byte-for-byte network resume. There is no game-download Pause/Resume feature. Pending work restored after app interruption requires explicit Retry. Settings/account changes and game starts are blocked while downloads are pending. App updates defer relaunch; Quit offers to keep downloading or stop and quit after cleanup.
+Pause/Resume changes Valve's queue placement. Stop pauses and stops tracking the
+selected job, keeping its partial files; other downloads and games keep their
+shared session. Quit sends shutdown before the bounded private-prefix fallback.
+Pending downloads are resubmitted after relaunch so Valve checks and continues
+them; paused jobs remain available to Retry. A host crash shows an error and
+the next action starts a fresh session after confirming prefix teardown.
+
+Browsing, local refresh and ordinary Settings remain enabled during downloads.
+One game can run alongside queued installs. Valve owns its download-while-playing
+policy; the UI shows a client-reported pause while playing. Changing the library,
+replacing Wine, switching accounts and opening desktop Steam still require the
+session to stop. An idle session ends after five minutes. The native catalogue
+stays disconnected while Dock owns the account; its cached titles remain usable.
+`PUFFLET_PERSISTENT_SESSION=0` retains the one-shot launch/install paths and
+serial download/play gate.
+
+Missing game folders are excluded from installed discovery even if a stale ACF
+says complete. A missing executable offers Repair installation; reinstalling an
+API-state-4 app asks Valve to verify and restore files. Completion requires an
+observed verification/update transition and matching complete API/ACF state.
 
 ## Validation in this worktree
 
@@ -30,4 +49,10 @@ Stop stops the private Wine download session and the exact child Pufflet started
 - An explicit checker compiled from the production catalogue, client installer and headless-session sources fetched 30 unique entries, then disconnected. In its separate scratch prefix/library, an App ID 480 install was stopped after aggregate work began; its one-use handoff was removed. Retry completed with matching API/ACF state `4`. A subsequent production launch reported game-running, the matching game process was observed and terminated by its exact PID, and Dock exited cleanly with the handoff removed. Rendering and normal menu exit were not checked for this sample.
 - The installed Release app, external Over the Hill files and saves were preserved. Earlier Over the Hill rendering confirmation is separate from this feature's sample-launch evidence.
 
-Paid-game installs, disk-full/network-loss behavior, visible Muck gameplay, native multi-game queue completion, and recovery after an actual app crash have not been exercised end to end. Queue ordering/relaunch recovery and protocol rejection have automated coverage. This feature branch is not itself a notarized public release.
+The persistent-session work adds isolated Mac/Wine proof for simultaneous
+install/launch requests, Valve's automatic pause/resume policy, queue controls,
+quit/restart with partial files, actual host crash/recovery, deleted-folder
+repair, five-minute idle exit and the one-shot install kill switch. Full results,
+limits and screenshots are in [PERSISTENT_SESSION.md](PERSISTENT_SESSION.md).
+Paid-game installs, disk-full/network-loss behavior, extended visible gameplay
+and CEG remain unverified. This branch is not a notarized public release.

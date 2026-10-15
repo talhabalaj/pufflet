@@ -37,6 +37,21 @@ struct SteamLibraryTests {
         #expect(try SteamInstallation.game(from: incomplete, steamApps: URL(filePath: "/tmp")) == nil)
     }
 
+    @Test func staleCompleteManifestCannotMakeADeletedFolderInstalled() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let apps = root.appendingPathComponent("steamapps")
+        try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+        try Data(manifest.utf8).write(to: apps.appendingPathComponent("appmanifest_2929250.acf"))
+        let installation = SteamInstallation(prefix: root, libraryRoot: root)
+        #expect(try installation.library().isEmpty)
+        let game = try #require(try SteamInstallation.game(from: manifest, steamApps: apps))
+        try FileManager.default.createDirectory(at: game.folder, withIntermediateDirectories: true)
+        #expect(try installation.library().count == 1)
+        try FileManager.default.moveItem(at: game.folder, to: game.folder.appendingPathExtension("backup"))
+        #expect(try installation.library().isEmpty)
+    }
+
     @Test func rejectsTruncatedManifest() {
         var parser = VDFParser(#""AppState" { "name" "unfinished""#)
         #expect(throws: VDFParser.ParseError.self) { try parser.parse() }

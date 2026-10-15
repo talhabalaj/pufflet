@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SteamAccountView: View {
     @Bindable var account: SteamAccount
+    var sessionActive = false
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var password = ""
@@ -20,8 +21,11 @@ struct SteamAccountView: View {
                 } description: {
                     Text("Your Steam session is saved in this Mac’s Keychain.")
                 } actions: {
-                    Button("Sign out", role: .destructive) { account.signOut() }
+                    Button("Sign out", role: .destructive) { account.signOut() }.disabled(sessionActive)
+                    if sessionActive { Text("End the Steam session in Settings before changing accounts.").font(.caption).foregroundStyle(.secondary) }
                 }
+            } else if sessionActive {
+                Text("End the Steam session in Settings before signing in.")
             } else {
                 Picker("Sign-in method", selection: $account.method) {
                     ForEach(SteamAccount.Method.allCases, id: \.self) { Text($0.rawValue).tag($0) }

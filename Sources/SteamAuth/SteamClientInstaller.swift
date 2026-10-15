@@ -8,6 +8,7 @@ nonisolated struct SteamClientPaths: Sendable {
     var steam: URL { prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam") }
     var report: URL { prefix.appendingPathComponent("drive_c/steam-library-host.txt") }
     var handoff: URL { support.appendingPathComponent("Session/launch.auth") }
+    var requests: URL { support.appendingPathComponent("Session/Requests") }
 }
 
 nonisolated enum SteamHeadlessPaths {
@@ -28,7 +29,11 @@ nonisolated final class SteamClientRedirects: NSObject, URLSessionTaskDelegate {
     }
 }
 
-actor SteamClientInstaller {
+protocol SteamClientPreparing: Actor {
+    func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL?, progress: @Sendable (String) async -> Void) async throws -> [String: String]
+}
+
+actor SteamClientInstaller: SteamClientPreparing {
     private var busy = false
     private let paths: SteamClientPaths
     init(paths: SteamClientPaths = .standard) { self.paths = paths }
