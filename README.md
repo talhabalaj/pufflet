@@ -25,7 +25,7 @@ xcodebuild -project SteamLibrary.xcodeproj -scheme SteamLibrary \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath build test
 ```
 
-Madeira Dock is a Git submodule pinned to commit `72558e416a390f3669457930f09a389e54f49556`. Clone with `git clone --recurse-submodules` or initialize it with the command above. Its source is used by `Runtime/build-headless-host.sh`; the bundled host remains unchanged.
+Madeira Dock is a Git submodule pinned to Pufflet fork commit [`c983385`](https://github.com/talhabalaj/madeira-dock/tree/c98338578678f9e4ba64b7459744472afe97331d). Clone with `git clone --recurse-submodules` or initialize it with the command above. `Runtime/build-headless-host.sh` rebuilds the bundled host. The fork adds a tested, opt-in Valve install capability; no install UI is exposed yet. See [the spike and Swift integration notes](docs/DOCK_INSTALL_SPIKE.md).
 
 Ordinary app and Xcode Cloud builds never download, copy, or sign Wine/DXMT/GStreamer. They copy and app-team-sign the universal Dock bridge only. `Runtime/bootstrap-runtime.sh` and `Runtime/sign-runtime.py` remain explicit release-artifact preparation tools; no app build invokes them. A fresh build needs no runtime source cache. See [the runtime contract](Runtime/README.md) for signing, notarization, archive safety, and pinning. Swift package dependencies may still need their normal first resolution; the runtime is entirely offline at build time.
 
