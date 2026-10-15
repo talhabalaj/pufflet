@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             LibraryView(model: model)
                 .onAppear { delegate.model = model; AppUpdater.shared.start(model: model) }
                 .onChange(of: model.headless.isActive) { AppUpdater.shared.resumePendingInstall() }
+                .onChange(of: model.runtimeSetup.isBusy) { AppUpdater.shared.resumePendingInstall() }
                 .onChange(of: model.phase) { AppUpdater.shared.resumePendingInstall() }
         }
         .defaultSize(width: 900, height: 570)

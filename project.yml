@@ -24,6 +24,7 @@ targets:
     sources:
       - path: Sources
       - path: Resources
+        excludes: [libSteamLibraryDock.dylib]
         buildPhase: resources
     info:
       path: Config/Info.plist
@@ -42,17 +43,18 @@ targets:
     dependencies:
       - package: Sparkle
     postCompileScripts:
-      - name: Bundle Wine and DXMT
+      - name: Sign native Dock bridge
         script: /bin/sh "$SRCROOT/Runtime/bundle-runtime.sh"
-        basedOnDependencyAnalysis: true
+        basedOnDependencyAnalysis: false
         inputFiles:
           - "$(SRCROOT)/Runtime/bundle-runtime.sh"
-          - "$(SRCROOT)/Runtime/sign-runtime.py"
-          - "$(SRCROOT)/Runtime/Wine.entitlements"
+          - "$(SRCROOT)/Resources/libSteamLibraryDock.dylib"
         outputFiles:
-          - "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/SharedSupport/.runtime-bundled"
+          - "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/libSteamLibraryDock.dylib"
     settings:
       base:
+        SWIFT_OBJC_BRIDGING_HEADER: Config/RuntimeArchive.h
+        OTHER_LDFLAGS: ["$(inherited)", "-larchive"]
         GENERATE_INFOPLIST_FILE: NO
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
@@ -70,7 +72,9 @@ targets:
   SteamLibraryTests:
     type: bundle.unit-test
     platform: macOS
-    sources: [Tests]
+    sources:
+      - path: Tests
+        excludes: ["*.test.mjs"]
     dependencies:
       - target: SteamLibrary
     settings:

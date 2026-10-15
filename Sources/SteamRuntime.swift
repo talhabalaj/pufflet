@@ -38,7 +38,7 @@ nonisolated struct SteamRuntime: Sendable {
         case missingSetup, launchFailed(String)
         var errorDescription: String? {
             switch self {
-            case .missingSetup: "The bundled runtime or your Steam installation could not be found. Reinstall Pufflet or check your Steam library in Settings."
+            case .missingSetup: "Windows support or your Steam installation could not be found. Open Set Up Pufflet or check your Steam library in Settings."
             case let .launchFailed(message): "Steam could not start. \(message)"
             }
         }
@@ -61,7 +61,7 @@ nonisolated struct SteamRuntime: Sendable {
     }
 
     func environment() -> [String: String] {
-        let contents = installation.application.appendingPathComponent("Contents")
+        let contents = installation.runtimeApplication.appendingPathComponent("Contents")
         let wine = contents.appendingPathComponent("SharedSupport/wine")
         let frameworks = contents.appendingPathComponent("Frameworks")
         let renderer = contents.appendingPathComponent("SharedSupport/renderer/dxmt/wine").path
@@ -75,7 +75,7 @@ nonisolated struct SteamRuntime: Sendable {
         env["DYLD_FALLBACK_LIBRARY_PATH"] = [wine.appendingPathComponent("lib").path,
             wine.appendingPathComponent("lib64").path, frameworks.path,
             frameworks.appendingPathComponent("GStreamer.framework/Libraries").path,
-            "/opt/wine/lib", "/usr/lib", "/usr/libexec", "/usr/lib/system"].joined(separator: ":")
+            "/usr/lib", "/usr/libexec", "/usr/lib/system"].joined(separator: ":")
         env["WINEDLLPATH"] = ["x86_64-windows", "i386-windows", "x86_64-unix"]
             .map { wine.appendingPathComponent("lib/wine/\($0)").path }.joined(separator: ":")
         env["WINEDLLPATH_DXMT"] = renderer

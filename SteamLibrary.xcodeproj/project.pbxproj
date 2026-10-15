@@ -11,19 +11,23 @@
 		09DC218BC775B560748B2BB9 /* dockhost.exe in Resources */ = {isa = PBXBuildFile; fileRef = 537F7B671D4DD6CB7B463A2F /* dockhost.exe */; };
 		0A5E73BD584EA7EB9447DA9D /* SteamAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7F7C5D47981AFF8240153A /* SteamAccount.swift */; };
 		0B76DD5091FBEC8A898F27D8 /* SteamRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0158BD3C22A16882BB482C4A /* SteamRuntime.swift */; };
+		0ED7AA44D04998E76A4A567E /* RuntimeArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF4BBE4C86611A07C882A2C /* RuntimeArchive.swift */; };
 		16FFB668386E4C69176C9190 /* SteamCredentialAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82C3606641ABF67AB87E9F1 /* SteamCredentialAuth.swift */; };
 		17A53A5E7A833F3C75077817 /* SteamHeadlessSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546AF6304774AF1764B15223 /* SteamHeadlessSession.swift */; };
 		17BE13153E3E3F7B23251734 /* Pufflet.icon in Resources */ = {isa = PBXBuildFile; fileRef = 84ADEC0810BAF0E78032DCD1 /* Pufflet.icon */; };
 		1B7AF7FA750DFE729F356326 /* SteamArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */; };
+		22B4F454C5B2624F8C74C44A /* RuntimeArtifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D7B53DA3C534CB4715787F /* RuntimeArtifact.swift */; };
 		291BAE44FD4244631DE03B47 /* SteamQRAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8053717935458BD2A2C6C /* SteamQRAuth.swift */; };
+		2D8B4C4CB448FCA09AABAFE5 /* RuntimeInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79A857CEFC9C8363CD9BFA31 /* RuntimeInstallerTests.swift */; };
 		3CA8D9A2BBFBC35B47107BBF /* AppIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F106E48207FE519F2B0EBCE /* AppIdentity.swift */; };
 		3F37649A21102F86AD985FCA /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 847C9F172181D0AA05C4C500 /* LICENSE */; };
 		449B943817F75E714F2BF364 /* SteamClientInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B045A526B814B5DAC4D38B4 /* SteamClientInstaller.swift */; };
 		4B87276E079B2758A15DEA27 /* SteamLaunchConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */; };
 		4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 249413E5C7E6FCFED178256F /* LibraryView.swift */; };
 		505CD6A3C06793074E83AD22 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 3131D3C2D042903C3C99D451 /* Sparkle */; };
-		5121C0CCA4CB6E23A398CF6B /* libSteamLibraryDock.dylib in Resources */ = {isa = PBXBuildFile; fileRef = 584EBDAD99E3922960B19E28 /* libSteamLibraryDock.dylib */; };
 		6CA6A4D42CE2E581D1929B7B /* RuntimeDefaults.plist in Resources */ = {isa = PBXBuildFile; fileRef = 915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */; };
+		7256D79EFD4971775277B511 /* RuntimeInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7633C7B1EC9322599279A767 /* RuntimeInstaller.swift */; };
+		73A4C2DC7F34418FB7D31499 /* RuntimeSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65E4E882E929A1484E556891 /* RuntimeSetup.swift */; };
 		7A56D99748FC01B416F47C2E /* SteamAuthMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44670FC9E43E0D251626CE67 /* SteamAuthMessages.swift */; };
 		8449300D2074F7A2A4916D56 /* SteamDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DF9ADF59E7E52826EC4FDF /* SteamDevice.swift */; };
 		8A07D1A2FD5B93AF1A02EC2B /* SteamLaunchConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */; };
@@ -32,11 +36,13 @@
 		8EDC11A3AB6D0C3B000879B4 /* LibrarySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */; };
 		9521894709089B8E37E913F0 /* SteamLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEF834B1E4819021AEFD6FB /* SteamLog.swift */; };
 		957BD590E0A4E01EFB1E6715 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC651981AD6BA4DEBC13C677 /* AppUpdater.swift */; };
+		9F02BBE81B90008770C68681 /* RuntimeArtifact.json in Resources */ = {isa = PBXBuildFile; fileRef = 4CCB8480A7FE5DCB9C9A1044 /* RuntimeArtifact.json */; };
 		A44843AA63F6AA20A1BB18D2 /* SteamLibraryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD42491254AE6F53BA202AAF /* SteamLibraryApp.swift */; };
 		B1E83311FBD242C885A99A9D /* SteamLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9A262121DEA5591176E155 /* SteamLibrary.swift */; };
 		B5C457FDE8DAEEBD63D3CA21 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23581EFB5B56953D9A88D959 /* LibraryModel.swift */; };
 		BC68913C037F774EFAB183A0 /* SteamError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069F34A31805C4C293A1F67B /* SteamError.swift */; };
 		C243A7D736CF3A87CFC19DCF /* SteamClientInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C2087D5D1BAE94AE9AFA67 /* SteamClientInstallerTests.swift */; };
+		CC72BF5C306F3759A1F9C56B /* RuntimeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F710FD3D6E85DB7F3D8106A /* RuntimeOnboardingView.swift */; };
 		CF6FC705C9880C4EA3479BAE /* SteamAuthAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E50BEC1308D9D0823E5BDD /* SteamAuthAPI.swift */; };
 		D2293112D39C527EC6BF02DE /* LICENSE-EXCEPTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 32C4EF4A710A294167C8F32A /* LICENSE-EXCEPTION.md */; };
 		DCCFAF0B4BA756292AFCB1DD /* LibrarySettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187C8758A15233306D44E94E /* LibrarySettingsTests.swift */; };
@@ -69,18 +75,24 @@
 		27B1AB56077713E7240D99E7 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		299C2C8C97DA67A4E02FCAB3 /* dock-notices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "dock-notices.txt"; sourceTree = "<group>"; };
 		2D9A262121DEA5591176E155 /* SteamLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLibrary.swift; sourceTree = "<group>"; };
+		2F710FD3D6E85DB7F3D8106A /* RuntimeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOnboardingView.swift; sourceTree = "<group>"; };
 		32C4EF4A710A294167C8F32A /* LICENSE-EXCEPTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "LICENSE-EXCEPTION.md"; sourceTree = "<group>"; };
 		3339A9DBBC81FCEF1BFA3B32 /* SteamLibrary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SteamLibrary.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		44670FC9E43E0D251626CE67 /* SteamAuthMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAuthMessages.swift; sourceTree = "<group>"; };
 		4B045A526B814B5DAC4D38B4 /* SteamClientInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientInstaller.swift; sourceTree = "<group>"; };
+		4CCB8480A7FE5DCB9C9A1044 /* RuntimeArtifact.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = RuntimeArtifact.json; sourceTree = "<group>"; };
+		4CF4BBE4C86611A07C882A2C /* RuntimeArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeArchive.swift; sourceTree = "<group>"; };
 		537F7B671D4DD6CB7B463A2F /* dockhost.exe */ = {isa = PBXFileReference; path = dockhost.exe; sourceTree = "<group>"; };
 		5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamArtworkStore.swift; sourceTree = "<group>"; };
 		546AF6304774AF1764B15223 /* SteamHeadlessSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamHeadlessSession.swift; sourceTree = "<group>"; };
-		584EBDAD99E3922960B19E28 /* libSteamLibraryDock.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libSteamLibraryDock.dylib; sourceTree = "<group>"; };
 		5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySettings.swift; sourceTree = "<group>"; };
 		5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAuthenticationTests.swift; sourceTree = "<group>"; };
 		5F106E48207FE519F2B0EBCE /* AppIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentity.swift; sourceTree = "<group>"; };
+		65E4E882E929A1484E556891 /* RuntimeSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSetup.swift; sourceTree = "<group>"; };
 		6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLaunchConfiguration.swift; sourceTree = "<group>"; };
+		7633C7B1EC9322599279A767 /* RuntimeInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeInstaller.swift; sourceTree = "<group>"; };
+		79A857CEFC9C8363CD9BFA31 /* RuntimeInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeInstallerTests.swift; sourceTree = "<group>"; };
+		79D7B53DA3C534CB4715787F /* RuntimeArtifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeArtifact.swift; sourceTree = "<group>"; };
 		847C9F172181D0AA05C4C500 /* LICENSE */ = {isa = PBXFileReference; path = LICENSE; sourceTree = "<group>"; };
 		84ADEC0810BAF0E78032DCD1 /* Pufflet.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Pufflet.icon; sourceTree = "<group>"; };
 		915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = RuntimeDefaults.plist; sourceTree = "<group>"; };
@@ -138,8 +150,8 @@
 			isa = PBXGroup;
 			children = (
 				537F7B671D4DD6CB7B463A2F /* dockhost.exe */,
-				584EBDAD99E3922960B19E28 /* libSteamLibraryDock.dylib */,
 				84ADEC0810BAF0E78032DCD1 /* Pufflet.icon */,
+				4CCB8480A7FE5DCB9C9A1044 /* RuntimeArtifact.json */,
 				915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */,
 				8DFBEF12C858952B1D616CBC /* Notices */,
 			);
@@ -167,6 +179,7 @@
 			isa = PBXGroup;
 			children = (
 				187C8758A15233306D44E94E /* LibrarySettingsTests.swift */,
+				79A857CEFC9C8363CD9BFA31 /* RuntimeInstallerTests.swift */,
 				188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */,
 				5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */,
 				D1C2087D5D1BAE94AE9AFA67 /* SteamClientInstallerTests.swift */,
@@ -224,6 +237,11 @@
 				23581EFB5B56953D9A88D959 /* LibraryModel.swift */,
 				5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */,
 				249413E5C7E6FCFED178256F /* LibraryView.swift */,
+				4CF4BBE4C86611A07C882A2C /* RuntimeArchive.swift */,
+				79D7B53DA3C534CB4715787F /* RuntimeArtifact.swift */,
+				7633C7B1EC9322599279A767 /* RuntimeInstaller.swift */,
+				2F710FD3D6E85DB7F3D8106A /* RuntimeOnboardingView.swift */,
+				65E4E882E929A1484E556891 /* RuntimeSetup.swift */,
 				5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */,
 				6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */,
 				2D9A262121DEA5591176E155 /* SteamLibrary.swift */,
@@ -260,7 +278,7 @@
 			buildConfigurationList = BBC87E2ABEC03596307D8DDB /* Build configuration list for PBXNativeTarget "SteamLibrary" */;
 			buildPhases = (
 				C3526B96A4FFEDEDA36EE9C7 /* Sources */,
-				556D3AAE3C78A232A81C5F27 /* Bundle Wine and DXMT */,
+				BC22C6C14A213317A3B552F8 /* Sign native Dock bridge */,
 				C5A07641661EF1A9E69D5D53 /* Resources */,
 				6DA9A11074DA7F2AAD326596 /* Frameworks */,
 			);
@@ -326,18 +344,19 @@
 				3F37649A21102F86AD985FCA /* LICENSE in Resources */,
 				D2293112D39C527EC6BF02DE /* LICENSE-EXCEPTION.md in Resources */,
 				17BE13153E3E3F7B23251734 /* Pufflet.icon in Resources */,
+				9F02BBE81B90008770C68681 /* RuntimeArtifact.json in Resources */,
 				6CA6A4D42CE2E581D1929B7B /* RuntimeDefaults.plist in Resources */,
 				8ADFFFB310113FB796BCD5C4 /* dock-notices.txt in Resources */,
 				09DC218BC775B560748B2BB9 /* dockhost.exe in Resources */,
-				5121C0CCA4CB6E23A398CF6B /* libSteamLibraryDock.dylib in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		556D3AAE3C78A232A81C5F27 /* Bundle Wine and DXMT */ = {
+		BC22C6C14A213317A3B552F8 /* Sign native Dock bridge */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -345,14 +364,13 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/Runtime/bundle-runtime.sh",
-				"$(SRCROOT)/Runtime/sign-runtime.py",
-				"$(SRCROOT)/Runtime/Wine.entitlements",
+				"$(SRCROOT)/Resources/libSteamLibraryDock.dylib",
 			);
-			name = "Bundle Wine and DXMT";
+			name = "Sign native Dock bridge";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/SharedSupport/.runtime-bundled",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/libSteamLibraryDock.dylib",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -366,6 +384,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DCCFAF0B4BA756292AFCB1DD /* LibrarySettingsTests.swift in Sources */,
+				2D8B4C4CB448FCA09AABAFE5 /* RuntimeInstallerTests.swift in Sources */,
 				E80E8182086DB195C11BE949 /* SteamArtworkTests.swift in Sources */,
 				8B0A5AFEC38068A162398A09 /* SteamAuthenticationTests.swift in Sources */,
 				C243A7D736CF3A87CFC19DCF /* SteamClientInstallerTests.swift in Sources */,
@@ -383,6 +402,11 @@
 				B5C457FDE8DAEEBD63D3CA21 /* LibraryModel.swift in Sources */,
 				8EDC11A3AB6D0C3B000879B4 /* LibrarySettings.swift in Sources */,
 				4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */,
+				0ED7AA44D04998E76A4A567E /* RuntimeArchive.swift in Sources */,
+				22B4F454C5B2624F8C74C44A /* RuntimeArtifact.swift in Sources */,
+				7256D79EFD4971775277B511 /* RuntimeInstaller.swift in Sources */,
+				CC72BF5C306F3759A1F9C56B /* RuntimeOnboardingView.swift in Sources */,
+				73A4C2DC7F34418FB7D31499 /* RuntimeSetup.swift in Sources */,
 				0A5E73BD584EA7EB9447DA9D /* SteamAccount.swift in Sources */,
 				0430752DDA1EF63ED3B4FAD0 /* SteamAccountView.swift in Sources */,
 				1B7AF7FA750DFE729F356326 /* SteamArtworkStore.swift in Sources */,
@@ -576,10 +600,15 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-larchive",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = me.balaj.SteamLibrary;
 				PRODUCT_MODULE_NAME = SteamLibrary;
 				PRODUCT_NAME = Pufflet;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = Config/RuntimeArchive.h;
 			};
 			name = Release;
 		};
@@ -598,10 +627,15 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-larchive",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = me.balaj.SteamLibrary.dev;
 				PRODUCT_MODULE_NAME = SteamLibrary;
 				PRODUCT_NAME = "Pufflet Dev";
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = Config/RuntimeArchive.h;
 			};
 			name = Debug;
 		};

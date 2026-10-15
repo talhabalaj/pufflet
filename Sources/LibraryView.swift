@@ -34,6 +34,7 @@ struct LibraryView: View {
                 Button("Refresh library", systemImage: "arrow.clockwise") { model.refreshLibrary() }
                     .keyboardShortcut("r", modifiers: .command)
                 Menu("Steam options", systemImage: "ellipsis") {
+                    Button("Set Up Pufflet…") { model.showsSetup = true }
                     SettingsLink { Text("Settings…") }
                     Divider()
                     Button("Prepare Steam support…") { Task { await model.prepareSteamSupport() } }
@@ -70,7 +71,9 @@ struct LibraryView: View {
                     .padding(.horizontal, 28).padding(.vertical, 14).background(.bar)
             }
         }
+        .task { await model.beginSetup() }
         .task { await model.observeRuntime() }
+        .sheet(isPresented: $model.showsSetup) { RuntimeOnboardingView(model: model) }
         .sheet(isPresented: $model.showsAccount) { SteamAccountView(account: model.account) }
         .alert("Steam needs attention", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("Open desktop Steam") { Task { await model.openSteam() } }

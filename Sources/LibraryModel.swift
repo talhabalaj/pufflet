@@ -10,8 +10,11 @@ import os
 
     let settings = LibrarySettings()
     var installation: SteamInstallation {
-        SteamInstallation(prefix: settings.sourcePrefix, libraryRoot: settings.libraryURL)
+        SteamInstallation(prefix: settings.sourcePrefix, libraryRoot: settings.libraryURL, runtime: runtimeSetup.application)
     }
+    let runtimeSetup = RuntimeSetup()
+    var showsSetup = false
+    var steamSupportReady = false
     let artworkStore = SteamArtworkStore()
     let account = SteamAccount()
     let headless = SteamHeadlessSession()
@@ -39,11 +42,26 @@ import os
                         .appendingPathComponent("libSteamLibraryDock.dylib"))
     }
     var nativeRuntime: SteamRuntime {
-        SteamRuntime(installation: SteamInstallation(bundle: installation.application, prefix: SteamHeadlessPaths.prefix),
+        SteamRuntime(installation: SteamInstallation(bundle: installation.application, prefix: SteamHeadlessPaths.prefix, runtime: runtimeSetup.application),
                      dockBridge: runtime.dockBridge)
     }
 
     init() { refreshLibrary() }
+
+    var readyToPlay: Bool { settings.libraryURL != nil && runtimeSetup.isReady && account.accountName != nil && steamSupportReady }
+
+    func beginSetup() async {
+        account.refresh()
+        await runtimeSetup.check()
+        steamSupportReady = await SteamClientInstaller.isPrepared()
+        showsSetup = settings.libraryURL == nil || !runtimeSetup.isReady
+        if settings.libraryURL != nil && !runtimeSetup.isReady { runtimeSetup.start() }
+    }
+
+    private func requireRuntime() -> Bool {
+        guard runtimeSetup.isReady else { showsSetup = true; runtimeSetup.start(); return false }
+        return true
+    }
 
     func refreshLibrary() {
         guard settings.libraryURL != nil else {
@@ -64,7 +82,7 @@ import os
         while !Task.isCancelled {
             let observed = await SteamRuntime.snapshot()
             // A Windows path alone cannot distinguish two Wine prefixes.
-            let roots = [installation.application.path + "/", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app").path + "/"]
+            let roots = [installation.runtimeApplication.path + "/", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app").path + "/"]
             let owned = Set(NSWorkspace.shared.runningApplications.compactMap { application -> Int32? in
                 guard let path = application.bundleURL?.path, roots.contains(where: { path.hasPrefix($0) }) else { return nil }
                 return application.processIdentifier
@@ -104,7 +122,7 @@ import os
             }
             return
         }
-        guard !headless.isActive else { return }
+        guard !headless.isActive, requireRuntime() else { return }
         do {
             guard let credentials = try SteamKeychain().load(), credentials.isUsable() else {
                 showsAccount = true
@@ -139,7 +157,7 @@ import os
     }
 
     func playInDesktopSteam(_ game: SteamGame) async {
-        guard phase == .idle, !headless.isActive else { return }
+        guard phase == .idle, !headless.isActive, requireRuntime() else { return }
         phase = .launching(game.id)
         message = "Starting desktop Steam…"
         launchDeadline = ContinuousClock.now.advanced(by: .seconds(90))
@@ -148,8 +166,11 @@ import os
     }
 
     func prepareSteamSupport() async {
+        guard !headless.isActive, requireRuntime() else { return }
+        errorMessage = nil
         do {
             try await headless.prepare(runtime: nativeRuntime, library: games)
+            steamSupportReady = true
             message = "Steam support is ready"
         }
         catch { errorMessage = error.localizedDescription }
@@ -160,6 +181,7 @@ import os
             errorMessage = "Close the running game before opening desktop Steam."
             return
         }
+        guard requireRuntime() else { return }
         do { try await runtime.send(["steam://open/main"]) }
         catch { errorMessage = error.localizedDescription }
     }

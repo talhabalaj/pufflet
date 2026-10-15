@@ -83,7 +83,11 @@ struct LibrarySettingsView: View {
                 }
                 Button("Show app data") { NSWorkspace.shared.open(SteamHeadlessPaths.support) }
             } header: { Text("Steam support") }
-            footer: { Text("Wine and DXMT are bundled with Pufflet. Steam support and its session files are kept here.") }
+            footer: { Text("Verified Wine and DXMT downloads live in Runtimes, separately from your Steam prefix and session files. Games stay in your selected library.") }
+            Section("Windows support") {
+                LabeledContent("Runtime", value: model.runtimeSetup.isReady ? "Installed" : "Setup needed")
+                Button("Set Up Pufflet…") { model.showsSetup = true }
+            }
             Section("Updates") {
                 Toggle("Check for updates automatically", isOn: $automaticChecks)
                     .onChange(of: automaticChecks) { AppUpdater.shared.automaticallyChecks = automaticChecks }
@@ -112,6 +116,7 @@ struct LibrarySettingsView: View {
         do {
             try model.settings.setLibrary(url)
             model.refreshLibrary()
+            model.steamSupportReady = false
         } catch { locationError = error.localizedDescription }
     }
 }

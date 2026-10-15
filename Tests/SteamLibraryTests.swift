@@ -54,12 +54,16 @@ struct SteamLibraryTests {
     }
 
     @Test func runtimeUsesSamePrefixAndScopedDockBridge() {
-        let setup = SteamInstallation(home: URL(filePath: "/Users/example"))
+        let setup = SteamInstallation(home: URL(filePath: "/Users/example"), runtime: URL(filePath: "/private/runtime/PuffletRuntime.app"))
         let runtime = SteamRuntime(installation: setup, dockBridge: URL(filePath: "/tmp/DockBridge.dylib"))
         let environment = runtime.environment()
         #expect(environment["WINEPREFIX"] == environment["STEAM_LIBRARY_PREFIX"])
         #expect(environment["DYLD_INSERT_LIBRARIES"] == "/tmp/DockBridge.dylib")
         #expect(environment["WINEDLLPATH_DXMT"]?.contains("SharedSupport/renderer/dxmt/wine") == true)
+        #expect(setup.wine.path == "/private/runtime/PuffletRuntime.app/Contents/SharedSupport/wine/bin/wine")
+        #expect(environment["DYLD_FALLBACK_LIBRARY_PATH"]?.contains("/private/runtime/PuffletRuntime.app/Contents/Frameworks") == true)
+        #expect(environment["PATH"]?.hasPrefix("/private/runtime/") == true)
+        #expect(environment["SikarugirAppWine11"] == "1")
         #expect(environment["OPENAI_API_KEY"] == nil)
         #expect(environment["DXMT_CONFIG_FILE"] == nil)
     }

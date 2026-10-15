@@ -108,10 +108,16 @@ nonisolated struct VDFParser {
 nonisolated struct SteamInstallation: Sendable {
     let application: URL
     let prefix: URL
+    let runtimeApplication: URL
     private let libraryRoot: URL?
 
-    init(home: URL = FileManager.default.homeDirectoryForCurrentUser, bundle: URL = Bundle.main.bundleURL, prefix override: URL? = nil, libraryRoot: URL? = nil) {
+    init(home: URL = FileManager.default.homeDirectoryForCurrentUser, bundle: URL = Bundle.main.bundleURL, prefix override: URL? = nil, libraryRoot: URL? = nil, runtime: URL? = nil) {
         application = bundle
+        let support = home == FileManager.default.homeDirectoryForCurrentUser
+            ? AppIdentity.support
+            : home.appendingPathComponent("Library/Application Support/" + AppIdentity.dataDirectory)
+        runtimeApplication = runtime ?? (try? RuntimeArtifact.bundled())?.application(in: support)
+            ?? support.appendingPathComponent("Runtimes/unavailable/PuffletRuntime.app")
         self.libraryRoot = libraryRoot
         let defaultsURL = bundle.appendingPathComponent("Contents/Resources/RuntimeDefaults.plist")
         let defaults = (try? Data(contentsOf: defaultsURL))
@@ -129,7 +135,7 @@ nonisolated struct SteamInstallation: Sendable {
     }
 
     var steam: URL { libraryRoot ?? prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam") }
-    var wine: URL { application.appendingPathComponent("Contents/SharedSupport/wine/bin/wine") }
+    var wine: URL { runtimeApplication.appendingPathComponent("Contents/SharedSupport/wine/bin/wine") }
     var steamExecutable: URL { steam.appendingPathComponent("Steam.exe") }
 
     func library() throws -> [SteamGame] {

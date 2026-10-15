@@ -86,7 +86,12 @@ actor SteamClientInstaller {
         return mapping
     }
 
-    private static func verified(_ root: URL) -> Bool {
+    @concurrent static func isPrepared() async -> Bool {
+        verified(SteamHeadlessPaths.steam) && FileManager.default.fileExists(atPath:
+            SteamHeadlessPaths.prefix.appendingPathComponent("drive_c/windows/system32/cmd.exe").path)
+    }
+
+    nonisolated private static func verified(_ root: URL) -> Bool {
         guard let bytes = try? Data(contentsOf: root.appendingPathComponent("steamclient64.dll"), options: .mappedIfSafe) else { return false }
         return hash(bytes) == SteamClientPackages.clientSHA256 && FileManager.default.fileExists(atPath: root.appendingPathComponent("steam.exe").path)
     }
