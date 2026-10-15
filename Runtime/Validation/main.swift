@@ -74,45 +74,71 @@ import Synchronization
         guard try await installer.install(progress: { _ in }) == app else { throw CheckError.reuse }
         log("Offline reuse passed with production signature and Gatekeeper approval")
         let prefix = support.appendingPathComponent("validation-prefix")
+        guard prefix.resolvingSymlinksInPath() == prefix else { throw CheckError.prefixSymlink }
         try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let contents = app.appendingPathComponent("Contents")
         let wine = contents.appendingPathComponent("SharedSupport/wine")
         let inherited = ProcessInfo.processInfo.environment.filter { ["HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE"].contains($0.key) }
         let environment = inherited.merging(["WINEPREFIX": prefix.path, "PATH": "/usr/bin:/bin", "SikarugirAppWine11": "1"]) { _, value in value }
-        // Do not let loader environment hide missing LC_RPATH entries in a child executable.
-        try execute(wine.appendingPathComponent("bin/wineserver"), arguments: ["--version"],
-                    directory: prefix, environment: environment, label: "Wineserver without DYLD loader environment")
         let launchEnvironment = environment.merging([
             "DYLD_FALLBACK_LIBRARY_PATH": [wine.appendingPathComponent("lib").path, wine.appendingPathComponent("lib64").path,
                 contents.appendingPathComponent("Frameworks").path,
                 contents.appendingPathComponent("Frameworks/GStreamer.framework/Libraries").path, "/usr/lib"].joined(separator: ":")
         ]) { _, value in value }
-        try execute(wine.appendingPathComponent("bin/wine"), arguments: ["cmd", "/c", "ver"],
-                    directory: prefix, environment: launchEnvironment, label: "Wine cmd /c ver")
+        let server = wine.appendingPathComponent("bin/wineserver")
+        do {
+            // Do not let loader environment hide missing LC_RPATH entries in a child executable.
+            try execute(server, arguments: ["--version"], directory: prefix, environment: environment,
+                        label: "Wineserver without DYLD loader environment")
+            try execute(wine.appendingPathComponent("bin/wine"), arguments: ["cmd", "/c", "ver"],
+                        directory: prefix, environment: launchEnvironment, label: "Wine cmd /c ver")
+        } catch {
+            // WINEPREFIX restricts both cleanup commands to this checker's scratch prefix.
+            do {
+                try execute(server, arguments: ["-k9"], directory: prefix, environment: launchEnvironment,
+                            label: "Stop private validation prefix", timeout: 5)
+                try execute(server, arguments: ["-w"], directory: prefix, environment: launchEnvironment,
+                            label: "Wait for private validation prefix", timeout: 5)
+            } catch { log("Private validation prefix cleanup failed: \(error.localizedDescription)") }
+            throw error
+        }
     }
 
     static func execute(_ executable: URL, arguments: [String], directory: URL,
-                        environment: [String: String], label: String) throws {
-        let process = Process(); let pipe = Pipe()
+                        environment: [String: String], label: String, timeout: TimeInterval = 120) throws {
+        let process = Process()
+        let exited = DispatchSemaphore(value: 0)
         process.executableURL = executable; process.arguments = arguments
         process.currentDirectoryURL = directory; process.environment = environment
-        process.standardOutput = pipe; process.standardError = pipe
+        // Inherit output so a descendant retaining a pipe cannot defeat the deadline.
+        process.standardOutput = FileHandle.standardOutput; process.standardError = FileHandle.standardError
+        process.terminationHandler = { _ in exited.signal() }
         try process.run()
-        let output = pipe.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit()
-        log("\(label) exit: \(process.terminationStatus); \(String(decoding: output, as: UTF8.self))")
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
+            if process.isRunning { process.terminate() }
+            if exited.wait(timeout: .now() + 2) == .timedOut, process.isRunning {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + 2)
+            }
+            throw CheckError.commandTimedOut(label, timeout)
+        }
+        log("\(label) exit: \(process.terminationStatus)")
         guard process.terminationStatus == 0 else { throw CheckError.commandFailed(label, process.terminationStatus) }
     }
 
     enum CheckError: LocalizedError {
-        case usage, noPause, noResumeData, reuse
+        case usage, noPause, noResumeData, reuse, prefixSymlink
         case commandFailed(String, Int32)
+        case commandTimedOut(String, TimeInterval)
         var errorDescription: String? {
             switch self {
             case .usage: "Usage: validate-artifact.sh <pin.json> <scratch-support> [--pause-after-bytes N | --local-archive path]"
             case .noPause: "A partial download was not observed; use a fresh scratch-support folder."
             case .noResumeData: "The server did not produce usable resume data."
             case .reuse: "Offline reuse selected the wrong runtime."
+            case .prefixSymlink: "The scratch validation prefix must not be a symbolic link."
             case let .commandFailed(command, status): "\(command) failed with exit code \(status)."
+            case let .commandTimedOut(command, timeout): "\(command) timed out after \(Int(timeout)) seconds."
             }
         }
     }
