@@ -157,10 +157,8 @@ async function refreshRelease() {
       link.querySelector('[data-release-label]').textContent = 'Download for Mac';
     });
     document.querySelectorAll('[data-release-detail]').forEach(node => { node.textContent = release.detail; });
-    document.querySelector('[data-release-status]').textContent = 'Signed, notarized, and ready for your Mac.';
-    document.querySelector('[data-release-faq]').textContent = 'Pufflet is available now. Use Download for Mac on this page to get the latest signed and notarized release. Updates are delivered through the app.';
   } catch {
-    // The project links remain usable while the first release is unavailable.
+    // The latest-download links work even if this optional metadata refresh fails.
   }
 }
 refreshRelease();
