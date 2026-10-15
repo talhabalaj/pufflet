@@ -3,7 +3,7 @@ set -euo pipefail
 
 mode="${1:?Use prepare SOURCE_APP OUTPUT_DIR or finalize OUTPUT_DIR}"
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
-version=wine-11.0-dxmt-1
+version=wine-11.0-dxmt-2
 identity="${RUNTIME_SIGN_IDENTITY:-Developer ID Application: Talha Balaj (W7TT249CUU)}"
 
 case "$mode" in
@@ -19,6 +19,9 @@ prepare)
   rsync -aE "$source_app/Contents/SharedSupport/wine/" "$app/Contents/SharedSupport/wine/"
   rsync -aE --exclude renderer --exclude SikarugirSdk.framework "$source_app/Contents/Frameworks/" "$app/Contents/Frameworks/"
   rsync -aE "$source_app/Contents/Frameworks/renderer/dxmt/" "$app/Contents/SharedSupport/renderer/dxmt/"
+  # The signed wineserver child must resolve libinotify without depending on
+  # loader environment variables surviving Wine's process launch path.
+  install_name_tool -add_rpath '@loader_path/../../../Frameworks' "$app/Contents/SharedSupport/wine/bin/wineserver"
   cat > "$output/runtime-main.c" <<'C'
 #include <stdio.h>
 int main(void) { puts("This compatibility runtime is managed by Pufflet."); return 0; }
@@ -29,11 +32,12 @@ import plistlib,sys
 with open(sys.argv[1], 'wb') as file:
     plistlib.dump(dict(CFBundleIdentifier='me.balaj.Pufflet.Runtime', CFBundleExecutable='PuffletRuntime',
         CFBundleName='PuffletRuntime', CFBundlePackageType='APPL', CFBundleShortVersionString='11.0',
-        CFBundleVersion='1', LSMinimumSystemVersion='26.0', LSUIElement=True), file)
+        CFBundleVersion='2', LSMinimumSystemVersion='26.0', LSUIElement=True), file)
 PY
   EXPANDED_CODE_SIGN_IDENTITY="$identity" CONFIGURATION=Release python3 "$repo_root/Runtime/sign-runtime.py" "$app/Contents"
   codesign --force --sign "$identity" --options runtime --timestamp "$app"
   codesign --verify --deep --strict "$app"
+  python3 "$repo_root/scripts/ci/runtime-smoke.py" "$app" "$output/smoke-prefix"
   ditto -c -k --sequesterRsrc --keepParent "$app" "$output/notarization.zip"
   printf 'Submit %s/notarization.zip to Apple, then run finalize after acceptance.\n' "$output"
   ;;

@@ -60,13 +60,20 @@ PuffletRuntime.app/
       <flat native support libraries>
 ```
 
-Sign all native Mach-O files inside-out using Developer ID team `W7TT249CUU`;
-only Wine/wineserver receive `Wine.entitlements`. Seal the root wrapper app,
+Sign all native Mach-O files inside-out using Developer ID team `W7TT249CUU`.
+`bin/wine` and `bin/wineserver` receive `Wine.entitlements`. The re-executed
+Windows loader, `lib/wine/x86_64-unix/wine`, receives
+`WindowsLoader.entitlements`: the same executable-memory/DYLD exceptions plus
+library-validation opt-out for mapping unsigned Windows PE code. The launcher,
+Dock bridge and wrapper retain their own normal entitlements. Executable page
+protection stays enabled. Seal the root wrapper app,
 notarize and staple it, then archive without outside AppleDouble files or hard
 links. Keep normal modes and internal relative framework symlinks; do not emit
 archive members beneath symlink paths. Validate a freshly extracted archive with
-strict/deep signature verification and Gatekeeper before publishing. Do not strip
-quarantine, disable library validation, or bypass macOS protections.
+strict/deep signature verification and Gatekeeper before publishing. Also run
+the explicit checker through a fresh-prefix Windows command; `wine --version`
+does not exercise the re-executed loader or PE mappings. Never strip quarantine
+or bypass Gatekeeper.
 
 ## Installation and data ownership
 

@@ -28,7 +28,11 @@ for root in roots:
 for path in sorted(native, key=lambda p: len(p.parts), reverse=True):
     command = ["/usr/bin/codesign", "--force", "--sign", identity, "--options", "runtime"]
     command += ["--timestamp"] if os.environ.get("CONFIGURATION") == "Release" else ["--timestamp=none"]
-    if path in [contents / "SharedSupport/wine/bin/wine", contents / "SharedSupport/wine/bin/wineserver"]:
+    if path == contents / "SharedSupport/wine/lib/wine/x86_64-unix/wine":
+        # bin/wine re-execs this process host. It maps unsigned Windows PE code;
+        # the exception belongs here, not on the launcher or native Dock bridge.
+        command += ["--entitlements", str(Path(__file__).with_name("WindowsLoader.entitlements"))]
+    elif path in [contents / "SharedSupport/wine/bin/wine", contents / "SharedSupport/wine/bin/wineserver"]:
         command += ["--entitlements", str(Path(__file__).with_name("Wine.entitlements"))]
     subprocess.run(command + [str(path)], check=True)
 
