@@ -10,7 +10,7 @@ A native SwiftUI home for installed Windows Steam games on Apple silicon Macs. A
 
 Requires macOS 26 or later and Apple silicon. Choose your existing Steam library in **Pufflet → Settings → Games**. Select the folder containing `steamapps`, or `steamapps` itself. Pufflet reads the installed manifests and uses those game files in place. Installation, verification and compatibility fallback remain available in desktop Steam. Compatibility varies by game.
 
-Wine 11, DXMT, launch configuration and the Dock bridge live inside the application. Writable Steam support is in `~/Library/Application Support/SteamLibrary`. Native sign-in tokens are stored in Keychain. No Steam password is retained. The headless host gets its token through a private, one-use file rather than command arguments or environment variables.
+Wine 11, DXMT, launch configuration and the Dock bridge live inside the application. Writable Steam support is in `~/Library/Application Support/Pufflet`. Artwork caches and logs use `~/Library/Caches/Pufflet` and `~/Library/Logs/Pufflet`. Native sign-in tokens are stored in Keychain. No Steam password is retained. The headless host gets its token through a private, one-use file rather than command arguments or environment variables.
 
 The Wine prefix is separate from other wrappers; it is **not a security sandbox**. Game libraries are intentionally shared through directory links. Keep backups of saves as you would for any Wine environment.
 
@@ -33,10 +33,10 @@ The project uses Apple development signing by default. Set your development team
 
 | Configuration | App | Bundle ID | Private data |
 | --- | --- | --- | --- |
-| Debug | Pufflet Dev | `me.balaj.SteamLibrary.dev` | `SteamLibraryDev` |
-| Release | Pufflet | `me.balaj.SteamLibrary` | `SteamLibrary` |
+| Debug | Pufflet Dev | `me.balaj.SteamLibrary.dev` | `PuffletDev` |
+| Release | Pufflet | `me.balaj.SteamLibrary` | `Pufflet` |
 
-Preferences, Keychain sessions, caches, logs and Wine prefixes are separate. Development builds do not check for public updates. The historical release identifier is retained so signed updates can keep their Keychain identity.
+Preferences, Keychain sessions, caches, logs and Wine prefixes are separate. Existing `SteamLibrary` / `SteamLibraryDev` data folders are renamed automatically when the corresponding Pufflet folder does not exist. Existing destination folders are never overwritten or merged; if a rename fails, the app keeps using the old folder. Development builds do not check for public updates. The historical release identifier is retained so signed updates can keep their Keychain identity.
 
 ## Updates and distribution
 

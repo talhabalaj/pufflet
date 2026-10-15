@@ -7,9 +7,17 @@ import SwiftUI
     private static let locationKey = "steamLibraryPath"
     private(set) var libraryURL: URL?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, support: URL = AppIdentity.support) {
         self.defaults = defaults
         libraryURL = defaults.string(forKey: Self.locationKey).map { URL(filePath: $0, directoryHint: .isDirectory) }
+        let legacy = support.deletingLastPathComponent().appendingPathComponent(AppIdentity.legacyDataDirectory).path + "/"
+        if let libraryURL, libraryURL.path.hasPrefix(legacy), !FileManager.default.fileExists(atPath: libraryURL.path) {
+            let relocated = support.appendingPathComponent(String(libraryURL.path.dropFirst(legacy.count)))
+            if FileManager.default.fileExists(atPath: relocated.path) {
+                self.libraryURL = relocated
+                defaults.set(relocated.path, forKey: Self.locationKey)
+            }
+        }
     }
 
     var sourcePrefix: URL? {

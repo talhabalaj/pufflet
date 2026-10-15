@@ -116,8 +116,16 @@ nonisolated struct SteamInstallation: Sendable {
         let defaultsURL = bundle.appendingPathComponent("Contents/Resources/RuntimeDefaults.plist")
         let defaults = (try? Data(contentsOf: defaultsURL))
             .flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: String] }
-        let relative = defaults?["SteamDataRelativePath"] ?? "Library/Application Support/" + AppIdentity.dataDirectory + "/prefix"
-        prefix = override ?? home.appendingPathComponent(relative)
+        if let override {
+            prefix = override
+        } else if let relative = defaults?["SteamDataRelativePath"] {
+            prefix = home.appendingPathComponent(relative)
+        } else {
+            let support = home == FileManager.default.homeDirectoryForCurrentUser
+                ? AppIdentity.support
+                : home.appendingPathComponent("Library/Application Support/" + AppIdentity.dataDirectory)
+            prefix = support.appendingPathComponent("prefix")
+        }
     }
 
     var steam: URL { libraryRoot ?? prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam") }

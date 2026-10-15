@@ -42,8 +42,7 @@ final class SteamArtworkStore {
         configuration.httpCookieStorage = nil
         configuration.urlCache = nil
         session = URLSession(configuration: configuration)
-        self.cache = cache ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(AppIdentity.dataDirectory + "/Artwork")
+        self.cache = cache ?? AppIdentity.caches.appendingPathComponent("Artwork")
         images.totalCostLimit = 24 * 1024 * 1024
     }
 
