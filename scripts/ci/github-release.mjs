@@ -27,14 +27,15 @@ export function githubReleaseStore({ run = gh } = {}) {
       if (remoteCommit !== commitSha) throw new Error('Release tag does not point to the verified source commit.');
       release = inspect();
       if (!release) {
-        run(['release', 'create', tag, '--repo', githubRepository, '--verify-tag', '--target', commitSha,
-          '--draft', '--latest=false', '--title', `Pufflet ${version}`, '--notes', 'Developer ID signed and notarized macOS release.']);
-        release = inspect();
+        release = JSON.parse(run(['api', `repos/${githubRepository}/releases`, '--method', 'POST',
+          '-f', `tag_name=${tag}`, '-f', `target_commitish=${commitSha}`, '-F', 'draft=true',
+          '-F', 'prerelease=false', '-f', 'make_latest=false', '-f', `name=Pufflet ${version}`,
+          '-f', 'body=Developer ID signed and notarized macOS release.']));
       }
       if (!release || release.prerelease || release.target_commitish !== commitSha) throw new Error('Existing release has unexpected source or prerelease status.');
     },
     async read(name) {
-      release = inspect();
+      release = JSON.parse(run(['api', `repos/${githubRepository}/releases/${release.id}`]));
       if (!release.assets.some(asset => asset.name === name)) return new Response(null, { status: 404 });
       const directory = mkdtempSync(join(tmpdir(), 'pufflet-release-'));
       try {
@@ -47,7 +48,7 @@ export function githubReleaseStore({ run = gh } = {}) {
       if (basename(file) !== name) throw new Error('Release asset filename mismatch.');
       run(['release', 'upload', tag, file, '--repo', githubRepository]); // No --clobber.
     },
-    async publish() { if (inspect().draft) run(['release', 'edit', tag, '--repo', githubRepository, '--draft=false', '--latest=false']); },
+    async publish() { if (release.draft) run(['release', 'edit', tag, '--repo', githubRepository, '--draft=false', '--latest=false']); },
     async promote() { run(['release', 'edit', tag, '--repo', githubRepository, '--latest']); },
   };
 }
