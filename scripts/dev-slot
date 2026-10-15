@@ -1,0 +1,50 @@
+#!/bin/zsh
+# Fair, time-boxed turn-taking for Pufflet Dev app / Steam-online testing across agent threads.
+# shortcut: one shared slot (shared PuffletDev data + one Steam session); replace with per-worktree PUFFLET_PROFILE later.
+# Usage: scripts/dev-slot acquire <name> | renew <name> | release <name> | status
+set -u
+D="$HOME/Library/Application Support/PuffletInstanceLocks/dev-slot"
+LOCK="$D/lock" Q="$D/queue"
+SLOT=$((20*60)) STALE_Q=$((10*60))
+mkdir -p "$Q"
+now() { date +%s }
+age() { echo $(( $(now) - $(stat -f %m "$1") )) }
+owner() { cat "$LOCK/owner" 2>/dev/null }
+
+expire() {
+  [[ -d $LOCK ]] && (( $(age "$LOCK/owner" 2>/dev/null || echo 999999) > SLOT )) && {
+    echo "expired slot of $(owner); reclaiming" >&2; rm -rf "$LOCK"; }
+  for f in "$Q"/*(N); do (( $(age "$f") > STALE_Q )) && rm -f "$f"; done
+}
+first() { ls "$Q" | sort | head -1 | sed 's/^[0-9]*-//' }
+waiting() { ls "$Q" | grep -cv -- "-$1\$" }
+
+cmd=${1:-status} name=${2:-}
+case $cmd in
+acquire)
+  [[ -n $name ]] || { echo "need a name"; exit 2 }
+  expire
+  if [[ $(owner) == "$name" ]]; then echo "GRANTED (already yours, $(( SLOT - $(age "$LOCK/owner") ))s left)"; exit 0; fi
+  e=$(ls "$Q" | grep -- "-$name\$" | head -1)
+  [[ -n $e ]] && touch "$Q/$e" || touch "$Q/$(now)-$name"
+  if [[ $(first) == "$name" ]] && mkdir "$LOCK" 2>/dev/null; then
+    echo "$name" > "$LOCK/owner"; rm -f "$Q"/*-"$name"
+    echo "GRANTED for $((SLOT/60)) min. Quit any running 'Pufflet Dev' first (it belongs to an expired holder). Release when done."
+    exit 0
+  fi
+  pos=$(ls "$Q" | sort | grep -n -- "-$name\$" | cut -d: -f1)
+  echo "WAIT: slot held by ${$(owner):-nobody}; you are #$pos in queue. Retry acquire in ~1 min (re-run keeps your place; idle >10 min drops it)."
+  exit 1 ;;
+renew)
+  [[ $(owner) == "$name" ]] || { echo "not your slot"; exit 1 }
+  (( $(waiting "$name") > 0 )) && { echo "DENIED: others are waiting; release now"; exit 1 }
+  touch "$LOCK/owner"; echo "RENEWED for $((SLOT/60)) min" ;;
+release)
+  [[ $(owner) == "$name" ]] && rm -rf "$LOCK" && echo "RELEASED" || echo "not your slot (owner: $(owner))"
+  rm -f "$Q"/*-"$name"(N) ;;
+status)
+  expire
+  [[ -d $LOCK ]] && echo "held by $(owner), $(( SLOT - $(age "$LOCK/owner") ))s left" || echo "free"
+  ls "$Q" | sort | sed 's/^[0-9]*-/  waiting: /' ;;
+*) echo "usage: scripts/dev-slot acquire|renew|release <name> | status"; exit 2 ;;
+esac

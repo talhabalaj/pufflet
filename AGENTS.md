@@ -17,13 +17,15 @@ account that can only be online in one place.
   game launches with the real account):
 
   ```sh
-  ~/personal/pufflet-dev-slot acquire <your-branch>   # GRANTED: 20 min. WAIT: retry ~1/min
-  ~/personal/pufflet-dev-slot renew <your-branch>     # only if nobody is waiting
-  ~/personal/pufflet-dev-slot release <your-branch>   # after quitting Pufflet Dev and its wineserver/dockhost
-  ~/personal/pufflet-dev-slot status
+  scripts/dev-slot acquire <your-branch>   # GRANTED: 20 min. WAIT: retry ~1/min
+  scripts/dev-slot renew <your-branch>     # only if nobody is waiting
+  scripts/dev-slot release <your-branch>   # after quitting Pufflet Dev and its wineserver/dockhost
+  scripts/dev-slot status
   ```
 
-  When granted, quit any running Pufflet Dev first; it belongs to an expired
+  Run it from any worktree; turns are per Mac user (state lives in
+  `~/Library/Application Support/PuffletInstanceLocks/dev-slot`), so teammates
+  on other Macs are unaffected. When granted, quit any running Pufflet Dev first; it belongs to an expired
   holder. Batch your app and Steam checks so each turn counts.
 - **No turn is needed** for unit tests and offline Wine tests that use their own
   temporary prefix outside `PuffletDev` and don't sign in to Steam. Prefer those.
