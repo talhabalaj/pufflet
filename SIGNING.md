@@ -11,3 +11,27 @@ Stable Developer ID signing keeps Keychain's designated requirement tied to the 
 The explicit runtime packager signs native Wine, DXMT and supporting libraries before sealing the separate runtime app. Normal launcher builds sign only their bundled Dock bridge. Windows renderer DLLs live in SharedSupport, outside macOS's reserved Frameworks directory. Only Wine's two native process hosts receive runtime exceptions for executable memory and the Dock bridge's DYLD environment; the Swift launcher retains its normal hardened runtime settings.
 
 https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements
+
+## Credentials and their sources
+
+No private credentials are committed to this repository. A normal local build
+uses the selected Apple signing identity in macOS Keychain; `Local.xcconfig` only
+names that identity. App builds do not need Cloudflare, ASC, or Sparkle private keys.
+
+| Purpose | Local source | CI source |
+| --- | --- | --- |
+| Developer ID code signing | Certificate and private key in macOS Keychain | Xcode Cloud manages app signing |
+| Apple notarization/API | `asc` profile `Pufflet`; notarytool profile `Pufflet Runtime`, created from Personal 1Password **Pufflet - App Store Connect CI** | `ASC_PRIVATE_KEY`, `ASC_KEY_ID`, `ASC_ISSUER_ID` Actions secrets |
+| Sparkle archive/feed signing | Keychain service `https://sparkle-project.org`, account `me.balaj.Pufflet`; recovery in Personal 1Password **Pufflet - Sparkle update signing** | `SPARKLE_PRIVATE_KEY` Actions secret |
+| Website deployment | Personal 1Password **Pufflet - Cloudflare CI token**, or the interactive `cf` login | `CLOUDFLARE_API_TOKEN` Actions secret |
+| GitHub release publishing | Existing authenticated `gh` session | Ephemeral `github.token` scoped to the publish job with `contents: write` |
+| Steam sign-in | App-specific Keychain service `<bundle-id>.steam.tokens` | Never used by CI or bundled in artifacts |
+
+The updater public key, runtime checksum/URL/team, bundle IDs and Cloud workflow
+ID are public configuration. Runtime installation uses anonymous HTTPS downloads
+and the app-bundled pin; users do not need developer credentials or 1Password.
+
+The first separate runtime was assembled, Developer ID signed and notarized
+locally using the explicit packager. A dedicated runtime CI workflow is not yet
+configured. It must remain separate from normal app builds and use its own
+Developer ID signing setup; the ASC API key alone cannot sign native code.
