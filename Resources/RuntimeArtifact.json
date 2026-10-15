@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "version": "wine-11.0-dxmt-1",
   "url": "https://github.com/talhabalaj/pufflet/releases/download/runtime-wine-11.0-dxmt-1/PuffletRuntime-wine-11.0-dxmt-1.tar.xz",
-  "sha256": "",
-  "sizeBytes": 0,
-  "expandedSizeBytes": 0,
+  "sha256": "12433ab121cc7e16c0bdb5adf7588cfee96cd544c057d074e9e9b0fc7c8f6104",
+  "sizeBytes": 255048980,
+  "expandedSizeBytes": 1157078030,
   "bundleName": "PuffletRuntime.app",
   "teamIdentifier": "W7TT249CUU"
 }
