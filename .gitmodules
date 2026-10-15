@@ -1,0 +1,3 @@
+[submodule "madeira-dock"]
+	path = Research/Madeira/Dock
+	url = https://github.com/125hz/madeira-dock.git

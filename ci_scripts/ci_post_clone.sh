@@ -3,6 +3,7 @@ set -eu
 : "${CI_PRIMARY_REPOSITORY_PATH:?}"
 : "${CI_BUILD_NUMBER:?}"
 cd "$CI_PRIMARY_REPOSITORY_PATH"
+git submodule update --init --recursive
 /bin/sh Runtime/bootstrap-runtime.sh
 python3 - <<'PYC'
 from pathlib import Path

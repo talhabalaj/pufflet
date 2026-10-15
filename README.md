@@ -19,10 +19,13 @@ The Wine prefix is separate from other wrappers; it is **not a security sandbox*
 Install Xcode 27 and XcodeGen, then:
 
 ```sh
+git submodule update --init --recursive
 xcodegen generate
 xcodebuild -project SteamLibrary.xcodeproj -scheme SteamLibrary \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath build test
 ```
+
+Madeira Dock is a Git submodule pinned to commit `72558e416a390f3669457930f09a389e54f49556`. Clone with `git clone --recurse-submodules` or initialize it with the command above. Its source is used by `Runtime/build-headless-host.sh`; the bundled host remains unchanged.
 
 The runtime bootstrap downloads exact checksum-pinned engine/template packages from Sikarugir. It never downloads a signed-in prefix or game. The build bundles Wine and DXMT and excludes the other renderers. See `Runtime/bootstrap-runtime.sh` for sources and hashes. A local runtime source can be supplied with the `STEAM_RUNTIME_SOURCE_APP` build setting.
 
