@@ -4,7 +4,7 @@ import { githubReleaseStore } from './github-release.mjs';
 const sha='a'.repeat(40);
 function fixture(draft=true) {
   const calls=[];let release={draft,prerelease:false,target_commitish:sha,assets:[]};
-  const run=args=>{calls.push(args); if(args[0]==='api')return args[1].includes('/commits/')?`${sha}\n`:JSON.stringify(release); return '';};
+  const run=args=>{calls.push(args); if(args[0]==='api'){assert.ok(!args[1].includes('/releases/tags/'),'by-tag API cannot discover drafts');return args[1].includes('/commits/')?`${sha}\n`:JSON.stringify(release);} return '';};
   return {store:githubReleaseStore({run}),calls,setRelease:value=>release=value};
 }
 test('requires remote tag provenance before any mutation',async()=>{

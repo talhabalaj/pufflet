@@ -17,7 +17,9 @@ function gh(args, allowMissing = false) {
 
 export function githubReleaseStore({ run = gh } = {}) {
   let release, tag;
-  const inspect = () => JSON.parse(run(['api', `repos/${githubRepository}/releases/tags/${tag}`], true) ?? 'null');
+  // GitHub's by-tag endpoint omits drafts, even for an authenticated owner.
+  const inspect = () => JSON.parse(run(['api', `repos/${githubRepository}/releases?per_page=100`, '--paginate',
+    '--jq', `.[] | select(.tag_name == ${JSON.stringify(tag)})`])?.trim() || 'null');
   return {
     async begin(version, commitSha) {
       tag = `v${version}`;
