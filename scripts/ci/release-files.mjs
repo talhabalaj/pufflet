@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const releaseOrigin = 'https://pufflet.apps.balaj.me';
-// Previously signed Superscribe downloads remain immutable and valid.
 export const releaseArchivePattern = /^Pufflet-\d+(?:\.\d+){0,2}-\d+(?:\.\d+){0,2}\.zip$/;
 const xml = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]);
 

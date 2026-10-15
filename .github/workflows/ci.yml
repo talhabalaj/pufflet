@@ -18,7 +18,7 @@ jobs:
           cache: npm
           cache-dependency-path: site/package-lock.json
       - run: npm ci --prefix site
-      - run: node --test scripts/ci/*.test.mjs
+      - run: node --test scripts/ci/*.test.mjs Tests/*.test.mjs
       - run: python3 -m unittest discover -s scripts/ci -p '*_test.py'
       - run: node --experimental-strip-types --test site/tests/*.test.mjs
       - run: npm run typecheck --prefix site
