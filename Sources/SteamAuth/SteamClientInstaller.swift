@@ -94,6 +94,7 @@ actor SteamClientInstaller {
         try encoded.write(to: registry, options: .atomic)
         defer { try? fm.removeItem(at: registry) }
         try await runtime.runWindows(["C:\\windows\\system32\\reg.exe", "import", "C:\\steam-library-setup.reg"])
+        try await runtime.prepareDisplayDefaults()
         return mapping
     }
 
@@ -196,10 +197,6 @@ actor SteamClientInstaller {
     [HKEY_CURRENT_USER\Software\Valve\Steam\ActiveProcess]
     "SteamClientDll"="C:\\Program Files (x86)\\Steam\\steamclient.dll"
     "SteamClientDll64"="C:\\Program Files (x86)\\Steam\\steamclient64.dll"
-    [HKEY_CURRENT_USER\Control Panel\Desktop]
-    "LogPixels"=dword:000000c0
-    [HKEY_CURRENT_USER\Software\Wine\Mac Driver]
-    "RetinaMode"="y"
 
     """#
 }
