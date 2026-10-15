@@ -7,10 +7,9 @@ export const githubRepository = 'talhabalaj/pufflet';
 export const githubDownloads = `https://github.com/${githubRepository}/releases`;
 
 // Never log gh's captured output: authenticated API errors can contain URLs.
-function gh(args, allowMissing = false) {
+function gh(args) {
   try { return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1024 * 1024 }); }
-  catch (error) {
-    if (allowMissing && /HTTP 404/.test(String(error.stderr))) return null;
+  catch {
     throw new Error(`GitHub release command failed (${args.slice(0, 2).join(' ')}).`);
   }
 }
@@ -39,12 +38,12 @@ export function githubReleaseStore({ run = gh } = {}) {
       if (!release.assets.some(asset => asset.name === name)) return new Response(null, { status: 404 });
       const directory = mkdtempSync(join(tmpdir(), 'pufflet-release-'));
       try {
-        if (run(['release', 'download', tag, '--repo', githubRepository, '--pattern', name, '--dir', directory]) === null) throw new Error('Could not read the existing release asset.');
+        run(['release', 'download', tag, '--repo', githubRepository, '--pattern', name, '--dir', directory]);
         return new Response(readFileSync(join(directory, name)));
       } finally { rmSync(directory, { recursive: true, force: true }); }
     },
     async put(name, file) {
-      if (!release.is_draft && !release.draft) throw new Error('Refusing to add assets to a published release.');
+      if (!release.draft) throw new Error('Refusing to add assets to a published release.');
       if (basename(file) !== name) throw new Error('Release asset filename mismatch.');
       run(['release', 'upload', tag, file, '--repo', githubRepository]); // No --clobber.
     },
