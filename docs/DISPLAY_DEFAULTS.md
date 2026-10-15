@@ -91,5 +91,14 @@ included in these lines.
 - Wine display logging was enabled only in the isolated prefix
   (`WINEDEBUG=-all,+display,+macdrv`). The production prefix and Steam data were
   not used for these checks.
-- Game visual evidence and normal-identity hosted test results are recorded below
-  when verification is complete.
+- All 66 tests passed with the normal Debug bundle identity while holding the
+  shared verification slot. The normal app build passed as well.
+- Peggle's offline launch stopped at missing Steam initialization; Trailmakers
+  initialized Direct3D 11.1 on the M4 Pro but failed Steam initialization. These
+  runs do not establish crop-free rendering or usable game UI. Native Wine-window
+  capture also timed out.
+- Online game verification was explicitly skipped at the user's request before
+  the waiting Keychain read completed. No online QA game session was started.
+  Before/after game screenshots, Peggle crop verification and modern-game UI/text
+  checks therefore remain unverified. The driver-level findings above are not a
+  substitute for that visual evidence.
