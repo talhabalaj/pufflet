@@ -1,13 +1,13 @@
 # Pufflet builds and releases
 
-This is the same release architecture as Said: Xcode Cloud creates a **STAPLED_NOTARIZED_ARCHIVE**, GitHub verifies it on macOS, Sparkle signs the archive/feed, and private R2 stores immutable downloads served through `https://pufflet.apps.balaj.me`.
+This is the same release architecture as Said: Xcode Cloud creates a **STAPLED_NOTARIZED_ARCHIVE**, GitHub verifies it on macOS, Sparkle signs the archive/feed, and GitHub Releases stores versioned downloads served through `https://pufflet.apps.balaj.me`.
 
 ## Configured
 
 - Public source repository: `talhabalaj/pufflet`.
 - Shared Xcode project/scheme: `SteamLibrary.xcodeproj` / `SteamLibrary`.
 - Developer team: `W7TT249CUU`; production identity `me.balaj.SteamLibrary`.
-- Worker `pufflet-site`, custom domain `pufflet.apps.balaj.me`, private bucket `pufflet-releases`.
+- Worker `pufflet-site`, custom domain `pufflet.apps.balaj.me`, GitHub release assets (no R2 runtime/download binding).
 - Sparkle public verification key is committed in the app's typed Info.plist settings. The private key is held in Keychain and backed up in 1Password; CI uses an encrypted repository secret. No key belongs in source control.
 - CI runs release-tooling tests, website types/build and script checks. Native tests run locally and in the Xcode Cloud release workflow.
 
@@ -23,15 +23,21 @@ Apple's new-repository onboarding and CI credentials cannot be copied by reading
 2. Create a clean, enabled, locked **Pufflet Release** workflow. Required macOS Test and Archive actions must use the **SteamLibrary** scheme. Use Xcode 27/macOS 27 SDK and a macOS 26 or 27 test destination. Add the Archive **Notarize** post-action. Keep Distribution Preparation at None, as for Said.
 3. Enable **Manual Start → Tags** for `v` tags. Disable automatic branch/tag conditions so GitHub's API start does not duplicate the build. Start the integer build counter at 1 or higher and never decrease it.
 4. Set `XCODE_CLOUD_WORKFLOW_ID` in GitHub repository variables. Add the existing or a dedicated App Store Connect API credential as `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY` (real p8 newlines). Apple manages the Developer ID signing certificate; no p12 export is needed.
-5. Add a dedicated Cloudflare token as `CLOUDFLARE_API_TOKEN`. Account permissions: Workers Scripts Write, Workers R2 Storage Write and Account Settings Read. Zone permissions for balaj.me only: Workers Routes Write and Zone Read. These account-level permissions cover other Workers and buckets; do not substitute the interactive OAuth session.
-6. Keep `SPARKLE_PRIVATE_KEY` in GitHub Actions secrets and a recovery copy in 1Password. `SPARKLE_PUBLIC_KEY`, `CLOUDFLARE_ACCOUNT_ID`, and `R2_RELEASE_BUCKET` are public repository variables. Set `CLOUDFLARE_CI_ENABLED=true` after installing the Cloudflare CI token.
+5. Add a dedicated Cloudflare token as `CLOUDFLARE_API_TOKEN`. Account permissions for website deployment: Workers Scripts Write and Account Settings Read. Zone permissions for balaj.me only: Workers Routes Write and Zone Read. The already backed-up token also has account-wide R2 permission; release publishing no longer uses it. These account-level permissions cover other Workers; do not substitute the interactive OAuth session.
+6. Keep `SPARKLE_PRIVATE_KEY` in GitHub Actions secrets and a recovery copy in 1Password. `SPARKLE_PUBLIC_KEY` and `CLOUDFLARE_ACCOUNT_ID` are public repository variables. Set `CLOUDFLARE_CI_ENABLED=true` after installing the Cloudflare CI token.
 
 ## Publish
 
 Push a new unused numeric version tag, for example `v0.1.0`, pointing to the exact audited commit. `.github/workflows/release.yml` verifies the workflow/product/source identity and accepts only Apple's stapled notarized artifact. It validates Developer ID, Hardened Runtime, bundle ID, Apple silicon architecture, Sparkle key/feed, entitlements, stapled ticket and Gatekeeper assessment before packaging.
 
-GitHub signs the ZIP and feed, uploads the immutable versioned archive and checksum, verifies public size/hash, promotes the manifest, then uploads the signed feed last. First publication permits a missing manifest; later publication refuses downgrade or replacement of an immutable build. Publication is serialized. An interrupted publication can resume via workflow_dispatch using the original tag and completed `cloud_build_id`.
+GitHub signs the ZIP and feed, creates a draft release for the exact source tag, and uploads the versioned archive, checksum, manifest and signed appcast without overwriting existing assets. Matching retries are allowed. After checking all draft assets it publishes with `--latest=false`, verifies anonymous downloads, rechecks against downgrades, then marks the release latest as the final promotion. The Worker keeps `/appcast.xml`, `/downloads/manifest.json`, and `/downloads/Pufflet-<version>-<build>.zip` stable while GitHub hosts the bytes. Publication is serialized. An interrupted publication can resume via workflow_dispatch using the original tag and completed `cloud_build_id`.
 
-The publisher uses the pinned `cf` CLI to verify the existing Cloudflare CI token, then derives its R2 S3 credentials in memory. The AWS S3 uploader streams 32 MiB parts, aborts incomplete uploads on failure, and sets object cache metadata. This supports the bundled runtime ZIP, which exceeds the Cloudflare object API's 300 MB limit, without another stored secret. See [R2 token credentials](https://developers.cloudflare.com/r2/api/tokens/) and [multipart uploads](https://developers.cloudflare.com/r2/objects/upload-objects/).
+Only the publish job receives `contents: write` and GitHub's ephemeral `GH_TOKEN`; no additional stored token or bucket is required. Cloudflare credentials are used solely for deploying the website. Existing R2 configuration/secrets are retained for recovery but unused by the application release publisher.
+
+## Separate runtime artifact
+
+Normal app builds must not download or bundle Wine. Runtime maintainers explicitly run `Runtime/bootstrap-runtime.sh`, then `bash scripts/ci/package-runtime.sh prepare build/RuntimeSource/PuffletRuntime.app build/RuntimeArtifact`. This assembles only Wine, DXMT and supporting frameworks; signs every native component and the wrapper with Developer ID; and creates a ZIP for Apple notarization. Submit that ZIP with the backed-up Pufflet ASC credential, then run `bash scripts/ci/package-runtime.sh finalize build/RuntimeArtifact` only after acceptance. Finalization staples the ticket, checks Gatekeeper, creates the `COPYFILE_DISABLE=1` tar.xz without hard links/xattrs, and verifies the signed app again after fresh extraction.
+
+The immutable runtime release tag is `runtime-wine-11.0-dxmt-1`, asset `PuffletRuntime-wine-11.0-dxmt-1.tar.xz`. Publish runtime releases with `--latest=false` so they never replace the app feed. The app ships the exact GitHub asset URL, final SHA-256, compressed/expanded byte bounds and Developer ID team in `Resources/RuntimeArtifact.json`. A runtime release must include corresponding Wine/DXMT source and licensing provenance. Forking a source repository does not preserve its release assets; the independently hosted, verified asset is the mirror. New runtime bytes require a new version and app pin, never replacement of an existing version.
 
 Only describe notarization as complete after a successful Apple artifact and Gatekeeper/stapler checks. Only describe automatic installation as tested after an actual upgrade between two signed releases. Neither has been verified for Pufflet yet.

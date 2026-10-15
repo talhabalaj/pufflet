@@ -9,8 +9,6 @@
 		"typecheck": "cf workers types && tsc"
 	},
 	"devDependencies": {
-		"@aws-sdk/client-s3": "3.1152.0",
-		"@aws-sdk/lib-storage": "3.1152.0",
 		"@cloudflare/vite-plugin": "beta",
 		"cf": "^1.0.0-beta.12",
 		"typescript": "^7.0.2",

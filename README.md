@@ -42,7 +42,7 @@ Preferences, Keychain sessions, caches, logs and Wine prefixes are separate. Exi
 
 Sparkle 2.10 validates signed feeds and update archives before extraction. Automatic checks are enabled; automatic downloads are opt-in in Settings. Requested update restarts are deferred while a Steam/game session is active.
 
-The release pipeline is ported from Said: Xcode Cloud tests, archives, signs and notarizes; GitHub verifies the stapled artifact and publishes an immutable archive to private R2, verifies the public download, and uploads the signed appcast last. The site does not offer a download until the first verified release is published. Service activation and unverified steps are documented in [CI.md](CI.md).
+The release pipeline is ported from Said: Xcode Cloud tests, archives, signs and notarizes; GitHub verifies the stapled artifact and publishes versioned assets to GitHub Releases, verifies anonymous downloads, and promotes the verified manifest and signed appcast together. The site does not offer a download until the first verified release is published. Service activation and unverified steps are documented in [CI.md](CI.md).
 
 ## Checks
 

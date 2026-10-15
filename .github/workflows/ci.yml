@@ -19,6 +19,8 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - run: npm ci --prefix site
       - run: node --test scripts/ci/*.test.mjs
+      - run: python3 -m unittest discover -s scripts/ci -p '*_test.py'
+      - run: node --experimental-strip-types --test site/tests/*.test.mjs
       - run: npm run typecheck --prefix site
       - run: npm run build --prefix site
-      - run: bash -n scripts/ci/package-release.sh && sh -n Runtime/bootstrap-runtime.sh Runtime/bundle-runtime.sh ci_scripts/*.sh
+      - run: bash -n scripts/ci/package-release.sh scripts/ci/package-runtime.sh && sh -n Runtime/bootstrap-runtime.sh Runtime/bundle-runtime.sh ci_scripts/*.sh

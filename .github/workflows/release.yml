@@ -70,12 +70,12 @@ jobs:
 
   publish:
     needs: cloud-build
+    permissions:
+      contents: write
     runs-on: macos-latest
     timeout-minutes: 30
     env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      R2_RELEASE_BUCKET: ${{ vars.R2_RELEASE_BUCKET }}
+      GH_TOKEN: ${{ github.token }}
       SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
@@ -92,10 +92,9 @@ jobs:
         with:
           name: xcode-cloud-notarized
           path: build/ci
-      - run: npm ci --prefix site
       - name: Verify notarization and sign update files
         run: bash scripts/ci/package-release.sh build/ci/notarized-artifact.zip "$PWD/build/ci/xcode-cloud-result.json" build/ci/release
-      - name: Publish verified archive and signed feed to R2
+      - name: Publish verified archive and signed feed to GitHub Releases
         run: node scripts/ci/publish-release.mjs build/ci/release
       - name: Retain release and publication evidence
         if: always()

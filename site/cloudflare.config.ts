@@ -6,6 +6,6 @@ export default defineConfig({
     name: "pufflet-site", compatibilityDate: "2026-10-15", entrypoint,
     domains: ["pufflet.apps.balaj.me"], workersDev: false, previewUrls: false,
     assets: { runWorkerFirst: true },
-    env: { ASSETS: bindings.assets(), RELEASES: bindings.r2({ name: "pufflet-releases" }) }
+    env: { ASSETS: bindings.assets() }
   }
 });

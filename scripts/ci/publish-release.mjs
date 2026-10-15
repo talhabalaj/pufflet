@@ -4,10 +4,9 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { releaseOrigin, releaseFiles } from './release-files.mjs';
-import { cloudflareUploader } from './r2-upload.mjs';
+import { githubReleaseStore, githubDownloads } from './github-release.mjs';
 
 export const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
-const immutableCache = 'public, max-age=31536000, immutable';
 const buildPattern = /^\d+(?:\.\d+){0,2}$/;
 const freshRequest = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
 
@@ -62,7 +61,7 @@ async function verifyDownload(response, manifest) {
   if (hash.digest('hex') !== manifest.sha256 || bytes !== manifest.bytes) throw new Error('Public archive hash or size does not match the verified release.');
 }
 
-export async function publishRelease(outputDirectory, { fetch: fetchRelease = globalThis.fetch, put, publicKey = process.env.SPARKLE_PUBLIC_KEY } = {}) {
+export async function publishRelease(outputDirectory, { fetch: fetchRelease = globalThis.fetch, store = githubReleaseStore(), publicKey = process.env.SPARKLE_PUBLIC_KEY } = {}) {
   const output = resolve(outputDirectory);
   const manifest = JSON.parse(readFileSync(join(output, 'manifest.json'), 'utf8'));
   const metadata = JSON.parse(readFileSync(join(output, 'metadata.json'), 'utf8'));
@@ -77,7 +76,6 @@ export async function publishRelease(outputDirectory, { fetch: fetchRelease = gl
   const checksumPath = join(output, `${manifest.file}.sha256`);
   const checksum = `${manifest.sha256}  ${manifest.file}\n`;
   if (readFileSync(checksumPath, 'utf8') !== checksum) throw new Error('Archive checksum file is invalid.');
-  const upload = put ?? cloudflareUploader();
   const read = path => fetchRelease(`${releaseOrigin}/${path}`, freshRequest);
   const currentManifest = async () => {
     const response = await read('downloads/manifest.json');
@@ -86,28 +84,39 @@ export async function publishRelease(outputDirectory, { fetch: fetchRelease = gl
     return response.json();
   };
   requireForwardRelease(manifest, await currentManifest());
-
-  // CI serializes release publishers with a shared concurrency group. Inspect
-  // the archive itself: an interrupted earlier run may not have a manifest.
-  const downloadKey = `downloads/${manifest.file}`;
-  const existing = await read(downloadKey);
-  if (existing.status === 404) await upload(downloadKey, archivePath, 'application/zip', immutableCache);
-  else await verifyDownload(existing, manifest); // Matching retries never overwrite immutable ZIPs.
-  const checksumKey = `${downloadKey}.sha256`;
-  const existingChecksum = await read(checksumKey);
-  if (existingChecksum.status === 404) await upload(checksumKey, checksumPath, 'text/plain; charset=utf-8', immutableCache);
-  else if (!existingChecksum.ok || await existingChecksum.text() !== checksum) throw new Error('An immutable checksum already exists with different content.');
-
-  await verifyDownload(await read(downloadKey), manifest);
-  // Recheck after uploads and public verification, immediately before promotion.
+  await store.begin(manifest.version, metadata.commitSha);
+  const assets = [
+    [manifest.file, archivePath],
+    [`${manifest.file}.sha256`, checksumPath],
+    ['manifest.json', join(output, 'manifest.json')],
+    ['appcast.xml', join(output, 'appcast.xml')],
+  ];
+  for (const [name, file] of assets) {
+    let existing = await store.read(name);
+    if (existing.status === 404) {
+      await store.put(name, file);
+      existing = await store.read(name);
+    }
+    if (name === manifest.file) await verifyDownload(existing, manifest);
+    else if (!existing.ok || !Buffer.from(await existing.arrayBuffer()).equals(readFileSync(file))) {
+      throw new Error(`Immutable release asset differs: ${name}`);
+    }
+  }
+  // Publish without making it latest. Verify anonymous downloads before the
+  // single promotion that exposes both manifest and signed appcast together.
+  await store.publish();
+  const tagged = name => fetchRelease(`${githubDownloads}/download/v${manifest.version}/${name}`, freshRequest);
+  await verifyDownload(await tagged(manifest.file), manifest);
+  for (const [name, file] of assets.slice(1)) {
+    const response = await tagged(name);
+    if (!response.ok || !Buffer.from(await response.arrayBuffer()).equals(readFileSync(file))) throw new Error(`Public release asset differs: ${name}`);
+  }
   requireForwardRelease(manifest, await currentManifest());
-  await upload('downloads/manifest.json', join(output, 'manifest.json'), 'application/json', 'no-cache');
-  const publishedManifest = await currentManifest();
-  if (!isDeepStrictEqual(publishedManifest, manifest)) throw new Error('Published manifest differs from the verified release.');
-  // The feed is the final write, so archive failures never advertise an update.
-  await upload('appcast.xml', join(output, 'appcast.xml'), 'application/rss+xml; charset=utf-8', 'no-cache');
+  await store.promote();
+  if (!isDeepStrictEqual(await currentManifest(), manifest)) throw new Error('Published manifest differs from the verified release.');
   const published = await read('appcast.xml');
   if (!published.ok || !Buffer.from(await published.arrayBuffer()).equals(feed)) throw new Error('Published appcast differs from the signed feed.');
+  const downloadKey = `downloads/${manifest.file}`;
   const publication = { build: manifest.build, sha256: manifest.sha256, download: `${releaseOrigin}/${downloadKey}`, feed: `${releaseOrigin}/appcast.xml`, verifiedAt: new Date().toISOString() };
   writeFileSync(join(output, 'publication.json'), JSON.stringify(publication, null, 2) + '\n');
   return publication;

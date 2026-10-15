@@ -19,3 +19,6 @@ Research/Madeira/Dock/build/
 Research/Madeira/Dock/.git/
 **/.build/
 *.dSYM/
+
+__pycache__/
+*.pyc
