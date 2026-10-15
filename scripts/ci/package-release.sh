@@ -31,6 +31,19 @@ plist_value() { /usr/libexec/PlistBuddy -c "Print :$1" "$plist"; }
 [[ "$(plist_value SURequireSignedFeed)" == true ]]
 [[ "$(plist_value SUVerifyUpdateBeforeExtraction)" == true ]]
 [[ -d "$app_path/Contents/Frameworks/Sparkle.framework" ]]
+[[ ! -e "$app_path/Contents/SharedSupport/wine" && ! -e "$app_path/Contents/Frameworks/GStreamer.framework" ]]
+node - "$app_path/Contents/Resources/RuntimeArtifact.json" "$repo_root/Resources/RuntimeArtifact.json" <<'JS'
+const fs = require('node:fs'), assert = require('node:assert/strict');
+const [bundled, source] = process.argv.slice(2).map(path => JSON.parse(fs.readFileSync(path, 'utf8')));
+assert.deepEqual(bundled, source, 'Runtime pin must match the verified source commit.');
+assert.equal(bundled.schemaVersion, 1);
+assert.match(bundled.sha256, /^[a-f0-9]{64}$/);
+assert.ok(Number.isSafeInteger(bundled.sizeBytes) && bundled.sizeBytes > 0);
+assert.ok(Number.isSafeInteger(bundled.expandedSizeBytes) && bundled.expandedSizeBytes > 0);
+assert.equal(bundled.teamIdentifier, 'W7TT249CUU');
+assert.match(bundled.version, /^wine-\d+\.\d+-dxmt-[1-9]\d*$/);
+assert.equal(bundled.url, `https://github.com/talhabalaj/pufflet/releases/download/runtime-${bundled.version}/PuffletRuntime-${bundled.version}.tar.xz`);
+JS
 version="$(plist_value CFBundleShortVersionString)"
 build="$(plist_value CFBundleVersion)"
 minimum_macos="$(plist_value LSMinimumSystemVersion)"
@@ -53,6 +66,9 @@ codesign --display --verbose=4 "$app_path" 2> "$output_dir/signature.txt"
 grep -q '^Authority=Developer ID Application:' "$output_dir/signature.txt"
 grep -q '^TeamIdentifier=W7TT249CUU$' "$output_dir/signature.txt"
 grep -q 'flags=.*runtime' "$output_dir/signature.txt"
+codesign --display --verbose=4 "$app_path/Contents/Resources/libSteamLibraryDock.dylib" 2> "$output_dir/dock-signature.txt"
+grep -q '^TeamIdentifier=W7TT249CUU$' "$output_dir/dock-signature.txt"
+grep -q 'flags=.*runtime' "$output_dir/dock-signature.txt"
 codesign --display --entitlements - --xml "$app_path" > "$output_dir/entitlements.plist"
 for entitlement in com.apple.security.app-sandbox com.apple.security.get-task-allow; do
   value="$(/usr/libexec/PlistBuddy -c "Print :$entitlement" "$output_dir/entitlements.plist" 2>/dev/null || true)"
