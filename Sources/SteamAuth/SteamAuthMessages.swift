@@ -21,14 +21,14 @@ import Foundation
 
 // MARK: - Protobuf Encoding Helpers
 
-enum ProtoWireType: UInt8 {
+nonisolated enum ProtoWireType: UInt8 {
     case varint = 0
     case fixed64 = 1
     case lengthDelimited = 2
     case fixed32 = 5
 }
 
-struct ProtobufEncoder {
+nonisolated struct ProtobufEncoder {
     private(set) var data = Data()
 
     mutating func writeVarint(_ value: UInt64) {
@@ -125,7 +125,7 @@ struct ProtobufEncoder {
     }
 }
 
-struct ProtobufDecoder {
+nonisolated struct ProtobufDecoder {
     let data: Data
     private(set) var offset: Int = 0
 
@@ -236,7 +236,7 @@ struct ProtobufDecoder {
 // MARK: - Authentication Messages
 
 /// Request RSA public key for password encryption
-struct CAuthentication_GetPasswordRSAPublicKey_Request {
+nonisolated struct CAuthentication_GetPasswordRSAPublicKey_Request {
     var accountName: String = ""
 
     func serialize() -> Data {
@@ -246,7 +246,7 @@ struct CAuthentication_GetPasswordRSAPublicKey_Request {
     }
 }
 
-struct CAuthentication_GetPasswordRSAPublicKey_Response {
+nonisolated struct CAuthentication_GetPasswordRSAPublicKey_Response {
     var publicKeyMod: String = ""
     var publicKeyExp: String = ""
     var timestamp: UInt64 = 0
@@ -268,7 +268,7 @@ struct CAuthentication_GetPasswordRSAPublicKey_Response {
 }
 
 /// Begin credential-based auth session
-struct CAuthentication_BeginAuthSessionViaCredentials_Request {
+nonisolated struct CAuthentication_BeginAuthSessionViaCredentials_Request {
     var accountName: String = ""
     var encryptedPassword: String = ""  // Base64 encoded RSA-encrypted password
     var encryptionTimestamp: UInt64 = 0
@@ -303,7 +303,7 @@ struct CAuthentication_BeginAuthSessionViaCredentials_Request {
     }
 }
 
-struct CAuthentication_BeginAuthSessionViaCredentials_Response {
+nonisolated struct CAuthentication_BeginAuthSessionViaCredentials_Response {
     var clientID: UInt64 = 0
     var requestID: Data = Data()
     var interval: Float = 5.0
@@ -348,7 +348,7 @@ struct CAuthentication_BeginAuthSessionViaCredentials_Response {
 }
 
 /// Begin QR auth session
-struct CAuthentication_BeginAuthSessionViaQR_Request {
+nonisolated struct CAuthentication_BeginAuthSessionViaQR_Request {
     var deviceFriendlyName: String = ""
     var platformType: UInt32 = 1
 
@@ -360,7 +360,7 @@ struct CAuthentication_BeginAuthSessionViaQR_Request {
     }
 }
 
-struct CAuthentication_BeginAuthSessionViaQR_Response {
+nonisolated struct CAuthentication_BeginAuthSessionViaQR_Response {
     var clientID: UInt64 = 0
     var challengeURL: String = ""
     var requestID: Data = Data()
@@ -386,7 +386,7 @@ struct CAuthentication_BeginAuthSessionViaQR_Response {
 }
 
 /// Update auth session with Steam Guard code
-struct CAuthentication_UpdateAuthSessionWithSteamGuardCode_Request {
+nonisolated struct CAuthentication_UpdateAuthSessionWithSteamGuardCode_Request {
     var clientID: UInt64 = 0
     var steamid: UInt64 = 0
     var code: String = ""
@@ -403,7 +403,7 @@ struct CAuthentication_UpdateAuthSessionWithSteamGuardCode_Request {
 }
 
 /// Poll for auth session status
-struct CAuthentication_PollAuthSessionStatus_Request {
+nonisolated struct CAuthentication_PollAuthSessionStatus_Request {
     var clientID: UInt64 = 0
     var requestID: Data = Data()
 
@@ -415,7 +415,7 @@ struct CAuthentication_PollAuthSessionStatus_Request {
     }
 }
 
-struct CAuthentication_PollAuthSessionStatus_Response {
+nonisolated struct CAuthentication_PollAuthSessionStatus_Response {
     var newClientID: UInt64 = 0
     var newChallengeURL: String = ""
     var refreshToken: String = ""

@@ -36,7 +36,7 @@ nonisolated struct SteamCredentials: Codable, Sendable, Equatable {
 struct SteamKeychain {
     private let identity: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: AppIdentity.bundleID + ".steam.tokens",
+        kSecAttrService as String: AppIdentity.steamKeychainService(for: AppIdentity.bundleID),
         kSecAttrAccount as String: "steam-session"
     ]
 

@@ -1,6 +1,15 @@
 import CryptoKit
 import Foundation
 
+nonisolated struct SteamClientPaths: Sendable {
+    let support: URL
+    static var standard: Self { Self(support: AppIdentity.support) }
+    var prefix: URL { support.appendingPathComponent("prefix") }
+    var steam: URL { prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam") }
+    var report: URL { prefix.appendingPathComponent("drive_c/steam-library-host.txt") }
+    var handoff: URL { support.appendingPathComponent("Session/launch.auth") }
+}
+
 nonisolated enum SteamHeadlessPaths {
     static var support: URL { AppIdentity.support }
     static var prefix: URL { support.appendingPathComponent("prefix") }
@@ -21,20 +30,22 @@ nonisolated final class SteamClientRedirects: NSObject, URLSessionTaskDelegate {
 
 actor SteamClientInstaller {
     private var busy = false
+    private let paths: SteamClientPaths
+    init(paths: SteamClientPaths = .standard) { self.paths = paths }
 
-    func prepare(runtime: SteamRuntime, games: [SteamGame], progress: @Sendable (String) async -> Void) async throws -> [String: String] {
+    func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL? = nil, progress: @Sendable (String) async -> Void) async throws -> [String: String] {
         guard !busy else { throw SteamError.authenticationFailed("Steam is already being prepared.") }
         busy = true
         defer { busy = false }
         let fm = FileManager.default
         let prefix = runtime.installation.prefix
-        guard prefix == SteamHeadlessPaths.prefix else { throw SteamClientPackages.Failure.conflict }
+        guard prefix == paths.prefix else { throw SteamClientPackages.Failure.conflict }
         try fm.createDirectory(at: prefix, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         guard prefix.resolvingSymlinksInPath() == prefix.standardizedFileURL else { throw SteamClientPackages.Failure.conflict }
         let client = runtime.installation.steam
         if !Self.verified(client) {
             await progress("Downloading Steam components…")
-            let stage = SteamHeadlessPaths.support.appendingPathComponent("client-download-" + UUID().uuidString)
+            let stage = paths.support.appendingPathComponent("client-download-" + UUID().uuidString)
             try fm.createDirectory(at: stage, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             defer { try? fm.removeItem(at: stage) }
             let configuration = URLSessionConfiguration.ephemeral
@@ -77,7 +88,7 @@ actor SteamClientInstaller {
             try await runtime.runWindows(["wineboot.exe", "-u"])
         }
         await progress("Connecting your installed games…")
-        let mapping = try Self.connectLibraries(games, prefix: prefix, client: client)
+        let mapping = try Self.connectLibraries(games, prefix: prefix, client: client, destination: destination)
         let registry = prefix.appendingPathComponent("drive_c/steam-library-setup.reg")
         var encoded = Data([0xff, 0xfe]); encoded.append(Self.registry.data(using: .utf16LittleEndian)!)
         try encoded.write(to: registry, options: .atomic)
@@ -98,43 +109,77 @@ actor SteamClientInstaller {
 
     nonisolated private static func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
 
-    nonisolated static func connectLibraries(_ games: [SteamGame], prefix: URL, client: URL) throws -> [String: String] {
+    nonisolated static func windowsLibraryRoot(for root: URL) -> String {
+        let digest = String(hash(Data(root.resolvingSymlinksInPath().path.utf8)).prefix(12))
+        return "C:\\SteamLibraries\\library-" + digest
+    }
+
+    nonisolated static func connectLibraries(_ games: [SteamGame], prefix: URL, client: URL, destination: URL? = nil) throws -> [String: String] {
         let fm = FileManager.default
         let aliases = prefix.appendingPathComponent("drive_c/SteamLibraries")
         try fm.createDirectory(at: aliases, withIntermediateDirectories: true)
-        let roots = Set(games.map { $0.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath() }).sorted { $0.path < $1.path }
+        var roots = Set(games.map { $0.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath() })
+        if let destination {
+            _ = try LibrarySettings.libraryRoot(for: destination)
+            roots.insert(destination.resolvingSymlinksInPath())
+        }
+        let apps = client.appendingPathComponent("steamapps")
+        let config = client.appendingPathComponent("config")
+        try fm.createDirectory(at: apps, withIntermediateDirectories: true)
+        try fm.createDirectory(at: config, withIntermediateDirectories: true)
+        var entries: [String: VDFValue] = [:]
+        for location in [apps, config] {
+            let file = location.appendingPathComponent("libraryfolders.vdf")
+            if fm.fileExists(atPath: file.path) {
+                guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 4 * 1024 * 1024 else { throw SteamClientPackages.Failure.conflict }
+                var parser = VDFParser(try String(contentsOf: file, encoding: .utf8))
+                guard let libraries = try parser.parse()["libraryfolders"] else { throw SteamClientPackages.Failure.conflict }
+                for (originalKey, value) in libraries.values.sorted(by: { $0.key < $1.key }) {
+                    guard Int(originalKey) != nil, let path = value["path"]?.text ?? value.text else {
+                        entries[originalKey] = value
+                        continue
+                    }
+                    // The two Valve files can use the same numeric slot for different
+                    // libraries. Preserve both; merge metadata only for the same path.
+                    let matchingKey = entries.first { ($0.value["path"]?.text ?? $0.value.text)?.caseInsensitiveCompare(path) == .orderedSame }?.key
+                    let key = matchingKey ?? (entries[originalKey] == nil ? originalKey : String((entries.keys.compactMap(Int.init).max() ?? 0) + 1))
+                    if let existing = entries[key], !existing.values.isEmpty, !value.values.isEmpty {
+                        var merged = existing.values.merging(value.values) { _, new in new }
+                        if existing["apps"] != nil || value["apps"] != nil {
+                            merged["apps"] = .object((existing["apps"]?.values ?? [:]).merging(value["apps"]?.values ?? [:]) { _, new in new })
+                        }
+                        entries[key] = .object(merged)
+                    } else { entries[key] = value }
+                }
+            }
+        }
+        if entries["0"] == nil { entries["0"] = .object(["path": .string(SteamClientPackages.windowsRoot)]) }
         var mapping: [String: String] = [:]
-        let primary = SteamClientPackages.windowsRoot.replacingOccurrences(of: "\\", with: "\\\\")
-        var text = "\"libraryfolders\"\n{\n\"0\" { \"path\" \"\(primary)\" }\n"
-        for (index, root) in roots.enumerated() {
-            // Steam rejects newly mapped drive roots as unmounted in this Wine build.
-            // Use directory aliases on Wine's existing C: volume; game data stays in place.
-            let digest = String(Self.hash(Data(root.path.utf8)).prefix(12))
-            let name = "library-" + digest
-            let link = aliases.appendingPathComponent(name)
+        for root in roots.sorted(by: { $0.path < $1.path }) {
+            let windowsRoot = windowsLibraryRoot(for: root)
+            let link = aliases.appendingPathComponent(String(windowsRoot.split(separator: "\\").last!))
             if let existing = try? fm.destinationOfSymbolicLink(atPath: link.path) {
                 guard URL(filePath: existing, relativeTo: aliases).resolvingSymlinksInPath().path == root.path else { throw SteamClientPackages.Failure.conflict }
             } else {
                 guard !fm.fileExists(atPath: link.path) else { throw SteamClientPackages.Failure.conflict }
                 try fm.createSymbolicLink(at: link, withDestinationURL: root)
             }
-            let windowsRoot = "C:\\SteamLibraries\\" + name
-            let escaped = windowsRoot.replacingOccurrences(of: "\\", with: "\\\\")
-            let included = games.filter { $0.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath() == root }
-            text += "\"\(index + 1)\" { \"path\" \"\(escaped)\" \"apps\" {\n"
-            for game in included {
-                text += "\"\(game.id)\" \"\(max(0, game.bytes))\"\n"
+            let key = entries.first { ($0.value["path"]?.text ?? $0.value.text)?.caseInsensitiveCompare(windowsRoot) == .orderedSame }?.key
+                ?? String((entries.keys.compactMap(Int.init).max() ?? 0) + 1)
+            var entry = entries[key]?.values ?? [:]
+            entry["path"] = .string(windowsRoot)
+            var appEntries = entry["apps"]?.values ?? [:]
+            for game in games where game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath() == root {
+                appEntries[game.id] = .string(String(max(0, game.bytes)))
                 mapping[game.id] = windowsRoot + "\\steamapps\\common\\" + game.installDirectory
             }
-            text += "} }\n"
+            entry["apps"] = .object(appEntries)
+            entries[key] = .object(entry)
         }
-        text += "}\n"
-        let apps = client.appendingPathComponent("steamapps")
-        try fm.createDirectory(at: apps, withIntermediateDirectories: true)
-        try Data(text.utf8).write(to: apps.appendingPathComponent("libraryfolders.vdf"), options: .atomic)
-        let configuration = client.appendingPathComponent("config")
-        try fm.createDirectory(at: configuration, withIntermediateDirectories: true)
-        try Data(text.utf8).write(to: configuration.appendingPathComponent("libraryfolders.vdf"), options: .atomic)
+        let text = VDFValue.object(["libraryfolders": .object(entries)]).encoded
+        for location in [apps, config] {
+            try Data(text.utf8).write(to: location.appendingPathComponent("libraryfolders.vdf"), options: .atomic)
+        }
         return mapping
     }
 

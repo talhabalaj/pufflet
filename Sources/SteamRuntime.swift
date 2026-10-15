@@ -127,6 +127,22 @@ nonisolated struct SteamRuntime: Sendable {
         }
     }
 
+    func stopPrivatePrefix(expectedPrefix: URL = SteamHeadlessPaths.prefix) async throws {
+        guard installation.prefix.standardizedFileURL == expectedPrefix.standardizedFileURL else { throw RuntimeError.missingSetup }
+        let server = installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver")
+        for argument in ["-k9", "-w"] {
+            let process = Process()
+            process.executableURL = server; process.arguments = [argument]
+            process.environment = environment().filter { !$0.key.hasPrefix("DYLD_") }
+            process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+            try process.run()
+            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+            while process.isRunning && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(100)) }
+            if process.isRunning { process.terminate(); throw RuntimeError.launchFailed("Steam did not stop. Keep Pufflet open and try again.") }
+            guard process.terminationStatus == 0 else { throw RuntimeError.launchFailed("Steam could not stop its private download session.") }
+        }
+    }
+
     @MainActor func startWindows(_ arguments: [String], extraEnvironment: [String: String]) throws -> Process {
         try spawn(arguments, extraEnvironment: extraEnvironment)
     }

@@ -15,10 +15,10 @@ struct RuntimeOnboardingView: View {
                     .foregroundStyle(.secondary)
             }
             row("1", title: "Your Steam library", ready: model.settings.libraryURL != nil) {
-                Text(model.settings.libraryURL?.path ?? "Choose the folder containing steamapps. Your games stay where they are.")
+                Text(model.settings.libraryURL?.path ?? "Pufflet creates a library automatically. You can also use an existing Steam library.")
                     .font(.callout).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
-                Button("Choose library…", action: chooseLibrary)
-                    .disabled(model.headless.isActive || model.phase != .idle)
+                Button("Change library…", action: chooseLibrary)
+                    .disabled(!model.canChangeLibrary)
                 if let locationError { Text(locationError).foregroundStyle(.red).font(.callout) }
             }
             Divider()
@@ -91,11 +91,11 @@ struct RuntimeOnboardingView: View {
     private func chooseLibrary() {
         let panel = NSOpenPanel()
         panel.title = "Choose your Steam library"; panel.prompt = "Choose library"
-        panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false
         panel.directoryURL = model.settings.libraryURL
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try model.settings.setLibrary(url)
+            try model.settings.createLibrary(at: url)
             model.refreshLibrary(); locationError = nil; model.steamSupportReady = false
             model.runtimeSetup.start()
         } catch { locationError = error.localizedDescription }

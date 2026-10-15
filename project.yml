@@ -36,6 +36,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.games
+        LSMultipleInstancesProhibited: true
         NSPrincipalClass: NSApplication
         SUFeedURL: https://pufflet.apps.balaj.me/appcast.xml
         SUPublicEDKey: 6SGXpoRSNF0IEon+cMJKJea2qYEEw9UZU03wnVZwbFE=

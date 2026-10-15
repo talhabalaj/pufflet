@@ -2,7 +2,10 @@ import Foundation
 import os
 
 nonisolated enum AppIdentity {
+    // Hosted unit tests exercise services explicitly; app startup must not read the user's credentials.
+    static var isRunningTests: Bool { NSClassFromString("XCTestCase") != nil }
     static var bundleID: String { Bundle.main.bundleIdentifier ?? "me.balaj.SteamLibrary" }
+    static func steamKeychainService(for bundleID: String) -> String { bundleID + ".steam.tokens" }
     static var isDevelopment: Bool { bundleID.hasSuffix(".dev") }
     static var dataDirectory: String { isDevelopment ? "PuffletDev" : "Pufflet" }
     static var legacyDataDirectory: String { isDevelopment ? "SteamLibraryDev" : "SteamLibrary" }

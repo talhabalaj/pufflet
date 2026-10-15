@@ -180,20 +180,34 @@ nonisolated struct SteamInstallation: Sendable {
               id != "228980", let name = state?["name"]?.text, !name.isEmpty,
               let directory = state?["installdir"]?.text, !directory.isEmpty,
               !directory.contains("/"), !directory.contains("\\"), directory != ".", directory != "..",
-              let flags = state?["StateFlags"]?.text.flatMap(Int.init), flags & 4 != 0 else { return nil }
+              let flags = state?["StateFlags"]?.text.flatMap(Int.init), flags == 4 else { return nil }
         return SteamGame(id: id, name: name, installDirectory: directory,
                          bytes: state?["SizeOnDisk"]?.text.flatMap(Int64.init) ?? 0,
                          folder: steamApps.appendingPathComponent("common").appendingPathComponent(directory),
                          branch: state?["UserConfig"]?["BetaKey"]?.text ?? "public")
     }
 
-    func cachedArtwork(for game: SteamGame, kind: SteamArtworkKind = .hero) -> URL? {
+    func cachedArtwork(appID: String, kind: SteamArtworkKind = .hero) -> URL? {
         let cache = steam.appendingPathComponent("appcache/librarycache")
-        let filenames = kind == .cover ? ["\(game.id)_library_600x900.jpg"] : ["\(game.id)_library_hero.jpg", "\(game.id)_header.jpg"]
+        let filenames = kind == .cover ? ["\(appID)_library_600x900.jpg"] : ["\(appID)_library_hero.jpg", "\(appID)_header.jpg"]
         for filename in filenames {
             let url = cache.appendingPathComponent(filename)
             if FileManager.default.fileExists(atPath: url.path) { return url }
         }
         return nil
+    }
+}
+
+nonisolated extension VDFValue {
+    var encoded: String {
+        func quote(_ value: String) -> String { "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
+        switch self {
+        case .string(let text): return quote(text)
+        case .object(let values): return values.keys.sorted().map { key in
+            let value = values[key]!
+            if case .object = value { return quote(key) + "\n{\n" + value.encoded + "}\n" }
+            return quote(key) + " " + value.encoded + "\n"
+        }.joined()
+        }
     }
 }

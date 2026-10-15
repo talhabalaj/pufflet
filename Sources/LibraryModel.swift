@@ -5,10 +5,12 @@ import os
 @Observable final class LibraryModel {
     enum LaunchPhase: Equatable {
         case idle
+        case preparingSupport
+        case openingSteam
         case launching(String)
     }
 
-    let settings = LibrarySettings()
+    let settings: LibrarySettings
     var installation: SteamInstallation {
         SteamInstallation(prefix: settings.sourcePrefix, libraryRoot: settings.libraryURL, runtime: runtimeSetup.application)
     }
@@ -17,7 +19,19 @@ import os
     var steamSupportReady = false
     let artworkStore = SteamArtworkStore()
     let account = SteamAccount()
-    let headless = SteamHeadlessSession()
+    let headless: SteamHeadlessSession
+    let ownedLibrary: SteamOwnedLibrary
+    let downloads: SteamDownloadQueue
+    enum Filter: String, CaseIterable { case all = "All games", installed = "Installed" }
+    var filter = Filter.all
+    var showsDownloads = false
+    private(set) var activeDownloadID: String?
+    private(set) var isStoppingDownload = false
+    private var catalogueTask: Task<Void, Never>?
+    private var downloadTask: Task<Void, Never>?
+    var hasDownloadWork: Bool { downloads.hasPendingWork || activeDownloadID != nil || isStoppingDownload }
+    var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
+    var entries: [LibraryGame] { LibraryGame.merge(installed: games, owned: ownedLibrary.games) }
     var showsAccount = false
     var games: [SteamGame] = []
     var selectedID: String?
@@ -33,8 +47,8 @@ import os
 
     var selectedGame: SteamGame? { games.first { $0.id == selectedID } ?? games.first }
     var playingGame: SteamGame? { games.first(where: isPlaying) }
-    var filteredGames: [SteamGame] {
-        search.isEmpty ? games : games.filter { $0.name.localizedCaseInsensitiveContains(search) }
+    var filteredGames: [LibraryGame] {
+        entries.filter { (filter == .all || $0.installation != nil) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
     }
     var runtime: SteamRuntime {
         SteamRuntime(installation: installation,
@@ -46,7 +60,11 @@ import os
                      dockBridge: runtime.dockBridge)
     }
 
-    init() { refreshLibrary() }
+    init(settings: LibrarySettings = LibrarySettings(), headless: SteamHeadlessSession = SteamHeadlessSession(),
+         ownedLibrary: SteamOwnedLibrary = SteamOwnedLibrary(), downloads: SteamDownloadQueue = SteamDownloadQueue()) {
+        self.settings = settings; self.headless = headless; self.ownedLibrary = ownedLibrary; self.downloads = downloads
+        refreshLibrary()
+    }
 
     var readyToPlay: Bool { settings.libraryURL != nil && runtimeSetup.isReady && account.accountName != nil && steamSupportReady }
 
@@ -55,7 +73,7 @@ import os
         await runtimeSetup.check()
         steamSupportReady = await SteamClientInstaller.isPrepared()
         showsSetup = settings.libraryURL == nil || !runtimeSetup.isReady
-        if settings.libraryURL != nil && !runtimeSetup.isReady && !runtimeSetup.isPaused { runtimeSetup.start() }
+        accountChanged()
     }
 
     private func requireRuntime() -> Bool {
@@ -89,6 +107,7 @@ import os
             })
             snapshot = RuntimeSnapshot(processes: observed.processes.filter { owned.contains($0.pid) })
             headless.poll()
+            if activeDownloadID != nil, downloadTask == nil, !headless.isActive, !isStoppingDownload { finishDownload() }
             if nativeLaunch {
                 message = headless.status
                 if let error = headless.takeError() { errorMessage = error }
@@ -112,7 +131,7 @@ import os
     func isPlaying(_ game: SteamGame) -> Bool { snapshot.process(for: game) != nil }
 
     func play(_ game: SteamGame) async {
-        guard phase == .idle else { return }
+        guard phase == .idle, !hasDownloadWork else { return }
         errorMessage = nil
         if let process = snapshot.process(for: game),
            let application = NSRunningApplication(processIdentifier: process.pid),
@@ -128,6 +147,7 @@ import os
                 showsAccount = true
                 return
             }
+            phase = .launching(game.id)
             if snapshot.steam != nil {
                 phase = .launching(game.id)
                 message = "Closing desktop Steam…"
@@ -141,6 +161,7 @@ import os
                     throw SteamError.authenticationFailed("Close desktop Steam before starting a game with your native Steam account.")
                 }
             }
+            await suspendCatalogue()
             phase = .launching(game.id); nativeLaunch = true
             launchDeadline = nil
             message = "Preparing Steam support…"
@@ -157,19 +178,22 @@ import os
     }
 
     func playInDesktopSteam(_ game: SteamGame) async {
-        guard phase == .idle, !headless.isActive, requireRuntime() else { return }
+        guard phase == .idle, !headless.isActive, !hasDownloadWork, requireRuntime() else { return }
         phase = .launching(game.id)
         message = "Starting desktop Steam…"
         launchDeadline = ContinuousClock.now.advanced(by: .seconds(90))
-        do { try await runtime.send(["-silent", "-applaunch", game.id]) }
+        do { await suspendCatalogue(); try await runtime.send(["-silent", "-applaunch", game.id]) }
         catch { phase = .idle; launchDeadline = nil; errorMessage = error.localizedDescription }
     }
 
     func prepareSteamSupport() async {
-        guard !headless.isActive, requireRuntime() else { return }
+        guard phase == .idle, !headless.isActive, !hasDownloadWork, requireRuntime() else { return }
+        phase = .preparingSupport
+        defer { phase = .idle }
         errorMessage = nil
         do {
-            try await headless.prepare(runtime: nativeRuntime, library: games)
+            await suspendCatalogue()
+            try await headless.prepare(runtime: nativeRuntime, library: games, destination: settings.libraryURL)
             steamSupportReady = true
             message = "Steam support is ready"
         }
@@ -177,12 +201,14 @@ import os
     }
 
     func openSteam() async {
-        guard !headless.isActive else {
+        guard phase == .idle, !headless.isActive, !hasDownloadWork else {
             errorMessage = "Close the running game before opening desktop Steam."
             return
         }
         guard requireRuntime() else { return }
-        do { try await runtime.send(["steam://open/main"]) }
+        phase = .openingSteam
+        defer { phase = .idle }
+        do { await suspendCatalogue(); try await runtime.send(["steam://open/main"]) }
         catch { errorMessage = error.localizedDescription }
     }
 
@@ -190,6 +216,125 @@ import os
         guard snapshot.steam != nil, !games.contains(where: isPlaying) else { return }
         do { try await runtime.send(["-shutdown"]) }
         catch { errorMessage = error.localizedDescription }
+    }
+
+    func isLaunching(_ entry: LibraryGame) -> Bool { phase == .launching(entry.id) }
+    func isPlaying(_ entry: LibraryGame) -> Bool { entry.installation.map(isPlaying) ?? false }
+    func play(_ entry: LibraryGame) async { if let game = entry.installation { await play(game) } }
+
+    func refresh() {
+        refreshLibrary()
+        refreshCatalogue()
+    }
+
+    func accountChanged() {
+        guard phase == .idle, !hasDownloadWork, !headless.isActive else { return }
+        let previous = catalogueTask
+        previous?.cancel()
+        catalogueTask = Task {
+            await ownedLibrary.suspend()
+            await previous?.value
+            guard !Task.isCancelled else { return }
+            do {
+                let credentials = try SteamKeychain().load()
+                ownedLibrary.activate(credentials)
+                downloads.activate(account: credentials?.isUsable() == true ? credentials?.steamID : nil)
+                guard !Task.isCancelled, await SteamRuntime.snapshot().steam == nil else { return }
+                await ownedLibrary.refresh()
+            } catch { errorMessage = error.localizedDescription }
+        }
+    }
+
+    private func refreshCatalogue() {
+        guard !headless.isActive, !hasDownloadWork, snapshot.steam == nil, !ownedLibrary.isRefreshing else { return }
+        accountChanged()
+    }
+
+    private func suspendCatalogue() async {
+        let previous = catalogueTask
+        previous?.cancel()
+        await ownedLibrary.suspend()
+        await previous?.value
+        catalogueTask = nil
+    }
+
+    func install(_ entry: LibraryGame) {
+        guard phase == .idle, !isStoppingDownload, !headless.isActive || activeDownloadID != nil, entry.installation == nil, let owned = entry.owned, let destination = settings.libraryURL else { return }
+        guard account.accountName != nil else { showsAccount = true; return }
+        guard requireRuntime() else { return }
+        downloads.enqueue(owned, destination: destination)
+        startNextDownload()
+    }
+
+    func retryDownload(_ job: GameDownload) {
+        guard phase == .idle, !isStoppingDownload, !headless.isActive || activeDownloadID != nil else { return }
+        guard let owned = ownedLibrary.games.first(where: { $0.id == job.id }), job.destination.resolvingSymlinksInPath().path == settings.libraryURL?.resolvingSymlinksInPath().path else {
+            errorMessage = "Refresh your Steam library and choose the original download folder before retrying."
+            return
+        }
+        guard requireRuntime() else { return }
+        downloads.enqueue(owned, destination: job.destination)
+        startNextDownload()
+    }
+
+    private func startNextDownload() {
+        guard activeDownloadID == nil, downloadTask == nil, !headless.isActive, phase == .idle, !isStoppingDownload,
+              runtimeSetup.isReady, let job = downloads.next else { return }
+        activeDownloadID = job.id
+        downloads.update(job.id, state: .preparing)
+        downloadTask = Task {
+            do {
+                await suspendCatalogue()
+                try Task.checkCancellation()
+                guard snapshot.steam == nil else { throw SteamError.authenticationFailed("Close desktop Steam before downloading games in Pufflet.") }
+                guard let credentials = try SteamKeychain().load(), credentials.isUsable() else { throw SteamError.authSessionExpired }
+                try await headless.install(appID: job.id, destination: job.destination, library: games, credentials: credentials, runtime: nativeRuntime)
+                downloads.update(job.id, state: .installing)
+            } catch {
+                if !isStoppingDownload {
+                    downloads.update(job.id, state: .failed, error: error.localizedDescription)
+                    downloads.stopWaiting()
+                    activeDownloadID = nil
+                }
+            }
+            downloadTask = nil
+        }
+    }
+
+    private func finishDownload() {
+        guard let id = activeDownloadID, let job = downloads.jobs.first(where: { $0.id == id }) else { return }
+        refreshLibrary()
+        let installed = games.first { $0.id == id && $0.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath().path == job.destination.resolvingSymlinksInPath().path }
+        if headless.lastInstallSucceeded, installed != nil {
+            downloads.update(id, state: .completed)
+            message = "Installed \(job.name)"
+        } else {
+            downloads.update(id, state: .failed, error: headless.takeError() ?? "Steam did not confirm a complete installation. Retry to check existing files.")
+            downloads.stopWaiting()
+        }
+        activeDownloadID = nil
+        startNextDownload()
+    }
+
+    func stopDownloads() async {
+        guard !isStoppingDownload else { return }
+        isStoppingDownload = true
+        downloads.stopWaiting()
+        let id = activeDownloadID
+        let pending = downloadTask
+        pending?.cancel()
+        do {
+            try await headless.stopInstall(runtime: nativeRuntime)
+            await pending?.value
+            if let id { downloads.update(id, state: .stopped) }
+            activeDownloadID = nil
+            downloadTask = nil
+        } catch { errorMessage = error.localizedDescription }
+        isStoppingDownload = false
+    }
+
+    func downloadStatus(for id: String) -> String? {
+        downloads.jobs.first { $0.id == id }.map { $0.state.title }
     }
 
     func returnToGame() -> Bool {
