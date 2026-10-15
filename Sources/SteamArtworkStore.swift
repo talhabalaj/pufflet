@@ -46,20 +46,20 @@ final class SteamArtworkStore {
         images.totalCostLimit = 24 * 1024 * 1024
     }
 
-    func image(for game: SteamGame, installation: SteamInstallation, kind: SteamArtworkKind = .hero) async -> NSImage? {
-        let key = game.id + "-" + kind.rawValue
+    func image(appID: String, installation: SteamInstallation, kind: SteamArtworkKind = .hero) async -> NSImage? {
+        let key = appID + "-" + kind.rawValue
         if let image = images.object(forKey: key as NSString) { return image }
         let stored = cache.appendingPathComponent(key + ".image")
         if let image = NSImage(contentsOf: stored) { images.setObject(image, forKey: key as NSString); return image }
-        if let local = installation.cachedArtwork(for: game, kind: kind), let image = NSImage(contentsOf: local) {
+        if let local = installation.cachedArtwork(appID: appID, kind: kind), let image = NSImage(contentsOf: local) {
             images.setObject(image, forKey: key as NSString)
             return image
         }
         guard !Task.isCancelled else { return nil }
-        let resolved = await resolvedURL(appID: game.id, kind: kind)
+        let resolved = await resolvedURL(appID: appID, kind: kind)
         let filename = kind == .cover ? "library_600x900.jpg" : "library_hero.jpg"
-        let fallback = URL(string: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/\(game.id)/\(filename)")
-        let header = URL(string: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/\(game.id)/header.jpg")
+        let fallback = URL(string: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/\(appID)/\(filename)")
+        let header = URL(string: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/\(appID)/header.jpg")
         for url in [resolved, fallback, header].compactMap({ $0 }) {
             do {
                 let (data, response) = try await session.data(from: url)

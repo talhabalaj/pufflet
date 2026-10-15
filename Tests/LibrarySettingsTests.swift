@@ -16,10 +16,10 @@ struct LibrarySettingsTests {
         let suite = "PuffletTests." + UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let settings = LibrarySettings(defaults: defaults, support: temporary.appendingPathComponent("Pufflet"))
-        #expect(settings.libraryURL == nil)
+        let settings = LibrarySettings(defaults: defaults, support: temporary.appendingPathComponent("Pufflet"), home: temporary)
+        #expect(settings.libraryURL == temporary.appendingPathComponent("Games/" + AppIdentity.dataDirectory))
         try settings.setLibrary(apps)
-        let restored = LibrarySettings(defaults: defaults, support: temporary.appendingPathComponent("Pufflet"))
+        let restored = LibrarySettings(defaults: defaults, support: temporary.appendingPathComponent("Pufflet"), home: temporary)
         #expect(restored.libraryURL == root.resolvingSymlinksInPath())
         #expect(restored.sourcePrefix == temporary.appendingPathComponent("prefix").resolvingSymlinksInPath())
         let installation = SteamInstallation(prefix: restored.sourcePrefix, libraryRoot: restored.libraryURL)
@@ -41,7 +41,7 @@ struct LibrarySettingsTests {
         defaults.set(legacy.appendingPathComponent(relative).path, forKey: "steamLibraryPath")
 
         let support = try AppIdentity.migrateDirectory(in: temporary, development: AppIdentity.isDevelopment)
-        let settings = LibrarySettings(defaults: defaults, support: support)
+        let settings = LibrarySettings(defaults: defaults, support: support, home: temporary)
         #expect(settings.libraryURL == support.appendingPathComponent(relative))
         #expect(defaults.string(forKey: "steamLibraryPath") == settings.libraryURL?.path)
         #expect(settings.sourcePrefix == support.appendingPathComponent("prefix"))

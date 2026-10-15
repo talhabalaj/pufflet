@@ -1,11 +1,18 @@
 import Foundation
 
 nonisolated enum SteamError: LocalizedError, Equatable {
+    case disconnected, connectionTimeout, invalidMessage, noServersAvailable
+    case connectionFailed(String), logonDenied(UInt32)
     case authenticationFailed(String), invalidCredentials, rateLimited, accountDisabled
     case rsaKeyFetchFailed, qrCodeExpired, authSessionExpired, protobufError(String)
 
     var errorDescription: String? {
         switch self {
+        case .disconnected, .connectionFailed: "The Steam library connection closed. Refresh to try again."
+        case .connectionTimeout: "Steam did not respond in time. Refresh to try again."
+        case .invalidMessage: "Steam sent invalid library data. Refresh to try again."
+        case .noServersAvailable: "Steam library servers are unavailable. Try again later."
+        case let .logonDenied(code): "Steam could not open the library session (code \(code)). Sign in again."
         case let .authenticationFailed(message): message
         case .invalidCredentials: "The account name or password is incorrect."
         case .rateLimited: "Steam received too many attempts. Try again later."

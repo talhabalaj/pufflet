@@ -20,7 +20,7 @@ import Observation
             let installer = try installer()
             application = try await installer.existing()
             savedBytes = await RuntimeDownloader(artifact: installer.artifact, support: installer.support).receivedBytes()
-            isPaused = savedBytes > 0
+            isPaused = application == nil && savedBytes > 0
         } catch { errorMessage = error.localizedDescription }
         progress = nil; hasChecked = true
     }

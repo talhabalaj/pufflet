@@ -2,13 +2,13 @@
 
 <p align="center"><img src="Brand/pufflet-mascot.png" width="220" alt="Pufflet, a little steam dragon"></p>
 
-A native SwiftUI home for installed Windows Steam games on Apple silicon Macs. A grid of Steam artwork, a small Play popover, and native QR/password/Steam Guard sign-in. Opening the library does not start Wine or desktop Steam.
+A native SwiftUI home for your Windows Steam games on Apple silicon Macs. Browse the games you own, install through Valve’s client, and launch from a small Install/Play popover, with native QR/password/Steam Guard sign-in. Opening the library does not start Wine or desktop Steam.
 
 [Website and download](https://pufflet.apps.balaj.me) · [Latest release](https://github.com/talhabalaj/pufflet/releases/latest) · [Release setup](CI.md)
 
 ## Use
 
-Requires macOS 26 or later and Apple silicon. First launch guides you through choosing your existing Steam library, downloading verified Windows support with progress and Pause/Resume, and native Steam sign-in. You can return through **Steam options → Set Up Pufflet…**, or change the library in **Pufflet → Settings → Games**. Select the folder containing `steamapps`, or `steamapps` itself. Pufflet reads the installed manifests and uses those game files in place. Installation, verification and compatibility fallback remain available in desktop Steam. Compatibility varies by game.
+Requires macOS 26 or later and Apple silicon. Pufflet automatically creates `~/Games/Pufflet/steamapps` for new installs (`~/Games/PuffletDev/steamapps` in Debug). An existing selected library is preserved. First launch guides you through verified Windows support with progress and Pause/Resume, and native Steam sign-in. You can return through **Steam options → Set Up Pufflet…**, or change the library in **Pufflet → Settings → Games**. Choose an existing folder containing `steamapps`, `steamapps` itself, or create a new library folder. Pufflet uses existing game files in place. After sign-in, All games includes your owned Windows games, while Installed shows committed installations. Select an uninstalled cover for Install and its destination/estimated size. Downloads shows one active install, a queue, aggregate Steam work progress and Stop/Retry controls. Valve downloads, verifies and writes manifests; incomplete content never enables Play. Stopping preserves partial files, but game Pause/Resume is not implemented. Interrupted queues require explicit Retry after relaunch. Desktop Steam remains available for installation, verification and compatibility fallback. Compatibility varies by game.
 
 Wine 11 and DXMT are downloaded from Pufflet’s own GitHub Release mirror on first setup, verified against the app’s pinned SHA-256 and size, and installed under `~/Library/Application Support/Pufflet/Runtimes/<version>/PuffletRuntime.app`. Only the small native Dock bridge and Windows host ship in the app. Writable Steam support and its prefix are separate in `~/Library/Application Support/Pufflet`; Valve’s client components still come directly from its official CDN with hash verification. Artwork caches and logs use `~/Library/Caches/Pufflet` and `~/Library/Logs/Pufflet`. Native sign-in tokens are stored in Keychain. No Steam password is retained. The headless host gets its token through a private, one-use file rather than command arguments or environment variables.
 
@@ -25,7 +25,7 @@ xcodebuild -project SteamLibrary.xcodeproj -scheme SteamLibrary \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath build test
 ```
 
-Madeira Dock is a Git submodule pinned to Pufflet fork commit [`c983385`](https://github.com/talhabalaj/madeira-dock/tree/c98338578678f9e4ba64b7459744472afe97331d). Clone with `git clone --recurse-submodules` or initialize it with the command above. `Runtime/build-headless-host.sh` rebuilds the bundled host. The fork adds a tested, opt-in Valve install capability; no install UI is exposed yet. See [the spike and Swift integration notes](docs/DOCK_INSTALL_SPIKE.md).
+Madeira Dock is a Git submodule pinned to Pufflet fork commit [`c983385`](https://github.com/talhabalaj/madeira-dock/tree/c98338578678f9e4ba64b7459744472afe97331d). Clone with `git clone --recurse-submodules` or initialize it with the command above. `Runtime/build-headless-host.sh` rebuilds the bundled host. The fork provides the Valve-managed installation used by Pufflet’s native download queue. See [native library/install behavior and validation](docs/STEAM_LIBRARY.md) and [the original Dock spike](docs/DOCK_INSTALL_SPIKE.md).
 
 Ordinary app and Xcode Cloud builds never download, copy, or sign Wine/DXMT/GStreamer. They copy and app-team-sign the universal Dock bridge only. `Runtime/bootstrap-runtime.sh` and `Runtime/sign-runtime.py` remain explicit release-artifact preparation tools; no app build invokes them. A fresh build needs no runtime source cache. See [the runtime contract](Runtime/README.md) for signing, notarization, archive safety, and pinning. Swift package dependencies may still need their normal first resolution; the runtime is entirely offline at build time.
 
@@ -36,11 +36,11 @@ The project uses Apple development signing by default. Set your development team
 | Debug | Pufflet Dev | `me.balaj.SteamLibrary.dev` | `PuffletDev` |
 | Release | Pufflet | `me.balaj.SteamLibrary` | `Pufflet` |
 
-Preferences, Keychain sessions, caches, logs and Wine prefixes are separate. Existing `SteamLibrary` / `SteamLibraryDev` data folders are renamed automatically when the corresponding Pufflet folder does not exist. Existing destination folders are never overwritten or merged; if a rename fails, the app keeps using the old folder. Development builds do not check for public updates. The historical release identifier is retained so signed updates can keep their Keychain identity.
+Preferences, Keychain sessions, caches, logs, Wine prefixes and default game libraries are separate. Owned-game metadata and download queues are cached per account and removed from the visible library on sign-out/account change. Existing `SteamLibrary` / `SteamLibraryDev` data folders are renamed automatically when the corresponding Pufflet folder does not exist. Existing destination folders are never overwritten or merged; if a rename fails, the app keeps using the old folder. Development builds do not check for public updates. The historical release identifier is retained so signed updates can keep their Keychain identity.
 
 ## Updates and distribution
 
-Sparkle 2.10 validates signed feeds and update archives before extraction. Automatic checks are enabled; automatic downloads are opt-in in Settings. Requested update restarts are deferred while a Steam/game session or runtime installation is active.
+Sparkle 2.10 validates signed feeds and update archives before extraction. Automatic checks are enabled; automatic downloads are opt-in in Settings. Requested update restarts are deferred while a Steam/game session, queued game download or runtime installation is active.
 
 The release pipeline is ported from Said: Xcode Cloud tests, archives, signs and notarizes; GitHub verifies the stapled artifact and publishes versioned assets to GitHub Releases, verifies anonymous downloads, and promotes the verified manifest and signed appcast together. The website offers the current verified release. Service activation and validation evidence are documented in [CI.md](CI.md).
 

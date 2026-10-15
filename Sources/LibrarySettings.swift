@@ -6,8 +6,11 @@ import SwiftUI
     private let defaults: UserDefaults
     private static let locationKey = "steamLibraryPath"
     private(set) var libraryURL: URL?
+    private(set) var creationError: String?
+    let defaultLibraryURL: URL
 
-    init(defaults: UserDefaults = .standard, support: URL = AppIdentity.support) {
+    init(defaults: UserDefaults = .standard, support: URL = AppIdentity.support, home: URL = FileManager.default.homeDirectoryForCurrentUser) {
+        defaultLibraryURL = home.appendingPathComponent("Games/" + AppIdentity.dataDirectory, isDirectory: true)
         self.defaults = defaults
         libraryURL = defaults.string(forKey: Self.locationKey).map { URL(filePath: $0, directoryHint: .isDirectory) }
         let legacy = support.deletingLastPathComponent().appendingPathComponent(AppIdentity.legacyDataDirectory).path + "/"
@@ -18,6 +21,10 @@ import SwiftUI
                 defaults.set(relocated.path, forKey: Self.locationKey)
             }
         }
+        if libraryURL == nil {
+            do { try createLibrary(at: defaultLibraryURL) }
+            catch { creationError = error.localizedDescription }
+        }
     }
 
     var sourcePrefix: URL? {
@@ -27,6 +34,13 @@ import SwiftUI
             directory.deleteLastPathComponent()
         }
         return nil
+    }
+
+    func createLibrary(at selection: URL) throws {
+        let root = selection.lastPathComponent.lowercased() == "steamapps" ? selection.deletingLastPathComponent() : selection
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("steamapps"), withIntermediateDirectories: true)
+        try setLibrary(root)
+        creationError = nil
     }
 
     func setLibrary(_ selection: URL) throws {
@@ -65,16 +79,17 @@ struct LibrarySettingsView: View {
                         .textSelection(.enabled).foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
                 }
+                if let error = model.settings.creationError { Text(error).foregroundStyle(.red) }
                 HStack {
-                    Button("Choose folder…", action: chooseLibrary)
-                        .disabled(model.headless.isActive || model.phase != .idle)
+                    Button("Choose or create folder…", action: chooseLibrary)
+                        .disabled(!model.canChangeLibrary)
                     if let location = model.settings.libraryURL {
                         Button("Show in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: location.path) }
                     }
                 }
             } header: { Text("Games") }
             footer: {
-                Text("Choose a folder containing steamapps. Pufflet uses your games in their current location.")
+                Text("New downloads go to this library. Choose an existing Steam library to use its games in place, or create a new folder.")
             }
             Section {
                 LabeledContent("App data") {
@@ -110,11 +125,12 @@ struct LibrarySettingsView: View {
         panel.prompt = "Choose library"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
+        panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = model.settings.libraryURL
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try model.settings.setLibrary(url)
+            try model.settings.createLibrary(at: url)
             model.refreshLibrary()
             model.steamSupportReady = false
         } catch { locationError = error.localizedDescription }
