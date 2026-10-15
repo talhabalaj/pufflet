@@ -86,7 +86,8 @@ writable-by-group/world file permissions, while retaining executable bits.
 
 Staging is private and on the same filesystem as the final version. The app checks
 required Wine/renderer/framework paths, strict/deep signatures on all architectures
-against its pinned team and wrapper identifier, then asks Gatekeeper to approve
+against a Developer ID Application certificate, its pinned team and wrapper
+identifier, then asks Gatekeeper to approve
 execution. Only afterward does it write a matching receipt and atomically rename
 the staging directory to `Runtimes/<version>`. No active version is overwritten.
 Cancellation/failure removes only that transaction’s staging data; the exclusive

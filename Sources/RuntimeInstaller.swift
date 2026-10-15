@@ -134,7 +134,7 @@ nonisolated struct RuntimeInstaller: Sendable {
         try Task.checkCancellation()
         var code: SecStaticCode?
         var requirement: SecRequirement?
-        let rule = "anchor apple generic and certificate leaf[subject.OU] = \"\(artifact.teamIdentifier)\" and identifier \"me.balaj.Pufflet.Runtime\""
+        let rule = "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"\(artifact.teamIdentifier)\" and identifier \"me.balaj.Pufflet.Runtime\""
         guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, let code,
               SecRequirementCreateWithString(rule as CFString, [], &requirement) == errSecSuccess,
               SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode), requirement) == errSecSuccess else {
