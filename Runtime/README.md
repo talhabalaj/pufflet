@@ -190,9 +190,10 @@ reuse with download transport forced offline, then runs `wineserver --version`
 without DYLD loader environment to check relocatable linkage. It next runs
 `wine cmd /c ver` with the launch environment and a private scratch prefix to
 exercise child spawning and prefix preparation.
-Both startup commands have a 120-second deadline; failure or timeout kills and
-waits for only the scratch `validation-prefix` wineserver, with five-second
-deadlines for each cleanup command.
+Both startup commands have a 120-second deadline. Success, failure and timeout
+all kill and wait for only the scratch `validation-prefix` wineserver, with
+five-second deadlines for each cleanup command. Cleanup failure fails an otherwise
+successful check; an earlier startup failure remains the reported error.
 Command output streams directly so pipe backpressure cannot hide the deadline.
 It reports Foundation's actual resume offset; if the server/native cache needs a
 fresh-origin fallback it says so. For explicit

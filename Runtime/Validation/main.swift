@@ -86,6 +86,13 @@ import Synchronization
                 contents.appendingPathComponent("Frameworks/GStreamer.framework/Libraries").path, "/usr/lib"].joined(separator: ":")
         ]) { _, value in value }
         let server = wine.appendingPathComponent("bin/wineserver")
+        func cleanPrefix() throws {
+            // WINEPREFIX restricts both cleanup commands to this checker's scratch prefix.
+            try execute(server, arguments: ["-k9"], directory: prefix, environment: launchEnvironment,
+                        label: "Stop private validation prefix", timeout: 5)
+            try execute(server, arguments: ["-w"], directory: prefix, environment: launchEnvironment,
+                        label: "Wait for private validation prefix", timeout: 5)
+        }
         do {
             // Do not let loader environment hide missing LC_RPATH entries in a child executable.
             try execute(server, arguments: ["--version"], directory: prefix, environment: environment,
@@ -93,15 +100,11 @@ import Synchronization
             try execute(wine.appendingPathComponent("bin/wine"), arguments: ["cmd", "/c", "ver"],
                         directory: prefix, environment: launchEnvironment, label: "Wine cmd /c ver")
         } catch {
-            // WINEPREFIX restricts both cleanup commands to this checker's scratch prefix.
-            do {
-                try execute(server, arguments: ["-k9"], directory: prefix, environment: launchEnvironment,
-                            label: "Stop private validation prefix", timeout: 5)
-                try execute(server, arguments: ["-w"], directory: prefix, environment: launchEnvironment,
-                            label: "Wait for private validation prefix", timeout: 5)
-            } catch { log("Private validation prefix cleanup failed: \(error.localizedDescription)") }
+            do { try cleanPrefix() }
+            catch { log("Private validation prefix cleanup failed: \(error.localizedDescription)") }
             throw error
         }
+        try cleanPrefix()
     }
 
     static func execute(_ executable: URL, arguments: [String], directory: URL,
