@@ -1,44 +1,82 @@
 import { releaseDetails } from './release.mjs';
 
-const capture = document.querySelector('#native-capture');
+const scene = document.querySelector('#library-demo');
 const covers = [...document.querySelectorAll('.native-cover')];
+const panel = document.querySelector('.native-popover');
+const panelImage = document.querySelector('.native-popover-capture');
 const playPreview = document.querySelector('.native-play-hit');
 const back = document.querySelector('.native-back');
 const hint = document.querySelector('.demo-hint');
-const pointer = document.querySelector('.cover-pointer');
 const previewStatus = document.querySelector('#native-preview-status');
 let selected;
+let pendingCover;
+let previewRequest = 0;
 
-function closePreview(restoreFocus = true) {
-  capture.src = '/images/native-library.jpg';
-  capture.alt = 'Pufflet’s native macOS library with three installed game covers.';
-  covers.forEach(cover => cover.setAttribute('aria-expanded', 'false'));
-  playPreview.hidden = back.hidden = true;
-  hint.hidden = pointer.hidden = false;
-  if (restoreFocus) selected?.focus();
+// Keyboard navigation stays instant; pointer interactions use the short transitions.
+document.addEventListener('keydown', () => document.documentElement.setAttribute('data-keyboard', ''), true);
+document.addEventListener('pointerdown', () => document.documentElement.removeAttribute('data-keyboard'), true);
+
+async function prepareCapture(cover) {
+  const image = cover.querySelector('img');
+  if (!image.hasAttribute('src')) image.src = cover.dataset.capture;
+  await image.decode();
 }
 
-covers.forEach(cover => cover.addEventListener('click', () => {
-  selected = cover;
-  capture.src = cover.dataset.capture;
-  capture.alt = `Pufflet’s native ${cover.dataset.game} Play popover, with Installed, Play, and Show files.`;
-  covers.forEach(item => item.setAttribute('aria-expanded', String(item === cover)));
-  playPreview.style.left = cover.dataset.playLeft;
-  playPreview.hidden = back.hidden = false;
-  hint.hidden = pointer.hidden = true;
-  playPreview.focus();
-  previewStatus.textContent = `${cover.dataset.game} preview selected.`;
-}));
+function closePreview(restoreFocus = true) {
+  const trigger = pendingCover ?? selected;
+  pendingCover = undefined;
+  previewRequest++;
+  panel.removeAttribute('data-open');
+  scene.classList.remove('popover-on-right');
+  panel.inert = true;
+  covers.forEach(cover => cover.setAttribute('aria-expanded', 'false'));
+  back.hidden = true;
+  hint.hidden = false;
+  if (restoreFocus) trigger?.focus({ preventScroll: true });
+}
+
+covers.forEach(cover => {
+  cover.addEventListener('pointerenter', () => { prepareCapture(cover).catch(() => {}); }, { once: true });
+  cover.addEventListener('click', async () => {
+    if (selected === cover && panel.hasAttribute('data-open')) return closePreview();
+    const request = ++previewRequest;
+    pendingCover = cover;
+    try {
+      await prepareCapture(cover);
+      if (request !== previewRequest) return;
+      pendingCover = undefined;
+      selected = cover;
+      scene.classList.toggle('popover-on-right', cover.classList.contains('stardew-cover'));
+      panelImage.src = cover.dataset.capture;
+      panelImage.style.left = cover.dataset.popupCrop;
+      panel.style.left = cover.dataset.popupLeft;
+      panel.style.transformOrigin = `${cover.dataset.origin} 0%`;
+      covers.forEach(item => item.setAttribute('aria-expanded', String(item === cover)));
+      panel.setAttribute('aria-label', `${cover.dataset.game} native Play preview`);
+      panel.inert = false;
+      panel.setAttribute('data-open', '');
+      back.hidden = false;
+      hint.hidden = true;
+      playPreview.focus({ preventScroll: true });
+      previewStatus.textContent = `${cover.dataset.game} preview selected.`;
+    } catch {
+      if (request === previewRequest) {
+        pendingCover = undefined;
+        previewStatus.textContent = 'The preview could not load. Select the cover to try again.';
+      }
+    }
+  });
+});
 back.addEventListener('click', () => closePreview());
 playPreview.addEventListener('click', () => {
   closePreview();
   previewStatus.textContent = 'Preview complete. No game was launched.';
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && !back.hidden) closePreview();
+  if (event.key === 'Escape' && (!back.hidden || pendingCover)) closePreview();
 });
 document.addEventListener('click', event => {
-  if (!back.hidden && !event.target.closest('#library-demo')) closePreview(false);
+  if ((!back.hidden || pendingCover) && !event.target.closest('#library-demo')) closePreview(false);
 });
 document.querySelector('.demo-link').addEventListener('click', () => covers[1].focus({ preventScroll: true }));
 

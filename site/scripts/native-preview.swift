@@ -87,10 +87,11 @@ struct RuntimeOnboardingView: View {
         WindowGroup("Library", id: "website-preview") {
             LibraryView(model: model)
                 .onAppear {
-                    NSApplication.shared.windows.first?.setContentSize(NSSize(width: 680, height: 600))
+                    let height = ProcessInfo.processInfo.arguments.contains("--popovers") ? 600 : 460
+                    NSApplication.shared.windows.first?.setContentSize(NSSize(width: 680, height: height))
                 }
         }
-        .defaultSize(width: 680, height: 600)
+        .defaultSize(width: 680, height: 460)
         .windowResizability(.contentMinSize)
         Settings { Text("Website preview only").padding() }
     }
