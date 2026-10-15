@@ -57,3 +57,17 @@
 .demo-scene.popover-on-right .demo-tools{justify-content:flex-start}
 .native-play-hit{min-height:28px}
 @media(max-width:760px){.demo-scene.popover-on-right .demo-tools{padding-left:120px}}
+
+.demo-tools{gap:12px;flex-wrap:wrap}
+.demo-replay{border:1px solid #ffffffb3;border-radius:100px;background:#ffffff70;backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3);box-shadow:inset 0 1px 0 #ffffffe6,0 2px 8px #173d4208;padding:7px 12px;color:#315b55;font-size:11px;font-weight:550;white-space:nowrap;transition:transform var(--press-duration) var(--ease-out),opacity var(--press-duration) var(--ease-out)}
+.demo-replay:active{transform:scale(.97)}
+@media(hover:hover) and (pointer:fine){.demo-replay:hover{background:#ffffffb3}}
+:root[data-keyboard] .demo-replay{transition:none}
+:root[data-keyboard] .demo-replay:active{transform:none}
+@media(prefers-reduced-motion:reduce){.demo-replay:active{transform:none}}
+@supports not (backdrop-filter:blur(1px)){.demo-replay{background:#edf3f0}}
+@media(max-width:760px){.demo-tools{gap:8px}.demo-replay{padding:6px 9px;font-size:10px}}
+
+.demo-scene{animation-fill-mode:backwards}
+
+.demo-scene[data-demo-running] .native-back,.demo-scene:not([data-demo-running]):has(.native-popover[data-open]) .demo-replay{display:none}
