@@ -179,8 +179,10 @@ Runtime/validate-artifact.sh Resources/RuntimeArtifact.json "$PWD/build/runtime-
 ```
 
 The second command finishes the public download, validates and installs it, proves
-reuse with download transport forced offline, then runs the installed `wine
---version` with a scratch prefix. It reports Foundation's actual resume offset;
+reuse with download transport forced offline, then runs `wineserver --version`
+without DYLD loader environment to check relocatable linkage. It next runs
+`wine cmd /c ver` with the launch environment and a private scratch prefix to
+exercise child spawning and prefix preparation. It reports Foundation's actual resume offset;
 if the server/native cache needs a fresh-origin fallback it says so. For explicit
 local-artifact validation, append `--local-archive /absolute/path/archive.tar.xz`;
 only transport is substituted, with all checksum/extraction/signature/Gatekeeper

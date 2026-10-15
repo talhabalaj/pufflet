@@ -77,30 +77,42 @@ import Synchronization
         try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let contents = app.appendingPathComponent("Contents")
         let wine = contents.appendingPathComponent("SharedSupport/wine")
-        let process = Process(); let pipe = Pipe()
-        process.executableURL = wine.appendingPathComponent("bin/wine"); process.arguments = ["--version"]
-        process.currentDirectoryURL = prefix
         let inherited = ProcessInfo.processInfo.environment.filter { ["HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE"].contains($0.key) }
-        process.environment = inherited.merging(["WINEPREFIX": prefix.path, "PATH": "/usr/bin:/bin", "SikarugirAppWine11": "1",
+        let environment = inherited.merging(["WINEPREFIX": prefix.path, "PATH": "/usr/bin:/bin", "SikarugirAppWine11": "1"]) { _, value in value }
+        // Do not let loader environment hide missing LC_RPATH entries in a child executable.
+        try execute(wine.appendingPathComponent("bin/wineserver"), arguments: ["--version"],
+                    directory: prefix, environment: environment, label: "Wineserver without DYLD loader environment")
+        let launchEnvironment = environment.merging([
             "DYLD_FALLBACK_LIBRARY_PATH": [wine.appendingPathComponent("lib").path, wine.appendingPathComponent("lib64").path,
                 contents.appendingPathComponent("Frameworks").path,
-                contents.appendingPathComponent("Frameworks/GStreamer.framework/Libraries").path, "/usr/lib"].joined(separator: ":")]) { _, value in value }
+                contents.appendingPathComponent("Frameworks/GStreamer.framework/Libraries").path, "/usr/lib"].joined(separator: ":")
+        ]) { _, value in value }
+        try execute(wine.appendingPathComponent("bin/wine"), arguments: ["cmd", "/c", "ver"],
+                    directory: prefix, environment: launchEnvironment, label: "Wine cmd /c ver")
+    }
+
+    static func execute(_ executable: URL, arguments: [String], directory: URL,
+                        environment: [String: String], label: String) throws {
+        let process = Process(); let pipe = Pipe()
+        process.executableURL = executable; process.arguments = arguments
+        process.currentDirectoryURL = directory; process.environment = environment
         process.standardOutput = pipe; process.standardError = pipe
         try process.run()
         let output = pipe.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit()
-        log("Wine exit: \(process.terminationStatus); \(String(decoding: output, as: UTF8.self))")
-        guard process.terminationStatus == 0 else { throw CheckError.wine }
+        log("\(label) exit: \(process.terminationStatus); \(String(decoding: output, as: UTF8.self))")
+        guard process.terminationStatus == 0 else { throw CheckError.commandFailed(label, process.terminationStatus) }
     }
 
     enum CheckError: LocalizedError {
-        case usage, noPause, noResumeData, reuse, wine
+        case usage, noPause, noResumeData, reuse
+        case commandFailed(String, Int32)
         var errorDescription: String? {
             switch self {
             case .usage: "Usage: validate-artifact.sh <pin.json> <scratch-support> [--pause-after-bytes N | --local-archive path]"
             case .noPause: "A partial download was not observed; use a fresh scratch-support folder."
             case .noResumeData: "The server did not produce usable resume data."
             case .reuse: "Offline reuse selected the wrong runtime."
-            case .wine: "The installed Wine executable failed."
+            case let .commandFailed(command, status): "\(command) failed with exit code \(status)."
             }
         }
     }
