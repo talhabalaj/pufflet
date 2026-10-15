@@ -1,3 +1,7 @@
+Pufflet-modified Madeira Dock (c98338578678f9e4ba64b7459744472afe97331d)
+Corresponding source: https://github.com/talhabalaj/madeira-dock/tree/c98338578678f9e4ba64b7459744472afe97331d
+Adds opt-in Valve-managed installation; based on upstream 72558e4.
+
 LICENSE
 
 Madeira Dock
