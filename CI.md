@@ -32,7 +32,7 @@ Push a new unused numeric version tag, for example `v0.1.0`, pointing to the exa
 
 GitHub signs the ZIP and feed, creates a draft release for the exact source tag, and uploads the versioned archive, checksum, manifest and signed appcast without overwriting existing assets. Matching retries are allowed. After checking all draft assets it publishes with `--latest=false`, verifies anonymous downloads, rechecks against downgrades, then marks the release latest as the final promotion. The Worker keeps `/appcast.xml`, `/downloads/manifest.json`, and `/downloads/Pufflet-<version>-<build>.zip` stable while GitHub hosts the bytes. Publication is serialized. An interrupted publication can resume via workflow_dispatch using the original tag and completed `cloud_build_id`. Select `main` as the workflow ref to use repaired publishing tools without rebuilding the app: the Cloud job still pins the app to the input tag/commit, and the package check requires the embedded runtime pin to match the selected tooling checkout.
 
-Only the publish job receives `contents: write` and GitHub's ephemeral `GH_TOKEN`; no additional stored token or bucket is required. Cloudflare credentials are used solely for deploying the website. Existing R2 configuration/secrets are retained for recovery but unused by the application release publisher.
+Only the publish job receives `contents: write` and GitHub's ephemeral `GH_TOKEN`; no additional stored token or bucket is required. Cloudflare credentials are used solely for deploying the website. The unused `pufflet-releases` R2 bucket was verified empty and deleted on 2026-10-16; no R2 storage is used by Pufflet.
 
 ## Separate runtime artifact
 

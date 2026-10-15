@@ -143,7 +143,11 @@ document.addEventListener('keydown', event => {
 document.addEventListener('click', event => {
   if ((!back.hidden || pendingCover) && !event.target.closest('#library-demo')) closePreview(false);
 });
-document.querySelector('.demo-link').addEventListener('click', () => covers[1].focus({ preventScroll: true }));
+const headerDownload = document.querySelector('.nav-action');
+const heroObserver = new IntersectionObserver(([entry]) => {
+  headerDownload.hidden = entry.isIntersecting;
+}, { rootMargin: '-90px 0px 0px' });
+heroObserver.observe(document.querySelector('.hero'));
 
 async function refreshRelease() {
   try {
