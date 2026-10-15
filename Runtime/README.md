@@ -22,8 +22,8 @@ there is no unsigned network manifest. The current schema is:
 ```json
 {
   "schemaVersion": 1,
-  "version": "wine-11.0-dxmt-1",
-  "url": "https://github.com/talhabalaj/pufflet/releases/download/runtime-wine-11.0-dxmt-1/PuffletRuntime-wine-11.0-dxmt-1.tar.xz",
+  "version": "wine-11.0-dxmt-2",
+  "url": "https://github.com/talhabalaj/pufflet/releases/download/runtime-wine-11.0-dxmt-2/PuffletRuntime-wine-11.0-dxmt-2.tar.xz",
   "sha256": "<SHA-256 of final signed, stapled tar.xz, lowercase hex>",
   "sizeBytes": 123,
   "expandedSizeBytes": 456,
