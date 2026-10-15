@@ -11,7 +11,11 @@ This is the same release architecture as Said: Xcode Cloud creates a **STAPLED_N
 - Sparkle public verification key is committed in the app's typed Info.plist settings. The private key is held in Keychain and backed up in 1Password; CI uses an encrypted repository secret. No key belongs in source control.
 - CI runs release-tooling tests, website types/build and script checks. Native tests run locally and in the Xcode Cloud release workflow.
 
-## Activation
+## Cloud configuration
+
+Pufflet is connected to Xcode Cloud product `33095b22-cf8f-444b-a4f1-85e42426f0cf`. The locked **Pufflet Release** workflow is `1732839D-8988-49DB-A36B-B50144059B79`, with required macOS Test and Archive actions, Xcode 27/macOS 27, and a Notarize post-action. GitHub's `XCODE_CLOUD_WORKFLOW_ID` points to it. Automatic starts are disabled; manual starts accept `v` tags. The initial Cloud counter is 2, above the local prototype's build 1.
+
+The following steps document how to recreate the configuration.
 
 Apple's new-repository onboarding and CI credentials cannot be copied by reading Said's GitHub secrets: GitHub secrets are write-only. Check the repository's current secrets/variables before configuring these items; the presence of workflow files does not prove that a release has run.
 
@@ -28,6 +32,6 @@ Push a new unused numeric version tag, for example `v0.1.0`, pointing to the exa
 
 GitHub signs the ZIP and feed, uploads the immutable versioned archive and checksum, verifies public size/hash, promotes the manifest, then uploads the signed feed last. First publication permits a missing manifest; later publication refuses downgrade or replacement of an immutable build. Publication is serialized. An interrupted publication can resume via workflow_dispatch using the original tag and completed `cloud_build_id`.
 
-The Cloudflare object API has a 300 MB request limit; a release exceeding that limit needs an S3 multipart uploader before publication. No oversized release is silently truncated.
+The publisher uses the pinned `cf` CLI to verify the existing Cloudflare CI token, then derives its R2 S3 credentials in memory. The AWS S3 uploader streams 32 MiB parts, aborts incomplete uploads on failure, and sets object cache metadata. This supports the bundled runtime ZIP, which exceeds the Cloudflare object API's 300 MB limit, without another stored secret. See [R2 token credentials](https://developers.cloudflare.com/r2/api/tokens/) and [multipart uploads](https://developers.cloudflare.com/r2/objects/upload-objects/).
 
 Only describe notarization as complete after a successful Apple artifact and Gatekeeper/stapler checks. Only describe automatic installation as tested after an actual upgrade between two signed releases. Neither has been verified for Pufflet yet.

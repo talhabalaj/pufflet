@@ -47,6 +47,8 @@ targets:
         basedOnDependencyAnalysis: true
         inputFiles:
           - "$(SRCROOT)/Runtime/bundle-runtime.sh"
+          - "$(SRCROOT)/Runtime/sign-runtime.py"
+          - "$(SRCROOT)/Runtime/Wine.entitlements"
         outputFiles:
           - "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/SharedSupport/.runtime-bundled"
     settings:

@@ -27,7 +27,7 @@ xcodebuild -project SteamLibrary.xcodeproj -scheme SteamLibrary \
 
 Madeira Dock is a Git submodule pinned to commit `72558e416a390f3669457930f09a389e54f49556`. Clone with `git clone --recurse-submodules` or initialize it with the command above. Its source is used by `Runtime/build-headless-host.sh`; the bundled host remains unchanged.
 
-The runtime bootstrap downloads exact checksum-pinned engine/template packages from Sikarugir. It never downloads a signed-in prefix or game. The build bundles Wine and DXMT and excludes the other renderers. See `Runtime/bootstrap-runtime.sh` for sources and hashes. A local runtime source can be supplied with the `STEAM_RUNTIME_SOURCE_APP` build setting.
+The runtime bootstrap downloads exact checksum-pinned engine/template packages from Sikarugir. It never downloads a signed-in prefix or game. The build bundles Wine and DXMT and excludes the other renderers. See `Runtime/bootstrap-runtime.sh` for sources and hashes. Builds use this pinned runtime directly; no previously built launcher is required.
 
 The project uses Apple development signing by default. Set your development team in Xcode or override it at build time. `Local.xcconfig` is ignored and can contain local signing settings. Distribution uses Developer ID, Hardened Runtime and Apple's notarization workflow.
 

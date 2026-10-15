@@ -1,10 +1,10 @@
 import { createHash, createPublicKey, verify } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { releaseOrigin, releaseFiles } from './release-files.mjs';
+import { cloudflareUploader } from './r2-upload.mjs';
 
 export const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const immutableCache = 'public, max-age=31536000, immutable';
@@ -52,18 +52,6 @@ function requireMatchingFeed(content, manifest, metadata) {
       !content.includes(`<sparkle:shortVersionString>${manifest.version}</sparkle:shortVersionString>`)) {
     throw new Error('Signed feed does not describe the verified archive.');
   }
-}
-
-function cloudflareUploader() {
-  const bucket = process.env.R2_RELEASE_BUCKET ?? 'pufflet-releases';
-  if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(bucket)) throw new Error('Invalid bucket name.');
-  const wrangler = join(repoRoot, 'site/node_modules/.bin/cf');
-  if (!existsSync(wrangler) || !process.env.CLOUDFLARE_API_TOKEN) throw new Error('Pinned Cloudflare CLI and CLOUDFLARE_API_TOKEN are required.');
-  return (key, file, contentType, cacheControl) => {
-    if (readFileSync(file).length > 300_000_000) throw new Error('This release requires an R2 S3 multipart uploader; the object API limit is 300 MB.');
-    const result = spawnSync(wrangler, ['r2', 'objects', 'put', key, '--bucket-name', bucket, '--file', file, '--content-type', contentType], { stdio: 'inherit', cwd: join(repoRoot, 'site'), env: process.env });
-    if (result.status !== 0) throw new Error(`R2 upload failed: ${key}`);
-  };
 }
 
 async function verifyDownload(response, manifest) {

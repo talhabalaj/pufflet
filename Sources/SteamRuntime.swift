@@ -64,7 +64,7 @@ nonisolated struct SteamRuntime: Sendable {
         let contents = installation.application.appendingPathComponent("Contents")
         let wine = contents.appendingPathComponent("SharedSupport/wine")
         let frameworks = contents.appendingPathComponent("Frameworks")
-        let renderer = frameworks.appendingPathComponent("renderer/dxmt/wine").path
+        let renderer = contents.appendingPathComponent("SharedSupport/renderer/dxmt/wine").path
         let prefix = installation.prefix.path
         let inherited = ProcessInfo.processInfo.environment
         let permitted = Set(["HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "__CF_USER_TEXT_ENCODING", "SECURITYSESSIONID"])

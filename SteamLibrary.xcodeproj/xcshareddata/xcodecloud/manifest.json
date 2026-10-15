@@ -1,0 +1,9 @@
+{
+  "id" : "ade23e31-0f13-4872-86c5-d0cbe4eb95fd",
+  "targets" : [
+    {
+      "id" : "33095b22-cf8f-444b-a4f1-85e42426f0cf",
+      "name" : "SteamLibrary"
+    }
+  ]
+}

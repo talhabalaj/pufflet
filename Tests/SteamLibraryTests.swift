@@ -59,7 +59,7 @@ struct SteamLibraryTests {
         let environment = runtime.environment()
         #expect(environment["WINEPREFIX"] == environment["STEAM_LIBRARY_PREFIX"])
         #expect(environment["DYLD_INSERT_LIBRARIES"] == "/tmp/DockBridge.dylib")
-        #expect(environment["WINEDLLPATH_DXMT"]?.contains("renderer/dxmt/wine") == true)
+        #expect(environment["WINEDLLPATH_DXMT"]?.contains("SharedSupport/renderer/dxmt/wine") == true)
         #expect(environment["OPENAI_API_KEY"] == nil)
         #expect(environment["DXMT_CONFIG_FILE"] == nil)
     }
