@@ -1,43 +1,46 @@
 import { releaseDetails } from './release.mjs';
 
-const games = [...document.querySelectorAll('[data-game]')];
-const popover = document.querySelector('#game-actions');
-const playing = document.querySelector('.playing-state');
-const status = document.querySelector('#demo-status');
+const capture = document.querySelector('#native-capture');
+const covers = [...document.querySelectorAll('.native-cover')];
+const playPreview = document.querySelector('.native-play-hit');
+const back = document.querySelector('.native-back');
+const hint = document.querySelector('.demo-hint');
+const pointer = document.querySelector('.cover-pointer');
+const previewStatus = document.querySelector('#native-preview-status');
 let selected;
 
 function closePreview(restoreFocus = true) {
-  popover.hidden = true;
-  playing.hidden = true;
-  games.forEach(game => game.setAttribute('aria-expanded', 'false'));
-  status.textContent = 'A little less between you and Play.';
+  capture.src = '/images/native-library.jpg';
+  capture.alt = 'Pufflet’s native macOS library with three installed game covers.';
+  covers.forEach(cover => cover.setAttribute('aria-expanded', 'false'));
+  playPreview.hidden = back.hidden = true;
+  hint.hidden = pointer.hidden = false;
   if (restoreFocus) selected?.focus();
 }
 
-games.forEach(game => game.addEventListener('click', () => {
-  closePreview(false);
-  selected = game;
-  game.setAttribute('aria-expanded', 'true');
-  document.querySelector('#selected-title').textContent = game.dataset.game;
-  popover.hidden = false;
-  document.querySelector('.play-button').focus();
+covers.forEach(cover => cover.addEventListener('click', () => {
+  selected = cover;
+  capture.src = cover.dataset.capture;
+  capture.alt = `Pufflet’s native ${cover.dataset.game} Play popover, with Installed, Play, and Show files.`;
+  covers.forEach(item => item.setAttribute('aria-expanded', String(item === cover)));
+  playPreview.style.left = cover.dataset.playLeft;
+  playPreview.hidden = back.hidden = false;
+  hint.hidden = pointer.hidden = true;
+  playPreview.focus();
+  previewStatus.textContent = `${cover.dataset.game} preview selected.`;
 }));
-document.querySelector('.close-popover').addEventListener('click', () => closePreview());
-document.querySelector('.back-button').addEventListener('click', () => closePreview());
-document.querySelector('.play-button').addEventListener('click', () => {
-  popover.hidden = true;
-  playing.hidden = false;
-  document.querySelector('#playing-title').textContent = selected.dataset.game;
-  status.textContent = 'Preview only. No game was launched.';
-  document.querySelector('.back-button').focus();
+back.addEventListener('click', () => closePreview());
+playPreview.addEventListener('click', () => {
+  closePreview();
+  previewStatus.textContent = 'Preview complete. No game was launched.';
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && (!popover.hidden || !playing.hidden)) closePreview();
+  if (event.key === 'Escape' && !back.hidden) closePreview();
 });
 document.addEventListener('click', event => {
-  if (!popover.hidden && !event.target.closest('.app-window')) closePreview(false);
+  if (!back.hidden && !event.target.closest('#library-demo')) closePreview(false);
 });
-document.querySelector('.demo-link').addEventListener('click', () => games[0].focus({ preventScroll: true }));
+document.querySelector('.demo-link').addEventListener('click', () => covers[1].focus({ preventScroll: true }));
 
 async function refreshRelease() {
   try {
