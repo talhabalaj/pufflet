@@ -15,7 +15,7 @@ magic = {bytes.fromhex(value) for value in (
     "feedface", "cefaedfe", "feedfacf", "cffaedfe",
     "cafebabe", "bebafeca", "cafebabf", "bfbafeca",
 )}
-roots = [contents / "SharedSupport", contents / "Frameworks"]
+roots = [contents / "SharedSupport", contents / "Frameworks", contents / "Resources"]
 native = []
 for root in roots:
     for path in root.rglob("*"):
