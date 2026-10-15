@@ -203,11 +203,11 @@ struct RuntimeInstallerTests {
 
     @Test(arguments: ["http://github.com/asset", "https://github.com.evil.test/asset", "https://user:password@github.com/asset", "https://release-assets.githubusercontent.com:8080/asset", "https://example.com/asset"])
     func rejectsUntrustedRedirects(url: String) {
-        #expect(!RuntimeDownloadDelegate.permits(URL(string: url)!))
+        #expect(!RuntimeDownloadPolicy.permits(URL(string: url)!))
     }
 
     @Test func acceptsGitHubAssetRedirectAndRejectsUnpublishedPin() throws {
-        #expect(RuntimeDownloadDelegate.permits(URL(string: "https://release-assets.githubusercontent.com/asset?signature=abc")!))
+        #expect(RuntimeDownloadPolicy.permits(URL(string: "https://release-assets.githubusercontent.com/asset?signature=abc")!))
         let fixture = try RuntimeFixture(); defer { fixture.cleanup() }
         #expect(throws: RuntimeInstallError.unpublished) { try fixture.artifact(hash: "", size: 0).validate() }
     }

@@ -105,7 +105,7 @@ data nor Valve binaries belong in the mirrored artifact. App update restarts wai
 for a runtime installation as well as an active game session.
 
 First-launch setup chooses the external library, starts installation with real
-byte progress and cancel/retry, opens existing native authentication, and exposes
+byte progress and Pause/Resume/retry, opens existing native authentication, and exposes
 Steam-support preparation separately. It remains possible to browse the library
 without installing or authenticating. Play and Steam preparation route back to
 setup if runtime support is absent.
@@ -124,3 +124,63 @@ only download transport and signature approval are substituted in success tests.
 A separate test verifies that the real signature checker rejects an unsigned
 fixture. These fixtures do not prove notarization or real Wine execution; the
 published archive must also be checked with the production approval path.
+
+## Download resume and transport
+
+Runtime downloads use **Alamofire exactly 5.12.2**, pinned in `project.yml` and
+SPM's `Package.resolved`. The ephemeral session has no cookie storage, credential
+storage or URL cache. Redirect policy, response validation, progress callbacks and
+cancellation handling are attached before requests start. Original requests use
+the pinned GitHub URL; redirects and final responses still require HTTPS, standard
+ports, no embedded credentials and the GitHub release CDN allowlist. There is no
+automatic request retry policy.
+
+Pause cancels the underlying download while asking Alamofire/Foundation for resume
+data. Network failures also preserve usable resume data. A private `0700` directory
+at `Runtimes/Downloads/<full-pin-digest>` holds a `0600` record containing the full
+artifact pin, **opaque** resume blob, checksum of that blob, and last progress byte
+count. The blob checksum detects disk corruption before native resume handling.
+The app never parses resume keys, edits native requests, or copies native partial
+files. Foundation owns those temporary partial files; continuation is best effort
+if macOS purges them. No credentials or signed Steam state enter this cache.
+
+On restart, setup offers Resume instead of silently starting a paused download.
+Progress uses transferred bytes (including the server-confirmed resume offset)
+against the app's pinned total. If saved state is corrupt/mismatched it is discarded.
+If a resumed request has a stale signed CDN URL or unusable native partial, it gets
+**one** fresh request to the original pinned GitHub URL. Connection failures keep
+resume state for an explicit retry rather than looping. Completed transfers clear
+resume state; full size/SHA verification still occurs before archive parsing, so
+cached bytes never bypass the trust anchor. Installation and active-version
+publication rules are unchanged.
+
+`RuntimeDownloaderTests` runs a loopback HTTP server through an internal test-only
+policy seam. Production URL/HTTPS policy remains unchanged. It records actual
+Range headers and checks nonzero offset resume after pause, real byte progress,
+expired-URL fallback, corrupt/missing opaque records, dropped-connection recovery,
+and cancellation before requests start. The fixture never contacts GitHub.
+
+## Explicit production artifact check
+
+This tool compiles the **production** downloader, checksum/extractor and approval
+code against the exact Alamofire build product, using a supplied scratch data root.
+Its transient Debug app is built with `CODE_SIGNING_ALLOWED=NO`, so this check needs
+no app-signing private key; that transient app must never be distributed. Runtime
+signature and Gatekeeper approval are still fully enforced.
+It is never invoked by app builds, Cloud hooks, or ordinary CI. It does not replace
+an installed app or start a Steam session.
+
+```sh
+Runtime/validate-artifact.sh Resources/RuntimeArtifact.json "$PWD/build/runtime-check" --pause-after-bytes 2097152
+# A separate invocation proves persisted resume state survives process exit:
+Runtime/validate-artifact.sh Resources/RuntimeArtifact.json "$PWD/build/runtime-check"
+```
+
+The second command finishes the public download, validates and installs it, proves
+reuse with download transport forced offline, then runs the installed `wine
+--version` with a scratch prefix. It reports Foundation's actual resume offset;
+if the server/native cache needs a fresh-origin fallback it says so. For explicit
+local-artifact validation, append `--local-archive /absolute/path/archive.tar.xz`;
+only transport is substituted, with all checksum/extraction/signature/Gatekeeper
+checks retained. Set `PUFFLET_RUNTIME_VALIDATION_BUILD_DIR` to an existing **own**
+derived-data directory to reuse the build; the default is `build/RuntimeValidation`.

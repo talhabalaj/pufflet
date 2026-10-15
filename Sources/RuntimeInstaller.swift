@@ -3,38 +3,13 @@ import Darwin
 import Foundation
 import Security
 
-nonisolated final class RuntimeDownloadDelegate: NSObject, URLSessionDownloadDelegate {
-    let artifact: RuntimeArtifact
-    let progress: @Sendable (RuntimeProgress) -> Void
-    init(artifact: RuntimeArtifact, progress: @escaping @Sendable (RuntimeProgress) -> Void) {
-        self.artifact = artifact; self.progress = progress
-    }
-    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
-                    newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
-        completionHandler(request.url.map(Self.permits) == true ? request : nil)
-    }
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
-                    totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        if totalBytesWritten > artifact.sizeBytes || (totalBytesExpectedToWrite > 0 && totalBytesExpectedToWrite != artifact.sizeBytes) {
-            downloadTask.cancel()
-            return
-        }
-        progress(RuntimeProgress(phase: .downloading, completedBytes: totalBytesWritten, totalBytes: artifact.sizeBytes))
-    }
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) { }
-    static func permits(_ url: URL) -> Bool {
-        url.scheme == "https" && ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].contains(url.host ?? "")
-            && (url.port == nil || url.port == 443) && url.user == nil && url.password == nil
-    }
-}
-
 nonisolated struct RuntimeInstaller: Sendable {
     typealias ProgressHandler = @Sendable (RuntimeProgress) -> Void
     typealias Download = @Sendable (RuntimeArtifact, URL, @escaping ProgressHandler) async throws -> Void
     let artifact: RuntimeArtifact
     let support: URL
     // Internal seams let tests exercise the real transaction with local archive fixtures.
-    var download: Download = Self.downloadArchive
+    var download: Download? = nil
     var approve: @Sendable (URL, RuntimeArtifact) throws -> Void = Self.approveRuntime
 
     @concurrent func existing() async throws -> URL? {
@@ -78,7 +53,8 @@ nonisolated struct RuntimeInstaller: Sendable {
         defer { try? fm.removeItem(at: work) }
         let archive = work.appendingPathComponent("runtime.tar.xz")
         progress(RuntimeProgress(phase: .downloading, totalBytes: artifact.sizeBytes))
-        try await download(artifact, archive, progress)
+        if let download { try await download(artifact, archive, progress) }
+        else { try await RuntimeDownloader(artifact: artifact, support: support).download(to: archive, progress: progress) }
         try Task.checkCancellation()
         progress(RuntimeProgress(phase: .verifying))
         try Self.verifyArchive(archive, artifact: artifact)
@@ -150,27 +126,5 @@ nonisolated struct RuntimeInstaller: Sendable {
         assessment.waitUntilExit()
         try Task.checkCancellation()
         guard assessment.terminationStatus == 0 else { throw RuntimeInstallError.systemPolicy }
-    }
-
-    private static func downloadArchive(_ artifact: RuntimeArtifact, to destination: URL, progress: @escaping ProgressHandler) async throws {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.httpCookieStorage = nil; configuration.urlCredentialStorage = nil
-        configuration.timeoutIntervalForRequest = 60; configuration.timeoutIntervalForResource = 3600
-        let delegate = RuntimeDownloadDelegate(artifact: artifact, progress: progress)
-        let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-        defer { session.invalidateAndCancel() }
-        var request = URLRequest(url: artifact.url)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
-        let file: URL
-        let response: URLResponse
-        do { (file, response) = try await session.download(for: request, delegate: delegate) }
-        catch let error as URLError where error.code == .cancelled && !Task.isCancelled {
-            throw RuntimeInstallError.invalidDownload
-        }
-        defer { try? FileManager.default.removeItem(at: file) }
-        guard let response = response as? HTTPURLResponse, response.statusCode == 200, response.url.map(RuntimeDownloadDelegate.permits) == true else { throw RuntimeInstallError.invalidDownload }
-        try Task.checkCancellation()
-        try FileManager.default.moveItem(at: file, to: destination)
     }
 }

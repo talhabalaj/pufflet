@@ -5,6 +5,8 @@ import Observation
     private(set) var application: URL?
     private(set) var progress: RuntimeProgress?
     private(set) var errorMessage: String?
+    private(set) var savedBytes: Int64 = 0
+    private(set) var isPaused = false
     private(set) var hasChecked = false
     private var generation = UUID()
     private var task: Task<Void, Never>?
@@ -17,13 +19,15 @@ import Observation
         do {
             let installer = try installer()
             application = try await installer.existing()
+            savedBytes = await RuntimeDownloader(artifact: installer.artifact, support: installer.support).receivedBytes()
+            isPaused = savedBytes > 0
         } catch { errorMessage = error.localizedDescription }
         progress = nil; hasChecked = true
     }
 
     func start() {
         guard !isBusy, !isReady else { return }
-        errorMessage = nil
+        errorMessage = nil; isPaused = false
         progress = RuntimeProgress(phase: .checking)
         let current = UUID()
         generation = current
@@ -37,7 +41,12 @@ import Observation
                     }
                 }
             } catch {
-                if !Task.isCancelled { errorMessage = error.localizedDescription }
+                if Task.isCancelled { isPaused = true }
+                else { errorMessage = error.localizedDescription }
+            }
+            if let installer = try? installer() {
+                savedBytes = await RuntimeDownloader(artifact: installer.artifact, support: installer.support).receivedBytes()
+                if savedBytes > 0 { isPaused = true }
             }
         }
     }

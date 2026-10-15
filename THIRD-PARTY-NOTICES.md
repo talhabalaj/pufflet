@@ -9,3 +9,5 @@ Wine/DXMT and their libraries come from checksum-pinned official Sikarugir engin
 Steam artwork is fetched from Steam by App ID and remains Valve/publisher material. Steam and its marks belong to Valve. This launcher is not affiliated with Valve.
 
 Sparkle 2.10.0 is provided by its official checksum-pinned Swift Package Manager binary. Its unchanged package manifest and license are in Packages/Sparkle. Release CI tooling was adapted from Said, a project by the same author.
+
+Alamofire 5.12.2 (MIT), exact Swift Package Manager revision `bda9ed57d72988a3a2ada33d824583541f86eac6`, handles runtime download progress, cancellation, and resumable transfers. Its license is bundled as `Alamofire-LICENSE.txt`. Source: https://github.com/Alamofire/Alamofire/tree/5.12.2.

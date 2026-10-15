@@ -15,19 +15,22 @@
 		16FFB668386E4C69176C9190 /* SteamCredentialAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82C3606641ABF67AB87E9F1 /* SteamCredentialAuth.swift */; };
 		17A53A5E7A833F3C75077817 /* SteamHeadlessSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546AF6304774AF1764B15223 /* SteamHeadlessSession.swift */; };
 		17BE13153E3E3F7B23251734 /* Pufflet.icon in Resources */ = {isa = PBXBuildFile; fileRef = 84ADEC0810BAF0E78032DCD1 /* Pufflet.icon */; };
+		1A23FD491F0D4D43BAC01E67 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 3131D3C2D042903C3C99D451 /* Sparkle */; };
 		1B7AF7FA750DFE729F356326 /* SteamArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */; };
 		22B4F454C5B2624F8C74C44A /* RuntimeArtifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D7B53DA3C534CB4715787F /* RuntimeArtifact.swift */; };
 		291BAE44FD4244631DE03B47 /* SteamQRAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8053717935458BD2A2C6C /* SteamQRAuth.swift */; };
 		2D8B4C4CB448FCA09AABAFE5 /* RuntimeInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79A857CEFC9C8363CD9BFA31 /* RuntimeInstallerTests.swift */; };
+		2F2E405B324F70B075AABFA4 /* RuntimeDownloaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B78237412CDCB067890084 /* RuntimeDownloaderTests.swift */; };
 		3CA8D9A2BBFBC35B47107BBF /* AppIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F106E48207FE519F2B0EBCE /* AppIdentity.swift */; };
 		3F37649A21102F86AD985FCA /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 847C9F172181D0AA05C4C500 /* LICENSE */; };
 		449B943817F75E714F2BF364 /* SteamClientInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B045A526B814B5DAC4D38B4 /* SteamClientInstaller.swift */; };
 		4B87276E079B2758A15DEA27 /* SteamLaunchConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */; };
 		4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 249413E5C7E6FCFED178256F /* LibraryView.swift */; };
-		505CD6A3C06793074E83AD22 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 3131D3C2D042903C3C99D451 /* Sparkle */; };
+		505CD6A3C06793074E83AD22 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = BB7E489BD62DD00A70A6F77A /* Alamofire */; };
 		6CA6A4D42CE2E581D1929B7B /* RuntimeDefaults.plist in Resources */ = {isa = PBXBuildFile; fileRef = 915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */; };
 		7256D79EFD4971775277B511 /* RuntimeInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7633C7B1EC9322599279A767 /* RuntimeInstaller.swift */; };
 		73A4C2DC7F34418FB7D31499 /* RuntimeSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65E4E882E929A1484E556891 /* RuntimeSetup.swift */; };
+		79771F6611440C9BF435C448 /* Alamofire-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 71BF32628241FF5D246D21D3 /* Alamofire-LICENSE.txt */; };
 		7A56D99748FC01B416F47C2E /* SteamAuthMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44670FC9E43E0D251626CE67 /* SteamAuthMessages.swift */; };
 		8449300D2074F7A2A4916D56 /* SteamDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DF9ADF59E7E52826EC4FDF /* SteamDevice.swift */; };
 		8A07D1A2FD5B93AF1A02EC2B /* SteamLaunchConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */; };
@@ -48,6 +51,7 @@
 		DCCFAF0B4BA756292AFCB1DD /* LibrarySettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187C8758A15233306D44E94E /* LibrarySettingsTests.swift */; };
 		E69FF22F4B30690A1CB6E7EF /* SteamClientPackages.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03A53237E1587ADD890785B /* SteamClientPackages.swift */; };
 		E80E8182086DB195C11BE949 /* SteamArtworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */; };
+		F9EE12E3E087AF5070AED393 /* RuntimeDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F72FF9E4601204C664F1F1A /* RuntimeDownloader.swift */; };
 		FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -64,6 +68,7 @@
 /* Begin PBXFileReference section */
 		0158BD3C22A16882BB482C4A /* SteamRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamRuntime.swift; sourceTree = "<group>"; };
 		069F34A31805C4C293A1F67B /* SteamError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamError.swift; sourceTree = "<group>"; };
+		0F72FF9E4601204C664F1F1A /* RuntimeDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDownloader.swift; sourceTree = "<group>"; };
 		187C8758A15233306D44E94E /* LibrarySettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySettingsTests.swift; sourceTree = "<group>"; };
 		188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamArtworkTests.swift; sourceTree = "<group>"; };
 		1BEF834B1E4819021AEFD6FB /* SteamLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLog.swift; sourceTree = "<group>"; };
@@ -90,6 +95,7 @@
 		5F106E48207FE519F2B0EBCE /* AppIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentity.swift; sourceTree = "<group>"; };
 		65E4E882E929A1484E556891 /* RuntimeSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSetup.swift; sourceTree = "<group>"; };
 		6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLaunchConfiguration.swift; sourceTree = "<group>"; };
+		71BF32628241FF5D246D21D3 /* Alamofire-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Alamofire-LICENSE.txt"; sourceTree = "<group>"; };
 		7633C7B1EC9322599279A767 /* RuntimeInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeInstaller.swift; sourceTree = "<group>"; };
 		79A857CEFC9C8363CD9BFA31 /* RuntimeInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeInstallerTests.swift; sourceTree = "<group>"; };
 		79D7B53DA3C534CB4715787F /* RuntimeArtifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeArtifact.swift; sourceTree = "<group>"; };
@@ -105,6 +111,7 @@
 		C03A53237E1587ADD890785B /* SteamClientPackages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientPackages.swift; sourceTree = "<group>"; };
 		D1C2087D5D1BAE94AE9AFA67 /* SteamClientInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientInstallerTests.swift; sourceTree = "<group>"; };
 		E82C3606641ABF67AB87E9F1 /* SteamCredentialAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamCredentialAuth.swift; sourceTree = "<group>"; };
+		F2B78237412CDCB067890084 /* RuntimeDownloaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDownloaderTests.swift; sourceTree = "<group>"; };
 		F6DF9ADF59E7E52826EC4FDF /* SteamDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamDevice.swift; sourceTree = "<group>"; };
 		FD7F7C5D47981AFF8240153A /* SteamAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAccount.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -114,13 +121,22 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				505CD6A3C06793074E83AD22 /* Sparkle in Frameworks */,
+				505CD6A3C06793074E83AD22 /* Alamofire in Frameworks */,
+				1A23FD491F0D4D43BAC01E67 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		043340DBEAA1570DF7DDA49B /* Alamofire */ = {
+			isa = PBXGroup;
+			children = (
+				71BF32628241FF5D246D21D3 /* Alamofire-LICENSE.txt */,
+			);
+			path = Alamofire;
+			sourceTree = "<group>";
+		};
 		1724E1A48C3C0F2AAC180B69 /* Madeira */ = {
 			isa = PBXGroup;
 			children = (
@@ -161,6 +177,7 @@
 		8DFBEF12C858952B1D616CBC /* Notices */ = {
 			isa = PBXGroup;
 			children = (
+				043340DBEAA1570DF7DDA49B /* Alamofire */,
 				1724E1A48C3C0F2AAC180B69 /* Madeira */,
 				301906AB9EC727C8121B28DC /* MadeiraDock */,
 			);
@@ -179,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				187C8758A15233306D44E94E /* LibrarySettingsTests.swift */,
+				F2B78237412CDCB067890084 /* RuntimeDownloaderTests.swift */,
 				79A857CEFC9C8363CD9BFA31 /* RuntimeInstallerTests.swift */,
 				188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */,
 				5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */,
@@ -239,6 +257,7 @@
 				249413E5C7E6FCFED178256F /* LibraryView.swift */,
 				4CF4BBE4C86611A07C882A2C /* RuntimeArchive.swift */,
 				79D7B53DA3C534CB4715787F /* RuntimeArtifact.swift */,
+				0F72FF9E4601204C664F1F1A /* RuntimeDownloader.swift */,
 				7633C7B1EC9322599279A767 /* RuntimeInstaller.swift */,
 				2F710FD3D6E85DB7F3D8106A /* RuntimeOnboardingView.swift */,
 				65E4E882E929A1484E556891 /* RuntimeSetup.swift */,
@@ -288,6 +307,7 @@
 			);
 			name = SteamLibrary;
 			packageProductDependencies = (
+				BB7E489BD62DD00A70A6F77A /* Alamofire */,
 				3131D3C2D042903C3C99D451 /* Sparkle */,
 			);
 			productName = SteamLibrary;
@@ -323,6 +343,7 @@
 			mainGroup = BC03D5706058ABBC5EAC722C;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				79F35364218AFCE97DFB244A /* XCRemoteSwiftPackageReference "Alamofire" */,
 				9FFED4FA23A2788EDDFDD005 /* XCLocalSwiftPackageReference "Packages/Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -341,6 +362,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				79771F6611440C9BF435C448 /* Alamofire-LICENSE.txt in Resources */,
 				3F37649A21102F86AD985FCA /* LICENSE in Resources */,
 				D2293112D39C527EC6BF02DE /* LICENSE-EXCEPTION.md in Resources */,
 				17BE13153E3E3F7B23251734 /* Pufflet.icon in Resources */,
@@ -384,6 +406,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DCCFAF0B4BA756292AFCB1DD /* LibrarySettingsTests.swift in Sources */,
+				2F2E405B324F70B075AABFA4 /* RuntimeDownloaderTests.swift in Sources */,
 				2D8B4C4CB448FCA09AABAFE5 /* RuntimeInstallerTests.swift in Sources */,
 				E80E8182086DB195C11BE949 /* SteamArtworkTests.swift in Sources */,
 				8B0A5AFEC38068A162398A09 /* SteamAuthenticationTests.swift in Sources */,
@@ -404,6 +427,7 @@
 				4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */,
 				0ED7AA44D04998E76A4A567E /* RuntimeArchive.swift in Sources */,
 				22B4F454C5B2624F8C74C44A /* RuntimeArtifact.swift in Sources */,
+				F9EE12E3E087AF5070AED393 /* RuntimeDownloader.swift in Sources */,
 				7256D79EFD4971775277B511 /* RuntimeInstaller.swift in Sources */,
 				CC72BF5C306F3759A1F9C56B /* RuntimeOnboardingView.swift in Sources */,
 				73A4C2DC7F34418FB7D31499 /* RuntimeSetup.swift in Sources */,
@@ -694,10 +718,26 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		79F35364218AFCE97DFB244A /* XCRemoteSwiftPackageReference "Alamofire" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Alamofire/Alamofire.git";
+			requirement = {
+				kind = exactVersion;
+				version = 5.12.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		3131D3C2D042903C3C99D451 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Sparkle;
+		};
+		BB7E489BD62DD00A70A6F77A /* Alamofire */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 79F35364218AFCE97DFB244A /* XCRemoteSwiftPackageReference "Alamofire" */;
+			productName = Alamofire;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

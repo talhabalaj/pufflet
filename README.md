@@ -8,7 +8,7 @@ A native SwiftUI home for installed Windows Steam games on Apple silicon Macs. A
 
 ## Use
 
-Requires macOS 26 or later and Apple silicon. First launch guides you through choosing your existing Steam library, downloading verified Windows support, and native Steam sign-in. You can return through **Steam options → Set Up Pufflet…**, or change the library in **Pufflet → Settings → Games**. Select the folder containing `steamapps`, or `steamapps` itself. Pufflet reads the installed manifests and uses those game files in place. Installation, verification and compatibility fallback remain available in desktop Steam. Compatibility varies by game.
+Requires macOS 26 or later and Apple silicon. First launch guides you through choosing your existing Steam library, downloading verified Windows support with progress and Pause/Resume, and native Steam sign-in. You can return through **Steam options → Set Up Pufflet…**, or change the library in **Pufflet → Settings → Games**. Select the folder containing `steamapps`, or `steamapps` itself. Pufflet reads the installed manifests and uses those game files in place. Installation, verification and compatibility fallback remain available in desktop Steam. Compatibility varies by game.
 
 Wine 11 and DXMT are downloaded from Pufflet’s own GitHub Release mirror on first setup, verified against the app’s pinned SHA-256 and size, and installed under `~/Library/Application Support/Pufflet/Runtimes/<version>/PuffletRuntime.app`. Only the small native Dock bridge and Windows host ship in the app. Writable Steam support and its prefix are separate in `~/Library/Application Support/Pufflet`; Valve’s client components still come directly from its official CDN with hash verification. Artwork caches and logs use `~/Library/Caches/Pufflet` and `~/Library/Logs/Pufflet`. Native sign-in tokens are stored in Keychain. No Steam password is retained. The headless host gets its token through a private, one-use file rather than command arguments or environment variables.
 
@@ -53,7 +53,7 @@ npm run typecheck --prefix site
 npm run build --prefix site
 ```
 
-Swift tests cover installed manifests, installed-runtime resolution, download checksums/size, atomic publication/reuse, archive traversal and symlink escapes, cancellation/retry, authentication framing, launch metadata and artwork URLs. Release tests cover cloud provenance, signed-feed validation, immutable publication and version ordering. A real game launch has been checked locally; extended gameplay, controllers, overlay, cloud saves, offline mode and a full Sparkle replacement/restart have not been verified.
+Swift tests cover installed manifests, installed-runtime resolution, download checksums/size, resumable transfer progress and cancellation, atomic publication/reuse, archive traversal and symlink escapes, cancellation/retry, authentication framing, launch metadata and artwork URLs. Release tests cover cloud provenance, signed-feed validation, immutable publication and version ordering. A real game launch has been checked locally; extended gameplay, controllers, overlay, cloud saves, offline mode and a full Sparkle replacement/restart have not been verified.
 
 ## License and upstreams
 

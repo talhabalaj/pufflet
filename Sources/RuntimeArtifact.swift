@@ -52,6 +52,7 @@ nonisolated struct RuntimeProgress: Sendable {
     let phase: Phase
     var completedBytes: Int64 = 0
     var totalBytes: Int64 = 0
+    var resumeOffset: Int64 = 0
     var message: String {
         switch phase {
         case .checking: "Checking Windows support…"

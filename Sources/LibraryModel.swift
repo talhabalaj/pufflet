@@ -55,7 +55,7 @@ import os
         await runtimeSetup.check()
         steamSupportReady = await SteamClientInstaller.isPrepared()
         showsSetup = settings.libraryURL == nil || !runtimeSetup.isReady
-        if settings.libraryURL != nil && !runtimeSetup.isReady { runtimeSetup.start() }
+        if settings.libraryURL != nil && !runtimeSetup.isReady && !runtimeSetup.isPaused { runtimeSetup.start() }
     }
 
     private func requireRuntime() -> Bool {

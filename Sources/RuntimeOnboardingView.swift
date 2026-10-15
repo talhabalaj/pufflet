@@ -30,15 +30,20 @@ struct RuntimeOnboardingView: View {
                         Text("\(ByteCountFormatter.string(fromByteCount: progress.completedBytes, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: progress.totalBytes, countStyle: .file))")
                             .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                     } else { ProgressView().controlSize(.small) }
+                } else if model.runtimeSetup.isPaused || model.runtimeSetup.savedBytes > 0 {
+                    Text(model.runtimeSetup.savedBytes > 0
+                        ? "Paused — \(ByteCountFormatter.string(fromByteCount: model.runtimeSetup.savedBytes, countStyle: .file)) saved. Resume when you’re ready."
+                        : "Download paused. This download will restart when you retry.")
+                        .font(.callout).foregroundStyle(.secondary)
                 } else {
                     Text(model.runtimeSetup.isReady ? "Wine and DXMT are installed in Pufflet’s private app data." : "A one-time, verified download. Your prefix, games, and saves stay separate.")
                         .font(.callout).foregroundStyle(.secondary)
                 }
                 if let error = model.runtimeSetup.errorMessage { Text(error).font(.callout).foregroundStyle(.red) }
                 if model.runtimeSetup.isBusy {
-                    Button("Cancel installation") { model.runtimeSetup.cancel() }
+                    Button(model.runtimeSetup.progress?.phase == .downloading ? "Pause download" : "Cancel installation") { model.runtimeSetup.cancel() }
                 } else if !model.runtimeSetup.isReady {
-                    Button(model.runtimeSetup.errorMessage == nil ? "Download Windows support" : "Retry download") { model.runtimeSetup.start() }
+                    Button(model.runtimeSetup.savedBytes > 0 ? "Resume download" : model.runtimeSetup.errorMessage == nil && !model.runtimeSetup.isPaused ? "Download Windows support" : "Retry download") { model.runtimeSetup.start() }
                         .disabled(model.settings.libraryURL == nil || !model.runtimeSetup.hasChecked)
                 }
             }

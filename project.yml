@@ -12,6 +12,9 @@ settings:
     GENERATE_INFOPLIST_FILE: YES
     MACOSX_DEPLOYMENT_TARGET: "26.0"
 packages:
+  Alamofire:
+    url: https://github.com/Alamofire/Alamofire.git
+    exactVersion: 5.12.2
   Sparkle:
     path: Packages/Sparkle
 configFiles:
@@ -41,6 +44,7 @@ targets:
         SURequireSignedFeed: true
         SUVerifyUpdateBeforeExtraction: true
     dependencies:
+      - package: Alamofire
       - package: Sparkle
     postCompileScripts:
       - name: Sign native Dock bridge
@@ -74,7 +78,7 @@ targets:
     platform: macOS
     sources:
       - path: Tests
-        excludes: ["*.test.mjs"]
+        excludes: ["*.test.mjs", Fixtures]
     dependencies:
       - target: SteamLibrary
     settings:
