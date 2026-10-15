@@ -90,6 +90,7 @@ actor SteamSessionHost {
     private var ongoing = Set<Int>()
     private var installRequests = Set<Int>()
     private var failureMessage: String?
+    private var accountID: UInt64?
     private var destination: URL?
     private var runtime: SteamRuntime?
 
@@ -109,16 +110,16 @@ actor SteamSessionHost {
         if !starting, process != nil, !ready { try await shutdown() }
         let root = destination.resolvingSymlinksInPath()
         if ready {
-            guard self.destination?.standardizedFileURL.path == root.standardizedFileURL.path else { throw SteamClientPackages.Failure.activeSession }
+            guard self.destination?.standardizedFileURL.path == root.standardizedFileURL.path, accountID == credentials.steamID else { throw SteamClientPackages.Failure.activeSession }
             return
         }
         if starting {
             try await waitForStart()
-            guard self.destination?.standardizedFileURL.path == root.standardizedFileURL.path else { throw SteamClientPackages.Failure.activeSession }
+            guard self.destination?.standardizedFileURL.path == root.standardizedFileURL.path, accountID == credentials.steamID else { throw SteamClientPackages.Failure.activeSession }
             return
         }
         starting = true; expectedExit = false; failureMessage = nil
-        self.destination = root; self.runtime = runtime
+        self.destination = root; self.runtime = runtime; accountID = credentials.steamID
         let current = UUID(); generation = current
         do {
             _ = try await installer.prepare(runtime: runtime, games: library, destination: root) { [weak self] text in
@@ -185,8 +186,11 @@ actor SteamSessionHost {
         } catch {
             if generation == current {
                 failWaiters(error)
-                if process != nil, !stopping { try? await shutdown() }
-                else { reset(error: error.localizedDescription) }
+                if process != nil {
+                    // A concurrent shutdown owns teardown. Its suspended
+                    // start waiter must not discard the process or prefix.
+                    if !stopping { try? await shutdown() }
+                } else if !stopping { reset(error: error.localizedDescription) }
             }
             throw error
         }
@@ -357,7 +361,7 @@ actor SteamSessionHost {
         reader?.cancel(); reader = nil
         try? input?.fileHandleForWriting.close(); output?.fileHandleForReading.readabilityHandler = nil
         try? output?.fileHandleForReading.close()
-        issued = [:]; ongoing = []; installRequests = []
+        issued = [:]; ongoing = []; installRequests = []; accountID = nil
         input = nil; output = nil; ready = false; starting = false; stopping = false
         try? FileManager.default.removeItem(at: paths.handoff)
         try? FileManager.default.removeItem(at: paths.requests)

@@ -46,9 +46,9 @@ private actor PreparedClient: SteamClientPreparing {
         let runtime = SteamRuntime(installation: SteamInstallation(prefix: paths.prefix, runtime: root.appendingPathComponent("runtime")), dockBridge: root.appendingPathComponent("unused"), logDirectory: root.appendingPathComponent("Logs"))
         return (root, runtime, host)
     }
-    private func credentials() throws -> SteamCredentials {
+    private func credentials(account: UInt64 = 1) throws -> SteamCredentials {
         // Synthetic ID with the transfer's required universe/account bits.
-        let id = (UInt64(1) << 56) | (UInt64(1) << 52) | 1
+        let id = (UInt64(1) << 56) | (UInt64(1) << 52) | account
         let claims = try JSONSerialization.data(withJSONObject: ["sub": String(id), "exp": Date().timeIntervalSince1970 + 3600])
         let encoded = claims.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
         return SteamCredentials(accountName: "fixture", refreshToken: "fixture.\(encoded).fixture", accessToken: "")
@@ -135,6 +135,49 @@ private actor PreparedClient: SteamClientPreparing {
         await #expect(throws: (any Error).self) { try await host.install(appID: 1) }
         try await Task.sleep(for: .seconds(2))
         #expect(await !host.isActive)
+    }
+
+    @Test func shutdownDuringSignInRetainsOwnershipWhenTeardownFails() async throws {
+        let script = "import os,sys\nopen(os.path.join(os.path.dirname(__file__),'started'),'w').close()\nfor line in sys.stdin:\n if 'shutdown' in line: break\n"
+        let (root, runtime, url) = try fixture(script); defer { try? FileManager.default.removeItem(at: root) }
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
+        let credentials = try credentials()
+        let startup = Task { try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !FileManager.default.fileExists(atPath: root.appendingPathComponent("started").path), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("started").path))
+        let server = runtime.installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver")
+        try Data("#!/bin/sh\nsleep 0.2\nexit 7\n".utf8).write(to: server)
+        await #expect(throws: (any Error).self) { try await host.shutdown() }
+        await #expect(throws: (any Error).self) { try await startup.value }
+        #expect(await host.isActive)
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: server)
+        try await host.shutdown()
+        #expect(await !host.isActive)
+    }
+
+    @Test func alreadyExitedWineServerDoesNotTurnCleanShutdownIntoAnError() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let actor = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
+        try await actor.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
+        let server = runtime.installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver")
+        try Data("#!/bin/sh\nif [ \"$1\" = -k9 ]; then exit 1; fi\nexit 0\n".utf8).write(to: server)
+        try await actor.shutdown()
+        #expect(await !actor.isActive)
+    }
+
+    @Test func liveSessionCannotBeReusedForAnotherAccount() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
+        let other = try credentials(account: 2)
+        await #expect(throws: (any Error).self) {
+            try await host.start(appID: 1, destination: root, library: [], credentials: other, runtime: runtime)
+        }
+        #expect(await host.isActive)
+        try await host.shutdown()
     }
 
     private static let script = #"""

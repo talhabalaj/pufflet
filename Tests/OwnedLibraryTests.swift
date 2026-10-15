@@ -277,7 +277,7 @@ import Testing
         let defaults = try #require(UserDefaults(suiteName: suite)); defer { defaults.removePersistentDomain(forName: suite) }
         let settings = LibrarySettings(defaults: defaults, support: root, home: root)
         let queue = SteamDownloadQueue(root: root.appendingPathComponent("Queue")); queue.activate(account: 1)
-        let model = LibraryModel(settings: settings, headless: SteamHeadlessSession(paths: .init(support: root.appendingPathComponent("Support")), hostURL: nil), ownedLibrary: library, downloads: queue)
+        let model = LibraryModel(settings: settings, headless: SteamHeadlessSession(paths: .init(support: root.appendingPathComponent("Support")), hostURL: nil), ownedLibrary: library, downloads: queue, paths: .init(support: root.appendingPathComponent("Support")))
         model.games = [.init(id: "20", name: "Installed Fixture", installDirectory: "Fixture", bytes: 10, folder: root.appendingPathComponent("steamapps/common/Fixture"))]
         #expect(Set(model.filteredGames.map(\.id)) == ["10", "20"])
         model.filter = .installed
@@ -287,6 +287,8 @@ import Testing
         model.search = "Installed"
         #expect(model.filteredGames.map(\.id) == ["20"])
         #expect(model.canChangeLibrary)
+        #expect(model.installation.prefix == root.appendingPathComponent("Support/prefix"))
+        #expect(model.nativeRuntime.installation.prefix == root.appendingPathComponent("Support/prefix"))
         queue.enqueue(.init(id: "10", name: "Fixture", estimatedBytes: nil), destination: root)
         #expect(model.hasDownloadWork)
         #expect(model.canPlay)

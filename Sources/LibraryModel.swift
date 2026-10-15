@@ -13,7 +13,7 @@ import os
     let settings: LibrarySettings
     private let paths: SteamClientPaths
     var installation: SteamInstallation {
-        SteamInstallation(prefix: settings.sourcePrefix, libraryRoot: settings.libraryURL, runtime: runtimeSetup.application)
+        SteamInstallation(prefix: settings.sourcePrefix ?? paths.prefix, libraryRoot: settings.libraryURL, runtime: runtimeSetup.application)
     }
     let runtimeSetup = RuntimeSetup()
     var showsSetup = false

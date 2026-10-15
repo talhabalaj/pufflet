@@ -140,7 +140,11 @@ nonisolated struct SteamRuntime: Sendable {
             let deadline = ContinuousClock.now.advanced(by: .seconds(5))
             while process.isRunning && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(100)) }
             if process.isRunning { process.terminate(); throw RuntimeError.launchFailed("Steam did not stop. Keep Pufflet open and try again.") }
-            guard process.terminationStatus == 0 else { throw RuntimeError.launchFailed("Steam could not stop its private download session.") }
+            // A graceful host exit can remove the server before -k9 runs.
+            // The bounded -w is the authority: it must confirm server exit.
+            if argument == "-w", process.terminationStatus != 0 {
+                throw RuntimeError.launchFailed("Steam could not stop its private download session.")
+            }
         }
     }
 

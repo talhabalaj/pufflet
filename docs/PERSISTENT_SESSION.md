@@ -186,8 +186,14 @@ No test logs, tokens, account identifiers, client DLLs or game files are shipped
   Its Play/download exclusion also has model-level coverage. One-shot launch
   code remains unchanged; it was cross-built, not separately played live here.
 
-Whole-application quit and relaunch, beyond session-owner restart, is being
-checked separately before finalizing this evidence.
+The whole-application check also completed. The real Command-Q menu action
+showed the normal download warning; choosing Quit persisted Muck as queued,
+removed the handoff and stopped the app, host and wineserver. A fresh test-host
+app process used the production LibraryModel queue pipeline to resume and
+complete the same install in 30 seconds. The controller intentionally ended
+the first XCTest process through Quit, so that run reports a lost connection
+(exit 65); the subsequent resume run passed and the persisted queue/process
+checks supply the quit evidence.
 
 ![Browsing while another install is active](images/persistent-session-browsing.png)
 
@@ -200,11 +206,12 @@ paused bit 512; its slot/name/IPC and pause classification have focused checks.
 
 ### Automated validation
 
-- 73 native Swift tests passed with Apple Development signing; the ordinary
+- 79 native Swift tests passed with Apple Development signing; the ordinary
   suite skips real-account tests. Coverage includes fragmented/bounded numeric
   streams, wrong-app responses, coalesced startup, launch during a pending
   install, crash/restart, clean shutdown preserving pending jobs, ownership
-  retained after teardown failure, deleted folders/executables, persistent
+  retained after teardown failure (including shutdown during sign-in), closed
+  stdin without SIGPIPE, account isolation, deleted folders/executables, persistent
   queue restoration and the serial fallback.
 - All four Dock ASan/UBSan suites passed, including protocol, idle/pause and
   exact-adapter/method rejection assertions. x64 and i386 cross-builds passed
@@ -236,6 +243,17 @@ as `PUFFLET_LIVE_ROOT` / `PUFFLET_LIVE_RUNTIME`; Xcode's command-line runner
 forwards variables with the `TEST_RUNNER_` prefix. They are disabled in CI.
 The recovery check reversibly moves only the freshly downloaded test game aside.
 Do not point these tests at an existing user library.
+
+The manual app-process check uses the same isolated root: enable
+`PUFFLET_LIVE_APP_QUIT=1`, run the entire `PersistentSessionLiveTests` suite,
+wait for `application-milestone.txt` to contain `ready-to-quit`, then use the
+app's real Quit command and choose Quit. Expect XCTest's connection to end.
+Check that no test app/host/server remains, the handoff is absent and the queue
+is persisted as queued. In a new process enable `PUFFLET_LIVE_APP_RESUME=1`;
+its passing result and `resumed-and-completed` milestone confirm recovery.
+These fixtures read the installed Dev runtime without modifying it and use
+only the explicitly authorized saved sign-in; all game and queue files stay
+under the temporary root.
 
 Remaining risks: undocumented client ABI and exact January pin; one online
 account session; Wine kept alive while jobs run; abrupt discovery cleanup;
