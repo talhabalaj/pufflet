@@ -1,0 +1,88 @@
+name: SteamLibrary
+options:
+  deploymentTarget:
+    macOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    DEVELOPMENT_TEAM: W7TT249CUU
+    ENABLE_HARDENED_RUNTIME: YES
+    GENERATE_INFOPLIST_FILE: YES
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+packages:
+  Sparkle:
+    path: Packages/Sparkle
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
+targets:
+  SteamLibrary:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: $(PRODUCT_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.games
+        NSPrincipalClass: NSApplication
+        SUFeedURL: https://pufflet.apps.balaj.me/appcast.xml
+        SUPublicEDKey: 6SGXpoRSNF0IEon+cMJKJea2qYEEw9UZU03wnVZwbFE=
+        SUEnableAutomaticChecks: true
+        SUAutomaticallyUpdate: false
+        SURequireSignedFeed: true
+        SUVerifyUpdateBeforeExtraction: true
+    dependencies:
+      - package: Sparkle
+    postCompileScripts:
+      - name: Bundle Wine and DXMT
+        script: /bin/sh "$SRCROOT/Runtime/bundle-runtime.sh"
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - "$(SRCROOT)/Runtime/bundle-runtime.sh"
+        outputFiles:
+          - "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/SharedSupport/.runtime-bundled"
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        ARCHS: arm64
+        PRODUCT_NAME: Pufflet
+        PRODUCT_MODULE_NAME: SteamLibrary
+        PRODUCT_BUNDLE_IDENTIFIER: me.balaj.SteamLibrary
+        ASSETCATALOG_COMPILER_APPICON_NAME: Pufflet
+        ENABLE_APP_SANDBOX: NO
+        COMBINE_HIDPI_IMAGES: YES
+      configs:
+        Debug:
+          PRODUCT_NAME: Pufflet Dev
+          PRODUCT_BUNDLE_IDENTIFIER: me.balaj.SteamLibrary.dev
+  SteamLibraryTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests]
+    dependencies:
+      - target: SteamLibrary
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.balaj.SteamLibraryTests
+      configs:
+        Debug:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Pufflet Dev.app/Contents/MacOS/Pufflet Dev"
+        Release:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Pufflet.app/Contents/MacOS/Pufflet"
+schemes:
+  SteamLibrary:
+    build:
+      targets:
+        SteamLibrary: all
+    test:
+      targets: [SteamLibraryTests]

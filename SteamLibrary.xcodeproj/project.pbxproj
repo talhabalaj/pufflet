@@ -1,0 +1,669 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0430752DDA1EF63ED3B4FAD0 /* SteamAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22846F0444729C6317887704 /* SteamAccountView.swift */; };
+		09DC218BC775B560748B2BB9 /* dockhost.exe in Resources */ = {isa = PBXBuildFile; fileRef = 537F7B671D4DD6CB7B463A2F /* dockhost.exe */; };
+		0A5E73BD584EA7EB9447DA9D /* SteamAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7F7C5D47981AFF8240153A /* SteamAccount.swift */; };
+		0B76DD5091FBEC8A898F27D8 /* SteamRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0158BD3C22A16882BB482C4A /* SteamRuntime.swift */; };
+		16FFB668386E4C69176C9190 /* SteamCredentialAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82C3606641ABF67AB87E9F1 /* SteamCredentialAuth.swift */; };
+		17A53A5E7A833F3C75077817 /* SteamHeadlessSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546AF6304774AF1764B15223 /* SteamHeadlessSession.swift */; };
+		17BE13153E3E3F7B23251734 /* Pufflet.icon in Resources */ = {isa = PBXBuildFile; fileRef = 84ADEC0810BAF0E78032DCD1 /* Pufflet.icon */; };
+		1B7AF7FA750DFE729F356326 /* SteamArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */; };
+		291BAE44FD4244631DE03B47 /* SteamQRAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8053717935458BD2A2C6C /* SteamQRAuth.swift */; };
+		3CA8D9A2BBFBC35B47107BBF /* AppIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F106E48207FE519F2B0EBCE /* AppIdentity.swift */; };
+		3F37649A21102F86AD985FCA /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 847C9F172181D0AA05C4C500 /* LICENSE */; };
+		449B943817F75E714F2BF364 /* SteamClientInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B045A526B814B5DAC4D38B4 /* SteamClientInstaller.swift */; };
+		4B87276E079B2758A15DEA27 /* SteamLaunchConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */; };
+		4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 249413E5C7E6FCFED178256F /* LibraryView.swift */; };
+		505CD6A3C06793074E83AD22 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 3131D3C2D042903C3C99D451 /* Sparkle */; };
+		5121C0CCA4CB6E23A398CF6B /* libSteamLibraryDock.dylib in Resources */ = {isa = PBXBuildFile; fileRef = 584EBDAD99E3922960B19E28 /* libSteamLibraryDock.dylib */; };
+		6CA6A4D42CE2E581D1929B7B /* RuntimeDefaults.plist in Resources */ = {isa = PBXBuildFile; fileRef = 915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */; };
+		7A56D99748FC01B416F47C2E /* SteamAuthMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44670FC9E43E0D251626CE67 /* SteamAuthMessages.swift */; };
+		8449300D2074F7A2A4916D56 /* SteamDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DF9ADF59E7E52826EC4FDF /* SteamDevice.swift */; };
+		8A07D1A2FD5B93AF1A02EC2B /* SteamLaunchConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */; };
+		8ADFFFB310113FB796BCD5C4 /* dock-notices.txt in Resources */ = {isa = PBXBuildFile; fileRef = 299C2C8C97DA67A4E02FCAB3 /* dock-notices.txt */; };
+		8B0A5AFEC38068A162398A09 /* SteamAuthenticationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */; };
+		8EDC11A3AB6D0C3B000879B4 /* LibrarySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */; };
+		9521894709089B8E37E913F0 /* SteamLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEF834B1E4819021AEFD6FB /* SteamLog.swift */; };
+		957BD590E0A4E01EFB1E6715 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC651981AD6BA4DEBC13C677 /* AppUpdater.swift */; };
+		A44843AA63F6AA20A1BB18D2 /* SteamLibraryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD42491254AE6F53BA202AAF /* SteamLibraryApp.swift */; };
+		B1E83311FBD242C885A99A9D /* SteamLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9A262121DEA5591176E155 /* SteamLibrary.swift */; };
+		B5C457FDE8DAEEBD63D3CA21 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23581EFB5B56953D9A88D959 /* LibraryModel.swift */; };
+		BC68913C037F774EFAB183A0 /* SteamError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069F34A31805C4C293A1F67B /* SteamError.swift */; };
+		C243A7D736CF3A87CFC19DCF /* SteamClientInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C2087D5D1BAE94AE9AFA67 /* SteamClientInstallerTests.swift */; };
+		CF6FC705C9880C4EA3479BAE /* SteamAuthAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E50BEC1308D9D0823E5BDD /* SteamAuthAPI.swift */; };
+		D2293112D39C527EC6BF02DE /* LICENSE-EXCEPTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 32C4EF4A710A294167C8F32A /* LICENSE-EXCEPTION.md */; };
+		DCCFAF0B4BA756292AFCB1DD /* LibrarySettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187C8758A15233306D44E94E /* LibrarySettingsTests.swift */; };
+		E69FF22F4B30690A1CB6E7EF /* SteamClientPackages.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03A53237E1587ADD890785B /* SteamClientPackages.swift */; };
+		E80E8182086DB195C11BE949 /* SteamArtworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */; };
+		FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BBD5A4D7E75F5E4B0D5C1AAF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 51962E2C2AB48A1AEBD4C94B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D061A15CE20F62406EB0BE05;
+			remoteInfo = SteamLibrary;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0158BD3C22A16882BB482C4A /* SteamRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamRuntime.swift; sourceTree = "<group>"; };
+		069F34A31805C4C293A1F67B /* SteamError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamError.swift; sourceTree = "<group>"; };
+		187C8758A15233306D44E94E /* LibrarySettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySettingsTests.swift; sourceTree = "<group>"; };
+		188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamArtworkTests.swift; sourceTree = "<group>"; };
+		1BEF834B1E4819021AEFD6FB /* SteamLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLog.swift; sourceTree = "<group>"; };
+		1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLibraryTests.swift; sourceTree = "<group>"; };
+		22846F0444729C6317887704 /* SteamAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAccountView.swift; sourceTree = "<group>"; };
+		23581EFB5B56953D9A88D959 /* LibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryModel.swift; sourceTree = "<group>"; };
+		23E50BEC1308D9D0823E5BDD /* SteamAuthAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAuthAPI.swift; sourceTree = "<group>"; };
+		249413E5C7E6FCFED178256F /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		27B1AB56077713E7240D99E7 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		299C2C8C97DA67A4E02FCAB3 /* dock-notices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "dock-notices.txt"; sourceTree = "<group>"; };
+		2D9A262121DEA5591176E155 /* SteamLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLibrary.swift; sourceTree = "<group>"; };
+		32C4EF4A710A294167C8F32A /* LICENSE-EXCEPTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "LICENSE-EXCEPTION.md"; sourceTree = "<group>"; };
+		3339A9DBBC81FCEF1BFA3B32 /* SteamLibrary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SteamLibrary.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		44670FC9E43E0D251626CE67 /* SteamAuthMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAuthMessages.swift; sourceTree = "<group>"; };
+		4B045A526B814B5DAC4D38B4 /* SteamClientInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientInstaller.swift; sourceTree = "<group>"; };
+		537F7B671D4DD6CB7B463A2F /* dockhost.exe */ = {isa = PBXFileReference; path = dockhost.exe; sourceTree = "<group>"; };
+		5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamArtworkStore.swift; sourceTree = "<group>"; };
+		546AF6304774AF1764B15223 /* SteamHeadlessSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamHeadlessSession.swift; sourceTree = "<group>"; };
+		584EBDAD99E3922960B19E28 /* libSteamLibraryDock.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libSteamLibraryDock.dylib; sourceTree = "<group>"; };
+		5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySettings.swift; sourceTree = "<group>"; };
+		5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAuthenticationTests.swift; sourceTree = "<group>"; };
+		5F106E48207FE519F2B0EBCE /* AppIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentity.swift; sourceTree = "<group>"; };
+		6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLaunchConfiguration.swift; sourceTree = "<group>"; };
+		847C9F172181D0AA05C4C500 /* LICENSE */ = {isa = PBXFileReference; path = LICENSE; sourceTree = "<group>"; };
+		84ADEC0810BAF0E78032DCD1 /* Pufflet.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Pufflet.icon; sourceTree = "<group>"; };
+		915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = RuntimeDefaults.plist; sourceTree = "<group>"; };
+		AC1AB9E9E43F62333BD8FBEE /* SteamLibraryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SteamLibraryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC651981AD6BA4DEBC13C677 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
+		AEB8053717935458BD2A2C6C /* SteamQRAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamQRAuth.swift; sourceTree = "<group>"; };
+		BA4FB61BFC36119763AC3F90 /* Sparkle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Sparkle; path = Packages/Sparkle; sourceTree = SOURCE_ROOT; };
+		BD42491254AE6F53BA202AAF /* SteamLibraryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLibraryApp.swift; sourceTree = "<group>"; };
+		BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLaunchConfigurationTests.swift; sourceTree = "<group>"; };
+		C03A53237E1587ADD890785B /* SteamClientPackages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientPackages.swift; sourceTree = "<group>"; };
+		D1C2087D5D1BAE94AE9AFA67 /* SteamClientInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientInstallerTests.swift; sourceTree = "<group>"; };
+		E82C3606641ABF67AB87E9F1 /* SteamCredentialAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamCredentialAuth.swift; sourceTree = "<group>"; };
+		F6DF9ADF59E7E52826EC4FDF /* SteamDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamDevice.swift; sourceTree = "<group>"; };
+		FD7F7C5D47981AFF8240153A /* SteamAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAccount.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		6DA9A11074DA7F2AAD326596 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				505CD6A3C06793074E83AD22 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1724E1A48C3C0F2AAC180B69 /* Madeira */ = {
+			isa = PBXGroup;
+			children = (
+				847C9F172181D0AA05C4C500 /* LICENSE */,
+				32C4EF4A710A294167C8F32A /* LICENSE-EXCEPTION.md */,
+			);
+			path = Madeira;
+			sourceTree = "<group>";
+		};
+		301906AB9EC727C8121B28DC /* MadeiraDock */ = {
+			isa = PBXGroup;
+			children = (
+				299C2C8C97DA67A4E02FCAB3 /* dock-notices.txt */,
+			);
+			path = MadeiraDock;
+			sourceTree = "<group>";
+		};
+		30AF51E7E7C50BA5D7A3AE5C /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				BA4FB61BFC36119763AC3F90 /* Sparkle */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		49956BD9C52D73CD44BA026D /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				537F7B671D4DD6CB7B463A2F /* dockhost.exe */,
+				584EBDAD99E3922960B19E28 /* libSteamLibraryDock.dylib */,
+				84ADEC0810BAF0E78032DCD1 /* Pufflet.icon */,
+				915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */,
+				8DFBEF12C858952B1D616CBC /* Notices */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		8DFBEF12C858952B1D616CBC /* Notices */ = {
+			isa = PBXGroup;
+			children = (
+				1724E1A48C3C0F2AAC180B69 /* Madeira */,
+				301906AB9EC727C8121B28DC /* MadeiraDock */,
+			);
+			path = Notices;
+			sourceTree = "<group>";
+		};
+		8E13AC664FEDFF4121EFC1DD /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				27B1AB56077713E7240D99E7 /* Signing.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		B03EAAE8CB595ACA5DDCBB74 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				187C8758A15233306D44E94E /* LibrarySettingsTests.swift */,
+				188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */,
+				5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */,
+				D1C2087D5D1BAE94AE9AFA67 /* SteamClientInstallerTests.swift */,
+				BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */,
+				1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		BC03D5706058ABBC5EAC722C = {
+			isa = PBXGroup;
+			children = (
+				8E13AC664FEDFF4121EFC1DD /* Config */,
+				30AF51E7E7C50BA5D7A3AE5C /* Packages */,
+				49956BD9C52D73CD44BA026D /* Resources */,
+				DB6573EAAEC6551A58DF4108 /* Sources */,
+				B03EAAE8CB595ACA5DDCBB74 /* Tests */,
+				C3E4555F5CCBE2EF3E5BF6FD /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C3E4555F5CCBE2EF3E5BF6FD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3339A9DBBC81FCEF1BFA3B32 /* SteamLibrary.app */,
+				AC1AB9E9E43F62333BD8FBEE /* SteamLibraryTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D302A1907DAE6F4B7086422B /* SteamAuth */ = {
+			isa = PBXGroup;
+			children = (
+				FD7F7C5D47981AFF8240153A /* SteamAccount.swift */,
+				22846F0444729C6317887704 /* SteamAccountView.swift */,
+				23E50BEC1308D9D0823E5BDD /* SteamAuthAPI.swift */,
+				44670FC9E43E0D251626CE67 /* SteamAuthMessages.swift */,
+				4B045A526B814B5DAC4D38B4 /* SteamClientInstaller.swift */,
+				C03A53237E1587ADD890785B /* SteamClientPackages.swift */,
+				E82C3606641ABF67AB87E9F1 /* SteamCredentialAuth.swift */,
+				F6DF9ADF59E7E52826EC4FDF /* SteamDevice.swift */,
+				069F34A31805C4C293A1F67B /* SteamError.swift */,
+				546AF6304774AF1764B15223 /* SteamHeadlessSession.swift */,
+				1BEF834B1E4819021AEFD6FB /* SteamLog.swift */,
+				AEB8053717935458BD2A2C6C /* SteamQRAuth.swift */,
+			);
+			path = SteamAuth;
+			sourceTree = "<group>";
+		};
+		DB6573EAAEC6551A58DF4108 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				5F106E48207FE519F2B0EBCE /* AppIdentity.swift */,
+				AC651981AD6BA4DEBC13C677 /* AppUpdater.swift */,
+				23581EFB5B56953D9A88D959 /* LibraryModel.swift */,
+				5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */,
+				249413E5C7E6FCFED178256F /* LibraryView.swift */,
+				5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */,
+				6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */,
+				2D9A262121DEA5591176E155 /* SteamLibrary.swift */,
+				BD42491254AE6F53BA202AAF /* SteamLibraryApp.swift */,
+				0158BD3C22A16882BB482C4A /* SteamRuntime.swift */,
+				D302A1907DAE6F4B7086422B /* SteamAuth */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8957739F84196462016C0605 /* SteamLibraryTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 788B3101E34040618929C11B /* Build configuration list for PBXNativeTarget "SteamLibraryTests" */;
+			buildPhases = (
+				4F4D4B994F898C6D9533A59C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				387F5D290EE463A08D8B527E /* PBXTargetDependency */,
+			);
+			name = SteamLibraryTests;
+			packageProductDependencies = (
+			);
+			productName = SteamLibraryTests;
+			productReference = AC1AB9E9E43F62333BD8FBEE /* SteamLibraryTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D061A15CE20F62406EB0BE05 /* SteamLibrary */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BBC87E2ABEC03596307D8DDB /* Build configuration list for PBXNativeTarget "SteamLibrary" */;
+			buildPhases = (
+				C3526B96A4FFEDEDA36EE9C7 /* Sources */,
+				556D3AAE3C78A232A81C5F27 /* Bundle Wine and DXMT */,
+				C5A07641661EF1A9E69D5D53 /* Resources */,
+				6DA9A11074DA7F2AAD326596 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SteamLibrary;
+			packageProductDependencies = (
+				3131D3C2D042903C3C99D451 /* Sparkle */,
+			);
+			productName = SteamLibrary;
+			productReference = 3339A9DBBC81FCEF1BFA3B32 /* SteamLibrary.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		51962E2C2AB48A1AEBD4C94B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					8957739F84196462016C0605 = {
+						DevelopmentTeam = W7TT249CUU;
+						ProvisioningStyle = Automatic;
+					};
+					D061A15CE20F62406EB0BE05 = {
+						DevelopmentTeam = W7TT249CUU;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = E71C62EF7244D6126B926785 /* Build configuration list for PBXProject "SteamLibrary" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = BC03D5706058ABBC5EAC722C;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9FFED4FA23A2788EDDFDD005 /* XCLocalSwiftPackageReference "Packages/Sparkle" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = C3E4555F5CCBE2EF3E5BF6FD /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D061A15CE20F62406EB0BE05 /* SteamLibrary */,
+				8957739F84196462016C0605 /* SteamLibraryTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C5A07641661EF1A9E69D5D53 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3F37649A21102F86AD985FCA /* LICENSE in Resources */,
+				D2293112D39C527EC6BF02DE /* LICENSE-EXCEPTION.md in Resources */,
+				17BE13153E3E3F7B23251734 /* Pufflet.icon in Resources */,
+				6CA6A4D42CE2E581D1929B7B /* RuntimeDefaults.plist in Resources */,
+				8ADFFFB310113FB796BCD5C4 /* dock-notices.txt in Resources */,
+				09DC218BC775B560748B2BB9 /* dockhost.exe in Resources */,
+				5121C0CCA4CB6E23A398CF6B /* libSteamLibraryDock.dylib in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		556D3AAE3C78A232A81C5F27 /* Bundle Wine and DXMT */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Runtime/bundle-runtime.sh",
+			);
+			name = "Bundle Wine and DXMT";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/SharedSupport/.runtime-bundled",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"$SRCROOT/Runtime/bundle-runtime.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4F4D4B994F898C6D9533A59C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DCCFAF0B4BA756292AFCB1DD /* LibrarySettingsTests.swift in Sources */,
+				E80E8182086DB195C11BE949 /* SteamArtworkTests.swift in Sources */,
+				8B0A5AFEC38068A162398A09 /* SteamAuthenticationTests.swift in Sources */,
+				C243A7D736CF3A87CFC19DCF /* SteamClientInstallerTests.swift in Sources */,
+				4B87276E079B2758A15DEA27 /* SteamLaunchConfigurationTests.swift in Sources */,
+				FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C3526B96A4FFEDEDA36EE9C7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3CA8D9A2BBFBC35B47107BBF /* AppIdentity.swift in Sources */,
+				957BD590E0A4E01EFB1E6715 /* AppUpdater.swift in Sources */,
+				B5C457FDE8DAEEBD63D3CA21 /* LibraryModel.swift in Sources */,
+				8EDC11A3AB6D0C3B000879B4 /* LibrarySettings.swift in Sources */,
+				4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */,
+				0A5E73BD584EA7EB9447DA9D /* SteamAccount.swift in Sources */,
+				0430752DDA1EF63ED3B4FAD0 /* SteamAccountView.swift in Sources */,
+				1B7AF7FA750DFE729F356326 /* SteamArtworkStore.swift in Sources */,
+				CF6FC705C9880C4EA3479BAE /* SteamAuthAPI.swift in Sources */,
+				7A56D99748FC01B416F47C2E /* SteamAuthMessages.swift in Sources */,
+				449B943817F75E714F2BF364 /* SteamClientInstaller.swift in Sources */,
+				E69FF22F4B30690A1CB6E7EF /* SteamClientPackages.swift in Sources */,
+				16FFB668386E4C69176C9190 /* SteamCredentialAuth.swift in Sources */,
+				8449300D2074F7A2A4916D56 /* SteamDevice.swift in Sources */,
+				BC68913C037F774EFAB183A0 /* SteamError.swift in Sources */,
+				17A53A5E7A833F3C75077817 /* SteamHeadlessSession.swift in Sources */,
+				8A07D1A2FD5B93AF1A02EC2B /* SteamLaunchConfiguration.swift in Sources */,
+				B1E83311FBD242C885A99A9D /* SteamLibrary.swift in Sources */,
+				A44843AA63F6AA20A1BB18D2 /* SteamLibraryApp.swift in Sources */,
+				9521894709089B8E37E913F0 /* SteamLog.swift in Sources */,
+				291BAE44FD4244631DE03B47 /* SteamQRAuth.swift in Sources */,
+				0B76DD5091FBEC8A898F27D8 /* SteamRuntime.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		387F5D290EE463A08D8B527E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D061A15CE20F62406EB0BE05 /* SteamLibrary */;
+			targetProxy = BBD5A4D7E75F5E4B0D5C1AAF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1A317200AB18899BC4A54CB2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = me.balaj.SteamLibraryTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pufflet.app/Contents/MacOS/Pufflet";
+			};
+			name = Release;
+		};
+		1C3CCF5503D5111F6A3DC76B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 27B1AB56077713E7240D99E7 /* Signing.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = W7TT249CUU;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		378947FFC9C96B5443B86384 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 27B1AB56077713E7240D99E7 /* Signing.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = W7TT249CUU;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		4F6AC215AAF38546EB9DAE6B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Pufflet;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.balaj.SteamLibrary;
+				PRODUCT_MODULE_NAME = SteamLibrary;
+				PRODUCT_NAME = Pufflet;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		6B78602F95FC6A1582EC09D8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Pufflet;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.balaj.SteamLibrary.dev;
+				PRODUCT_MODULE_NAME = SteamLibrary;
+				PRODUCT_NAME = "Pufflet Dev";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		A45994940782FE5A7ED033EA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = me.balaj.SteamLibraryTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pufflet Dev.app/Contents/MacOS/Pufflet Dev";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		788B3101E34040618929C11B /* Build configuration list for PBXNativeTarget "SteamLibraryTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A45994940782FE5A7ED033EA /* Debug */,
+				1A317200AB18899BC4A54CB2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BBC87E2ABEC03596307D8DDB /* Build configuration list for PBXNativeTarget "SteamLibrary" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B78602F95FC6A1582EC09D8 /* Debug */,
+				4F6AC215AAF38546EB9DAE6B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E71C62EF7244D6126B926785 /* Build configuration list for PBXProject "SteamLibrary" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1C3CCF5503D5111F6A3DC76B /* Debug */,
+				378947FFC9C96B5443B86384 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9FFED4FA23A2788EDDFDD005 /* XCLocalSwiftPackageReference "Packages/Sparkle" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Sparkle;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3131D3C2D042903C3C99D451 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 51962E2C2AB48A1AEBD4C94B /* Project object */;
+}

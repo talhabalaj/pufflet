@@ -1,0 +1,7 @@
+title = "Pufflet public source scan"
+[extend]
+useDefault = true
+[[allowlists]]
+description = "Committed Sparkle public verification key only"
+regexTarget = "secret"
+regexes = ['''6SGXpoRSNF0IEon\+cMJKJea2qYEEw9UZU03wnVZwbFE=''']
