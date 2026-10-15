@@ -30,7 +30,7 @@
 .native-cover::after{content:'';position:absolute;inset:0 0 auto;aspect-ratio:2/3;background:#fff;border-radius:6.25%;opacity:0;transition:opacity 125ms var(--ease-out);pointer-events:none}
 .native-cover:active::after{background:#000;opacity:.055}
 .native-cover:focus-visible{outline:2px solid #007aff;outline-offset:3px}
-.native-popover{position:absolute;z-index:3;top:88.983%;width:41.176%;aspect-ratio:280/174;overflow:hidden;border-radius:0 0 8% 8% / 0 0 13% 13%;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-4%) scale(.95);transform-origin:50% 0;transition:opacity var(--popover-duration) var(--ease-out),transform var(--popover-duration) var(--ease-out),visibility 0s linear var(--popover-duration)}
+.native-popover{position:absolute;z-index:3;top:88.983%;width:41.176%;aspect-ratio:280/174;overflow:hidden;border-radius:8% / 13%;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-4%) scale(.95);transform-origin:50% 0;transition:opacity var(--popover-duration) var(--ease-out),transform var(--popover-duration) var(--ease-out),visibility 0s linear var(--popover-duration)}
 .native-popover[data-open]{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);transition-delay:0s}
 .native-popover-capture{position:absolute;top:-241.379%;width:242.857%;height:auto;max-width:none}
 .native-play-hit{position:absolute;left:7.857%;top:51.724%;width:84.286%;height:17.241%;border:0;border-radius:100px;background:transparent;transition:transform var(--press-duration) var(--ease-out)}
