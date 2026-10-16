@@ -11,6 +11,8 @@ import os
     }
 
     let settings: LibrarySettings
+    let graphics: GraphicsSupport
+    var showsGraphicsSetup = false
     private let paths: SteamClientPaths
     var installation: SteamInstallation {
         SteamInstallation(prefix: settings.sourcePrefix ?? paths.prefix, libraryRoot: settings.libraryURL, runtime: runtimeSetup.application)
@@ -74,10 +76,12 @@ import os
     }
 
     init(settings: LibrarySettings = LibrarySettings(), headless: SteamHeadlessSession = SteamHeadlessSession(),
-         ownedLibrary: SteamOwnedLibrary = SteamOwnedLibrary(), downloads: SteamDownloadQueue = SteamDownloadQueue(), paths: SteamClientPaths = .standard) {
+         ownedLibrary: SteamOwnedLibrary = SteamOwnedLibrary(), downloads: SteamDownloadQueue = SteamDownloadQueue(), paths: SteamClientPaths = .standard,
+         graphics: GraphicsSupport = GraphicsSupport()) {
         self.paths = paths
         account = SteamAccount(paths: paths)
         self.settings = settings; self.headless = headless; self.ownedLibrary = ownedLibrary; self.downloads = downloads
+        self.graphics = graphics
         refreshLibrary()
     }
 
@@ -85,9 +89,10 @@ import os
 
     func beginSetup() async {
         account.refresh()
+        graphics.refresh()
         await runtimeSetup.check()
         steamSupportReady = await SteamClientInstaller.isPrepared(paths: paths)
-        showsSetup = settings.libraryURL == nil || !runtimeSetup.isReady
+        showsSetup = settings.libraryURL == nil || !runtimeSetup.isReady || (!graphics.skipped && graphics.installation == nil)
         accountChanged()
     }
 
@@ -168,6 +173,18 @@ import os
                 return
             }
             phase = .launching(game.id)
+            let caches = [nativeRuntime.installation.steam, installation.steam].map { $0.appendingPathComponent("appcache/appinfo.vdf") }
+            let selection = try await SteamLaunchConfiguration.selection(for: game, caches: caches)
+            let importsD3D12 = await Self.importsD3D12(selection.executable)
+            graphics.refresh()
+            let requested = graphics.backend(for: game.id)
+            if graphics.installation == nil, requested == .d3dMetal || (requested == .auto && importsD3D12) {
+                phase = .idle; showsGraphicsSetup = true
+                return
+            }
+            let resolved = requested.resolved(importsD3D12: importsD3D12, hasD3DMetal: graphics.installation != nil)
+            var gameRuntime = nativeRuntime
+            gameRuntime.d3dMetal = resolved == .d3dMetal ? graphics.installation : nil
             if snapshot.steam != nil {
                 phase = .launching(game.id)
                 message = "Closing desktop Steam…"
@@ -185,8 +202,7 @@ import os
             phase = .launching(game.id); nativeLaunch = true
             launchDeadline = nil
             message = "Preparing Steam support…"
-            let caches = [nativeRuntime.installation.steam, installation.steam].map { $0.appendingPathComponent("appcache/appinfo.vdf") }
-            try await headless.start(game: game, library: games, credentials: credentials, runtime: nativeRuntime, metadataCaches: caches)
+            try await headless.start(game: game, library: games, credentials: credentials, runtime: gameRuntime, metadataCaches: caches)
         }
         catch {
             phase = .idle
@@ -198,8 +214,23 @@ import os
         }
     }
 
+    @concurrent private static func importsD3D12(_ executable: URL) async -> Bool { PEImports.usesD3D12(at: executable) }
+
     func playInDesktopSteam(_ game: SteamGame) async {
         guard phase == .idle, !headless.isActive, !hasDownloadWork, requireRuntime() else { return }
+        // Desktop Steam may already own its launch environment. Apply per-game
+        // renderer choices only through our managed Play session.
+        if graphics.backend(for: game.id) != .dxmt {
+            do {
+                let caches = [installation.steam, nativeRuntime.installation.steam].map { $0.appendingPathComponent("appcache/appinfo.vdf") }
+                let selection = try await SteamLaunchConfiguration.selection(for: game, caches: caches)
+                let importsD3D12 = await Self.importsD3D12(selection.executable)
+                if graphics.backend(for: game.id) == .d3dMetal || importsD3D12 {
+                    errorMessage = "Use Play in Pufflet to apply this game’s graphics backend. Desktop Steam uses its own launch environment."
+                    return
+                }
+            } catch { errorMessage = error.localizedDescription; return }
+        }
         phase = .launching(game.id)
         message = "Starting desktop Steam…"
         launchDeadline = ContinuousClock.now.advanced(by: .seconds(90))

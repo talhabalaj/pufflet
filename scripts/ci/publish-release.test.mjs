@@ -38,7 +38,7 @@ function fixture() {
     if(url.endsWith('/appcast.xml'))return response(assets.get('appcast.xml'));
     assert.fail(url);
   };
-  return {output,keys,publicKey,archive,manifest,feed,appcast,assets,events,hooks,setCurrent:value=>current=value,publish:()=>publishRelease(output,{publicKey,fetch,store})};
+  return {output,keys,publicKey,archive,manifest,feed,appcast,assets,events,hooks,setCurrent:value=>current=value,publish:(options={})=>publishRelease(output,{publicKey,fetch,store,settleDelayMs:0,...options})};
 }
 test('validates Sparkle signed UTF-8 feed bytes and refuses tampering',()=>{
   const f=fixture(), feed=signedFeed('<rss>日本語</rss>\n',f.keys.privateKey);
@@ -89,4 +89,14 @@ test('unsigned, tampered, mismatched and wrong-key feeds fail before network ope
 });
 test('supports the first publication and expanded enclosure serialization',async()=>{
   const f=fixture();f.setCurrent(null);writeFileSync(join(f.output,'appcast.xml'),signedFeed(f.appcast.replace(/(<enclosure[^>]+) \/>/,'$1></enclosure>'),f.keys.privateKey));assert.equal((await f.publish()).build,'8');
+});
+test('waits for the promoted manifest and feed to propagate',async()=>{
+  const f=fixture(); let stale=2;
+  f.hooks.fetch=url=>{ if(f.events.includes('promote')&&url.endsWith('/downloads/manifest.json')&&stale-->0) return Response.json({build:'7',sha256:'c'.repeat(64)}); };
+  await f.publish(); assert.ok(existsSync(join(f.output,'publication.json')));
+});
+test('fails when the promoted manifest never propagates',async()=>{
+  const f=fixture();
+  f.hooks.fetch=url=>{ if(f.events.includes('promote')&&url.endsWith('/downloads/manifest.json')) return Response.json({build:'7',sha256:'c'.repeat(64)}); };
+  await assert.rejects(f.publish({settleAttempts:3}),/Published manifest differs/); assert.equal(existsSync(join(f.output,'publication.json')),false);
 });

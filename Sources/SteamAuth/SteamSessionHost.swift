@@ -107,7 +107,8 @@ actor SteamSessionHost {
         (events, continuation) = AsyncStream.makeStream()
     }
 
-    func start(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
+    func start(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime,
+               graphicsForLaunch: Bool = false) async throws {
         guard !stopping, !preparingSupport else { throw Failure.stopped("Steam is being prepared or stopped. Try again shortly.") }
         let identity = try runtime.identity()
         guard identity.prefix == paths.prefix.standardizedFileURL,
@@ -119,11 +120,17 @@ actor SteamSessionHost {
         let root = destination.resolvingSymlinksInPath()
         if ready {
             try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
-            return
+            if graphicsForLaunch, self.runtime?.d3dMetal != runtime.d3dMetal {
+                // Validate account/library/prefix before stopping an idle host.
+                guard ongoing.isEmpty, pending.isEmpty, installRequests.isEmpty else {
+                    throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
+                }
+                try await shutdown(notify: false)
+            } else { return }
         }
         if starting {
             try await waitForStart()
-            try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
+            try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID, graphicsForLaunch: graphicsForLaunch)
             return
         }
         starting = true; expectedExit = false; failureMessage = nil
@@ -131,13 +138,15 @@ actor SteamSessionHost {
         runtimeIdentity = identity
         let current = UUID(); generation = current
         do {
-            _ = try await installer.prepare(runtime: runtime, games: library, destination: root) { [weak self] text in
+            var setupRuntime = runtime
+            setupRuntime.d3dMetal = nil
+            _ = try await installer.prepare(runtime: setupRuntime, games: library, destination: root) { [weak self] text in
                 await self?.progress(text, generation: current)
             }
             ownsPreparedPrefix = true
             guard generation == current, !stopping else { throw CancellationError() }
             try Task.checkCancellation()
-            let configuration = try await installer.displayConfiguration(runtime: runtime)
+            let configuration = try await installer.displayConfiguration(runtime: setupRuntime)
             guard generation == current, !stopping else { throw CancellationError() }
             guard try runtime.identity() == identity else { throw SteamClientPackages.Failure.activeSession }
             displayConfiguration = configuration
@@ -214,15 +223,18 @@ actor SteamSessionHost {
         }
     }
 
-    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL, accountID: UInt64?) async throws {
+    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL, accountID: UInt64?, graphicsForLaunch: Bool = false) async throws {
         guard ready, !stopping, runtimeIdentity == identity,
               self.destination?.standardizedFileURL == destination.standardizedFileURL,
               self.accountID == accountID else { throw SteamClientPackages.Failure.activeSession }
         let current = generation
-        let configuration = try await installer.displayConfiguration(runtime: runtime)
+        var setupRuntime = runtime
+        setupRuntime.d3dMetal = nil
+        let configuration = try await installer.displayConfiguration(runtime: setupRuntime)
         guard generation == current, ready, !stopping,
               runtimeIdentity == identity, try runtime.identity() == identity,
-              displayConfiguration == configuration else { throw SteamClientPackages.Failure.activeSession }
+              displayConfiguration == configuration,
+              !graphicsForLaunch || self.runtime?.d3dMetal == runtime.d3dMetal else { throw SteamClientPackages.Failure.activeSession }
     }
 
     // Standalone setup and online startup share the same owner. A separate
@@ -364,7 +376,7 @@ actor SteamSessionHost {
         reset(error: message)
     }
 
-    func shutdown() async throws {
+    func shutdown(notify: Bool = true) async throws {
         guard !stopping, !preparingSupport, !(starting && process == nil && !ownsPreparedPrefix) else {
             throw Failure.stopped("Steam is preparing or shutting down. Keep Pufflet open and try again.")
         }
@@ -392,7 +404,7 @@ actor SteamSessionHost {
         } else if ownsPreparedPrefix, let runtime {
             try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
         }
-        reset(error: failureMessage)
+        reset(error: failureMessage, notify: notify)
         } catch {
             stopping = false
             throw error
@@ -404,7 +416,7 @@ actor SteamSessionHost {
         for waiter in starts { waiter.resume(throwing: error) }
         for request in requests { request.continuation.resume(throwing: error) }
     }
-    private func reset(error: String?) {
+    private func reset(error: String?, notify: Bool = true) {
         failWaiters(Failure.stopped(error ?? "Steam support stopped."))
         generation = UUID(); process?.terminationHandler = nil; process = nil
         reader?.cancel(); reader = nil
@@ -416,7 +428,7 @@ actor SteamSessionHost {
         input = nil; output = nil; ready = false; starting = false; stopping = false
         try? FileManager.default.removeItem(at: paths.handoff)
         try? FileManager.default.removeItem(at: paths.requests)
-        continuation.yield(.stopped(error))
+        if notify { continuation.yield(.stopped(error)) }
     }
     private func prepareRequests() throws {
         let folder = paths.requests

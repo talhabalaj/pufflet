@@ -29,6 +29,7 @@ struct LibraryView: View {
         .task { if !AppIdentity.isRunningTests { await model.beginSetup() } }
         .task { if !AppIdentity.isRunningTests { await model.observeRuntime() } }
         .sheet(isPresented: $model.showsSetup) { RuntimeOnboardingView(model: model) }
+        .sheet(isPresented: $model.showsGraphicsSetup) { GamePortingToolkitSetup(support: model.graphics) }
         .onChange(of: model.account.accountName) { model.accountChanged() }
         .onChange(of: model.searchRequest) { searchFocused = true }
         .sheet(isPresented: $model.showsAccount) { SteamAccountView(account: model.account, sessionActive: !model.canManageAccount) }
@@ -357,6 +358,16 @@ struct GameInspector: View {
                     }
                 }
                 if let installed = game.installation {
+                    Section("Graphics") {
+                        Picker("Graphics backend", selection: Binding(get: { model.graphics.backend(for: game.id) },
+                            set: { model.graphics.setBackend($0, for: game.id) })) {
+                            ForEach(GraphicsBackend.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .disabled(model.isPlaying(game) || model.isLaunching(game))
+                        Text("Auto uses D3DMetal for detected DirectX 12 games when available, and DXMT otherwise. Choose D3DMetal manually for games that select DirectX at runtime.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Button("Set Up Game Porting Toolkit…") { model.showsGraphicsSetup = true }
+                    }
                     Section {
                         Button("Show in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: installed.folder.path) }
                         if model.headless.persistentEnabled {
