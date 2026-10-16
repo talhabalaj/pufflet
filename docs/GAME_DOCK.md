@@ -72,7 +72,7 @@ TEST_RUNNER_PUFFLET_DOCK_RUNTIME=/absolute/path/PuffletRuntime.app \
 TEST_RUNNER_PUFFLET_DOCK_FIXTURE="$PWD/build/dock-icon/dock-game.exe" \
 xcodebuild -project SteamLibrary.xcodeproj -scheme SteamLibrary \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath build/GameDock \
-  -only-testing:SteamLibraryTests/GameDockTests/nativeQuitEndsOnlyTheGameAndDeliversWindowsShutdownMessages test
+  -only-testing:SteamLibraryTests/GameDockTests test
 ```
 
 Before using a runtime under PuffletDev or running the online test, acquire the
@@ -86,7 +86,7 @@ TEST_RUNNER_PUFFLET_DOCK_RUNTIME=/absolute/path/PuffletRuntime.app \
 TEST_RUNNER_PUFFLET_DOCK_LIVE_ROOT=/tmp/pufflet-dock-live-unique \
 xcodebuild -project SteamLibrary.xcodeproj -scheme SteamLibrary \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath build/GameDock \
-  -only-testing:SteamLibraryTests/GameDockTests/dockQuitPreservesPersistentSteamAndClearsPlaying test
+  -only-testing:SteamLibraryTests/GameDockTests test
 ```
 
 Set `TEST_RUNNER_PUFFLET_DOCK_MANUAL_QUIT=1` to drive the actual Dock Quit and
@@ -94,3 +94,31 @@ Command-Q commands manually. `dock-stage.txt` in the scratch root announces each
 ready/quit stage. Both launches must clear Playing, preserve the host PID, and
 leave the persistent session responsive. Stop the app and its private Wine
 session before releasing the slot.
+
+### Local results (2026-10-16)
+
+- 17 focused native tests passed (`SteamLibraryTests`, `SteamSessionHostTests`).
+- The offline Wine fixture passed: regular activation, both Windows shutdown
+  messages delivered by native Quit, and the same-prefix companion survived.
+- The automated live test passed: two game launches and native Quit requests,
+  Playing cleared both times, the same dockhost PID survived, another install
+  command was acknowledged, and scratch-session shutdown completed.
+- The final combined run passed all 19 tests across the three suites in 72
+  seconds, with both opt-in Wine tests actually enabled.
+- The AppKit probe reproduced accessory activation with the old flag and regular
+  activation with suppression disabled. The installed runtime retains
+  `LSUIElement=true`; neither its signature nor its contents were modified.
+
+The literal Dock menu click and Command-Q keystroke remain **unverified**. The
+computer-use bridge timed out on Dock and could not bind the unbundled Wine
+process, then lost its native connection. The dedicated desktop driver captured
+the screen but reports desktop interaction unsupported and cannot resolve Wine
+as an installed app. A background XCTest host also could not activate Wine for a
+frontmost-app workaround. Native Quit Apple events were tested instead; these
+results do not claim a screenshot of the Dock menu or game-specific Dock labels.
+One long manual run reached both quits but failed in final teardown; the short
+automated acceptance run passed in full.
+
+Library evidence: [Playing](images/game-dock-playing.png),
+[after native Quit](images/game-dock-after-quit.png). These are the test-only
+library, never the user's Steam library or account details.

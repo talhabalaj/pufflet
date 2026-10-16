@@ -6,8 +6,8 @@ import Testing
 
 /// Opt-in desktop/Wine check. Uses a fresh temporary prefix, synthetic EXE,
 /// and no Steam account, library, or PuffletDev data. See docs/GAME_DOCK.md.
-@MainActor struct GameDockTests {
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_DOCK_RUNTIME"] != nil))
+@Suite(.serialized) @MainActor struct GameDockTests {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_DOCK_FIXTURE"] != nil))
     func nativeQuitEndsOnlyTheGameAndDeliversWindowsShutdownMessages() async throws {
         let env = ProcessInfo.processInfo.environment
         let runtimeApp = URL(filePath: try #require(env["PUFFLET_DOCK_RUNTIME"]))
@@ -65,7 +65,7 @@ import Testing
     @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_DOCK_LIVE_ROOT"] != nil))
     func dockQuitPreservesPersistentSteamAndClearsPlaying() async throws {
         let env = ProcessInfo.processInfo.environment
-        let root = URL(filePath: try #require(env["PUFFLET_DOCK_LIVE_ROOT"])).standardizedFileURL
+        let root = URL(filePath: try #require(env["PUFFLET_DOCK_LIVE_ROOT"])).standardizedFileURL.resolvingSymlinksInPath()
         guard root.path.hasPrefix("/tmp/pufflet-dock-live-") || root.path.hasPrefix("/private/tmp/pufflet-dock-live-") else {
             throw SteamError.invalidMessage
         }
@@ -92,7 +92,7 @@ import Testing
         let window = NSWindow(contentRect: NSRect(x: 80, y: 100, width: 900, height: 570),
                               styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         window.title = "Pufflet — Dock verification"
-        window.contentView = NSHostingView(rootView: LibraryView(model: model))
+        window.contentView = NSHostingView(rootView: LibraryView(model: model).background(Color(nsColor: .windowBackgroundColor)))
         window.makeKeyAndOrderFront(nil)
         let observation = Task { await model.observeRuntime() }
         defer { observation.cancel(); window.close() }
@@ -138,8 +138,12 @@ import Testing
                 try Data("quit-\(attempt)\n".utf8).write(to: root.appendingPathComponent("dock-stage.txt"), options: .atomic)
             }
             // A command on the surviving session proves it is still responsive.
+            print("Dock verification: both game quits completed")
             try await host.install(appID: game.id, destination: library, library: model.games, credentials: credentials, runtime: runtime)
+            print("Dock verification: surviving host acknowledged install")
+            #expect(runtime.installation.prefix.standardizedFileURL == paths.prefix.standardizedFileURL)
             try await host.shutdown(runtime: runtime)
+            print("Dock verification: scratch session stopped")
         } catch {
             try? await host.shutdown(runtime: runtime)
             throw error
