@@ -116,7 +116,7 @@
 		2D9A262121DEA5591176E155 /* SteamLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLibrary.swift; sourceTree = "<group>"; };
 		2F710FD3D6E85DB7F3D8106A /* RuntimeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOnboardingView.swift; sourceTree = "<group>"; };
 		32C4EF4A710A294167C8F32A /* LICENSE-EXCEPTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "LICENSE-EXCEPTION.md"; sourceTree = "<group>"; };
-		3339A9DBBC81FCEF1BFA3B32 /* SteamLibrary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SteamLibrary.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4708EBFC2C91C64F346EF71A /* Pufflet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pufflet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		44670FC9E43E0D251626CE67 /* SteamAuthMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAuthMessages.swift; sourceTree = "<group>"; };
 		4B045A526B814B5DAC4D38B4 /* SteamClientInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientInstaller.swift; sourceTree = "<group>"; };
 		4CCB8480A7FE5DCB9C9A1044 /* RuntimeArtifact.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = RuntimeArtifact.json; sourceTree = "<group>"; };
@@ -313,7 +313,7 @@
 		C3E4555F5CCBE2EF3E5BF6FD /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				3339A9DBBC81FCEF1BFA3B32 /* SteamLibrary.app */,
+				4708EBFC2C91C64F346EF71A /* Pufflet.app */,
 				AC1AB9E9E43F62333BD8FBEE /* SteamLibraryTests.xctest */,
 			);
 			name = Products;
@@ -412,7 +412,7 @@
 				3131D3C2D042903C3C99D451 /* Sparkle */,
 			);
 			productName = SteamLibrary;
-			productReference = 3339A9DBBC81FCEF1BFA3B32 /* SteamLibrary.app */;
+			productReference = 4708EBFC2C91C64F346EF71A /* Pufflet.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

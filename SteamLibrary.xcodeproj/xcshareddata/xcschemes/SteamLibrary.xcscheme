@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D061A15CE20F62406EB0BE05"
-               BuildableName = "Pufflet Dev.app"
+               BuildableName = "Pufflet.app"
                BlueprintName = "SteamLibrary"
                ReferencedContainer = "container:SteamLibrary.xcodeproj">
             </BuildableReference>
@@ -31,7 +31,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D061A15CE20F62406EB0BE05"
-            BuildableName = "Pufflet Dev.app"
+            BuildableName = "Pufflet.app"
             BlueprintName = "SteamLibrary"
             ReferencedContainer = "container:SteamLibrary.xcodeproj">
          </BuildableReference>
@@ -65,7 +65,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D061A15CE20F62406EB0BE05"
-            BuildableName = "Pufflet Dev.app"
+            BuildableName = "Pufflet.app"
             BlueprintName = "SteamLibrary"
             ReferencedContainer = "container:SteamLibrary.xcodeproj">
          </BuildableReference>
@@ -82,7 +82,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D061A15CE20F62406EB0BE05"
-            BuildableName = "Pufflet Dev.app"
+            BuildableName = "Pufflet.app"
             BlueprintName = "SteamLibrary"
             ReferencedContainer = "container:SteamLibrary.xcodeproj">
          </BuildableReference>
