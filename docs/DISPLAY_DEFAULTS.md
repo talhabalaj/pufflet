@@ -4,7 +4,54 @@ This first change ships Standard defaults only, as agreed during implementation.
 The per-game Display picker and Sharp (Retina) option are deferred until the Wine
 engine can implement them correctly. No game setting is offered that Wine ignores.
 
-## Behavior and migration
+## Lifecycle correction after the investigation
+
+Managed setup now preserves existing prefix display values, with or without a
+v1 migration marker. Generic Steam sends do not run a display migration. Only a
+prefix newly created by the installer receives off/96 defaults. An interrupted
+new-prefix setup retains an explicit initial-provisioning record so a retry can
+finish without treating an arbitrary legacy prefix as new.
+
+Normal teardown waits for exit first, then uses a soft `wineserver -k` and confirms
+exit if necessary. It no longer hard-kills the server. If exit cannot be proved,
+session ownership is retained and the error requires retry. Setup itself only
+waits for an existing server; it refuses to kill an orphan/external session to
+obtain mutation ownership. New display configuration is cold-read after a
+verified stop before `.pufflet-display-verified-v2` is written. Registry readback
+confirms saved settings, not game rendering or cached effective display state.
+
+Ready/starting host reuse now checks canonical prefix, library, account, runtime
+path plus artifact/launcher content identity, and queried display configuration.
+Standalone setup shares the session actor's ownership gate; it cannot configure
+a live host or one with submitted/paused work. Managed setup/readiness/sign-out
+cleanup use the injected data paths. The display picker and isolated per-game
+prefix migration remain future work in [the architecture design](PER_GAME_DISPLAY_ARCHITECTURE.md).
+
+The offline [persistence probe](../scripts/ci/wine-registry-persistence.py) used a
+new temporary prefix with the shipped Wine 11.0 (Sikarugir) runtime binaries
+read-only, no Steam client/account, and no Dev/production prefix data. It reproduced loss of a
+new registry value on immediate `-k9` in **3/3** runs; soft `-k` preserved it in
+**3/3** cold-start queries. Natural exit did not settle within three seconds in
+**3/3** runs, so its durability result is unknown. These are server/registry
+measurements, not authenticated Steam shutdown or game/save/cloud validation.
+See the [numeric observations](evidence/display-defaults-20261016/registry-persistence.json).
+Recorded durations include restart/readback, and timed-out natural-exit rows also
+include the cleanup soft stop. They are not a teardown latency benchmark.
+
+The actual Swift runtime path also has an opt-in temporary-prefix test:
+
+```sh
+TEST_RUNNER_PUFFLET_OFFLINE_RUNTIME=/absolute/path/PuffletRuntime.app \
+  xcodebuild test -project SteamLibrary.xcodeproj -scheme SteamLibrary \
+  -configuration Debug -destination 'platform=macOS' \
+  -only-testing:SteamLibraryTests/SteamDisplayDefaultsTests \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+This does not fix or establish the cause of the reported Over the Hill zoom.
+Its visual regression remains open.
+
+## v0.3.0 behavior and migration (historical)
 
 Pufflet's private prefix defaults to Retina off and 96 DPI. Games use the display's
 resolution in points, with macOS handling the backing scale. Automatic resolution

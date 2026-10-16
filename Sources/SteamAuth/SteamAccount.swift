@@ -75,6 +75,8 @@ struct SteamKeychain {
 }
 
 @Observable final class SteamAccount {
+    private let paths: SteamClientPaths
+    init(paths: SteamClientPaths = .standard) { self.paths = paths }
     enum Method: String, CaseIterable { case qr = "QR code", password = "Password" }
     var method = Method.qr
     private(set) var accountName: String?
@@ -166,7 +168,7 @@ struct SteamKeychain {
 
     func signOut() {
         cancel()
-        SteamHeadlessSession.cleanupHandoff()
+        SteamHeadlessSession.cleanupHandoff(paths: paths)
         do { try SteamKeychain().clear(); accountName = nil; errorMessage = nil }
         catch { errorMessage = error.localizedDescription }
     }

@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 
 nonisolated struct WindowsProcess: Equatable, Sendable {
@@ -34,6 +35,24 @@ nonisolated struct SteamRuntime: Sendable {
     let installation: SteamInstallation
     let dockBridge: URL
     var logDirectory: URL? = nil
+
+    struct Identity: Equatable, Sendable {
+        let prefix: URL
+        let runtime: URL
+        let artifact: Data
+    }
+
+    func identity() throws -> Identity {
+        let app = installation.runtimeApplication.resolvingSymlinksInPath().standardizedFileURL
+        let receipt = app.deletingLastPathComponent().appendingPathComponent("receipt.json")
+        // RuntimeSetup verifies the immutable artifact receipt. Include its
+        // content and the launcher so replacement at the same path is detected.
+        var hash = SHA256()
+        if let data = try? Data(contentsOf: receipt), data.count <= 65_536 { hash.update(data: data) }
+        hash.update(data: try Data(contentsOf: installation.wine))
+        return Identity(prefix: installation.prefix.resolvingSymlinksInPath().standardizedFileURL,
+                        runtime: app, artifact: Data(hash.finalize()))
+    }
 
     enum RuntimeError: LocalizedError {
         case missingSetup, launchFailed(String)
@@ -101,9 +120,8 @@ nonisolated struct SteamRuntime: Sendable {
         guard FileManager.default.isExecutableFile(atPath: installation.wine.path),
               FileManager.default.fileExists(atPath: installation.steamExecutable.path),
               FileManager.default.fileExists(atPath: dockBridge.path) else { throw RuntimeError.missingSetup }
-        if arguments != ["-shutdown"], installation.prefix == SteamHeadlessPaths.prefix {
-            try await prepareDisplayDefaults()
-        }
+        // This also serves external wrappers. Display writes belong exclusively
+        // to managed-prefix provisioning, never a generic Steam send.
         let logs = logDirectory ?? AppIdentity.logs
         try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true,
                                                attributes: [.posixPermissions: 0o700])
@@ -134,9 +152,15 @@ nonisolated struct SteamRuntime: Sendable {
         }
     }
 
-    @concurrent func prepareDisplayDefaults() async throws {
-        let migrated = try await SteamDisplayDefaults.migrate(prefix: installation.prefix) { _ in
+    @concurrent func prepareDisplayDefaults(isNewPrefix: Bool = false) async throws {
+        let migrated = try await SteamDisplayDefaults.migrate(prefix: installation.prefix, isNewPrefix: isNewPrefix) { _ in
             try await runWindows(["C:\\windows\\system32\\reg.exe", "import", "C:\\pufflet-display-defaults.reg"])
+        } verifyPersisted: {
+            // Soft termination was measured to save the registry on this
+            // runtime. Import completion alone is not a durability boundary.
+            try await stopPrivatePrefix(expectedPrefix: installation.prefix)
+            let saved = try await displayConfiguration()
+            return saved.retina == false && saved.dpi == 96
         }
         // Query Wine's live registry, rather than assuming the saved defaults still apply.
         // Keep raw query output out of the log; only allowlisted numeric fields are written.
@@ -147,34 +171,67 @@ nonisolated struct SteamRuntime: Sendable {
         try output.write(contentsOf: Data(SteamDisplayDefaults.diagnostic(retinaQuery: retina, dpiQuery: dpi, migrated: migrated).utf8))
     }
 
+    @concurrent func displayConfiguration() async throws -> SteamDisplayConfiguration {
+        try SteamDisplayConfiguration(
+            retinaQuery: queryWindowsRegistry("HKCU\\Software\\Wine\\Mac Driver", value: "RetinaMode"),
+            dpiQuery: queryWindowsRegistry("HKCU\\Control Panel\\Desktop", value: "LogPixels"))
+    }
+
     private func queryWindowsRegistry(_ key: String, value: String) throws -> String {
         let pipe = Pipe()
         let process = try spawn(["C:\\windows\\system32\\reg.exe", "query", key, "/v", value], output: pipe)
         try pipe.fileHandleForWriting.close()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return "" }
+        // reg.exe uses 1 for an absent key/value. Loader/runtime failures must
+        // not masquerade as an unchanged, unknown display configuration.
+        if process.terminationStatus == 1 { return "" }
+        guard process.terminationStatus == 0 else {
+            throw RuntimeError.launchFailed("Windows display settings could not be read. Restart Steam support and retry.")
+        }
         return String(decoding: data, as: UTF8.self)
     }
 
-    func stopPrivatePrefix(expectedPrefix: URL = SteamHeadlessPaths.prefix) async throws {
-        guard installation.prefix.standardizedFileURL == expectedPrefix.standardizedFileURL else { throw RuntimeError.missingSetup }
-        let server = installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver")
-        for argument in ["-k9", "-w"] {
-            let process = Process()
-            process.executableURL = server; process.arguments = [argument]
-            process.environment = environment().filter { !$0.key.hasPrefix("DYLD_") }
-            process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
-            try process.run()
-            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-            while process.isRunning && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(100)) }
-            if process.isRunning { process.terminate(); throw RuntimeError.launchFailed("Steam did not stop. Keep Pufflet open and try again.") }
-            // A graceful host exit can remove the server before -k9 runs.
-            // The bounded -w is the authority: it must confirm server exit.
-            if argument == "-w", process.terminationStatus != 0 {
-                throw RuntimeError.launchFailed("Steam could not stop its private download session.")
-            }
+    func stopPrivatePrefix(expectedPrefix: URL, gracePeriod: Duration = .seconds(2), stopTimeout: Duration = .seconds(5)) async throws {
+        guard installation.prefix.standardizedFileURL == expectedPrefix.standardizedFileURL,
+              expectedPrefix.standardizedFileURL == expectedPrefix.resolvingSymlinksInPath().standardizedFileURL else { throw RuntimeError.missingSetup }
+        if let status = try await serverCommand("-w", timeout: gracePeriod) {
+            guard status == 0 else { throw RuntimeError.launchFailed("Windows session shutdown could not be verified. Keep Pufflet open and retry.") }
+            return
         }
+        // Never SIGKILL wineserver on the normal path: it discards dirty hives.
+        // -k may report that the server already exited; -w is the authority.
+        _ = try await serverCommand("-k", timeout: stopTimeout)
+        guard try await serverCommand("-w", timeout: stopTimeout) == 0 else {
+            throw RuntimeError.launchFailed("Windows is still shutting down. Its saved state is uncertain; keep Pufflet open and retry.")
+        }
+    }
+
+    func requireStoppedPrefix(expectedPrefix: URL, timeout: Duration = .seconds(5)) async throws {
+        guard installation.prefix.standardizedFileURL == expectedPrefix.standardizedFileURL,
+              expectedPrefix.standardizedFileURL == expectedPrefix.resolvingSymlinksInPath().standardizedFileURL else { throw RuntimeError.missingSetup }
+        guard try await serverCommand("-w", timeout: timeout) == 0 else {
+            throw RuntimeError.launchFailed("A Windows session is still using this prefix. Close its games and Steam before setup.")
+        }
+    }
+
+    private func serverCommand(_ argument: String, timeout: Duration) async throws -> Int32? {
+        let process = Process()
+        process.executableURL = installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver"); process.arguments = [argument]
+        process.environment = environment().filter { $0.key != "DYLD_INSERT_LIBRARIES" }
+        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+        try process.run()
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while process.isRunning && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(100)) }
+        if process.isRunning {
+            // This is only the bounded wait/control helper, not the server.
+            process.terminate()
+            let exitDeadline = ContinuousClock.now.advanced(by: .seconds(1))
+            while process.isRunning && ContinuousClock.now < exitDeadline { try? await Task.sleep(for: .milliseconds(20)) }
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+            return nil
+        }
+        return process.terminationStatus
     }
 
     @MainActor func startWindows(_ arguments: [String], extraEnvironment: [String: String]) throws -> Process {
