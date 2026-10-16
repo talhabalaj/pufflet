@@ -27,8 +27,8 @@ if CommandLine.arguments.count == 1 {
     exit(0)
 }
 let pid = Int32(CommandLine.arguments[1])!
-guard let app = games.first(where: { $0.processIdentifier == pid }), app.activationPolicy == .regular else {
-    fatalError("Refusing input: PID is not a regular app in the exact Dev prefix")
+guard let app = games.first(where: { $0.processIdentifier == pid }) else {
+    fatalError("Refusing input: PID is not in the exact Dev prefix")
 }
 let command = CommandLine.arguments[2]
 if command == "quit" {
@@ -41,6 +41,20 @@ if let session = CGSessionCopyCurrentDictionary() as? [String: Any],
     print("Input blocked by macOS secure input; finish the system prompt manually")
     exit(2)
 }
+if command == "authorize-wine-input" {
+    let approvedPeggle = environment(pid).contains {
+        $0.caseInsensitiveCompare("C:\\ProgramData\\PopCap Games\\PeggleExtreme\\popcapgame1.exe") == .orderedSame
+    }
+    guard approvedPeggle,
+          windows.contains(where: { ($0[kCGWindowOwnerPID as String] as? Int32) == pid }) else {
+        print("Refusing Wine input: no visible regular Dev game or exact approved Peggle child"); exit(2)
+    }
+    print("authorized-Wine-window pid=\(pid) policy=\(app.activationPolicy.rawValue)")
+    exit(0)
+}
+guard app.activationPolicy == .regular else {
+    print("Refusing native input to a background-only app"); exit(2)
+}
 app.activate(options: [.activateAllWindows])
 let ax = AXUIElementCreateApplication(pid)
 _ = AXUIElementSetAttributeValue(ax, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
@@ -51,20 +65,31 @@ guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
     exit(2)
 }
 switch command {
+case "move":
+    let point = CGPoint(x: Double(CommandLine.arguments[3])!, y: Double(CommandLine.arguments[4])!)
+    CGWarpMouseCursorPosition(point)
+    CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
 case "click":
     let point = CGPoint(x: Double(CommandLine.arguments[3])!, y: Double(CommandLine.arguments[4])!)
+    CGWarpMouseCursorPosition(point)
     for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
-        CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
-        usleep(80000)
+        let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
+        event?.setIntegerValueField(.mouseEventClickState, value: 1)
+        event?.post(tap: .cghidEventTap)
+        usleep(type == .leftMouseDown ? 500000 : 200000)
     }
 case "key":
     let key = CGKeyCode(CommandLine.arguments[3])!
     let flags: CGEventFlags = CommandLine.arguments.count > 4 && CommandLine.arguments[4] == "alt" ? .maskAlternate : []
-    for down in [true, false] {
-        let event = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: down)
-        event?.flags = flags
-        event?.post(tap: .cghidEventTap)
-        usleep(80000)
+    let repetitions = CommandLine.arguments.count > 5 ? min(max(Int(CommandLine.arguments[5]) ?? 1, 1), 24) : 1
+    for _ in 0..<repetitions {
+        for down in [true, false] {
+            let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: key, keyDown: down)
+            event?.flags = flags
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { exit(2) }
+            event?.post(tap: .cghidEventTap)
+            usleep(down ? 300000 : 150000)
+        }
     }
 case "foreground": break
 default: fatalError("Unknown command")

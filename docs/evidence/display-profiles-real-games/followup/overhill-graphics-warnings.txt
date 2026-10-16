@@ -1,0 +1,5 @@
+Final Inherit launch, nonfatal warnings; not a crash excerpt.
+kGfxThreadingModeSplitJobs is not supported on Direct3D 11. Reverting to kGfxThreadingModeClientWorkerJobs instead.
+    Version:  Direct3D 11.0 [level 11.1]
+    Renderer: Apple M4 Pro (ID=0x0)
+GpuFence::Create(): Failed to create ID3D11Fence, error 0x80004005

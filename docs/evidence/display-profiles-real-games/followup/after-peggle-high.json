@@ -1,0 +1,70 @@
+{
+  "dev_prefix_clients": [
+    {
+      "pid": 70336,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/wine-process-guard.exe"
+    },
+    {
+      "pid": 70380,
+      "executable": "~/Library/Application Support/PuffletDev/Runtimes/wine-11.0-dxmt-2/PuffletRuntime.app/Contents/SharedSupport/wine/lib/wine/../../bin/wineserver"
+    },
+    {
+      "pid": 70386,
+      "executable": "C:\\windows\\system32\\services.exe"
+    },
+    {
+      "pid": 70388,
+      "executable": "C:\\windows\\system32\\winedevice.exe"
+    },
+    {
+      "pid": 70391,
+      "executable": "C:\\windows\\system32\\explorer.exe"
+    },
+    {
+      "pid": 70393,
+      "executable": "C:\\windows\\system32\\plugplay.exe"
+    },
+    {
+      "pid": 70396,
+      "executable": "C:\\windows\\system32\\svchost.exe"
+    },
+    {
+      "pid": 70399,
+      "executable": "C:\\windows\\system32\\winedevice.exe"
+    },
+    {
+      "pid": 70403,
+      "executable": "C:\\windows\\system32\\rpcss.exe"
+    },
+    {
+      "pid": 70433,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/dockhost.exe"
+    },
+    {
+      "pid": 70785,
+      "executable": "C:\\SteamLibraries\\library-REDACTED\\steamapps\\common\\Peggle Extreme\\PeggleExtreme.exe"
+    },
+    {
+      "pid": 70790,
+      "executable": "C:\\Program Files (x86)\\Common Files\\Steam\\SteamService.exe"
+    },
+    {
+      "pid": 75226,
+      "executable": "C:\\ProgramData\\PopCap Games\\PeggleExtreme\\popcapgame1.exe"
+    }
+  ],
+  "test_build_processes": [
+    {
+      "pid": 18122,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/MacOS/Pufflet Dev"
+    },
+    {
+      "pid": 70336,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/wine-process-guard.exe"
+    },
+    {
+      "pid": 70433,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/dockhost.exe"
+    }
+  ]
+}

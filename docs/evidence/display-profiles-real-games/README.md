@@ -1,148 +1,84 @@
-# Real-game display verification — partial, blocked on system input
+# Real-game display profile verification
 
-2026-10-16, latest main `0803603712fc58d8f4e11fc94f4fd77e1f072717`.
-**This is not completed gameplay acceptance and does not decide #12.**
+Tested 2026-10-16–17 in the signed-in **Pufflet Dev**, normal signed Debug build from main `0a9bbd5` (product source `0803603`). [Build/signature identity](followup/build-identity.json). No product source, bundle identity or Dock policy changes.
 
-## Result and recommendation
+**Recommendation: keep #19 as the display solution; no tested game demonstrates a need for per-game prefixes now to fix zoom.** Over the Hill, Muck and Peggle Extreme reached real gameplay. No internal zoom/crop has been observed under any tested profile. This does not prove the original production symptom is fixed: that exact before/after was not reproduced, and the intermittent Over the Hill DXMT crash did not occur. Keep #12 open for its broader prefix-isolation architecture, rather than treating these display tests as grounds to close it.
 
-#19 changes effective display geometry for a real Steam-launched Muck process,
-restores another game's profile after a cold restart, and reuses a compatible
-Steam session. Active and paused download mismatches produce the expected clear
-refusal. Another game's Play is disabled while a game runs.
+The profiles change Wine geometry correctly: Inherit and Standard use **Retina n / 96 DPI, 1512×982**; High resolution uses **Retina y / 96 DPI, 3024×1964**. Inherit uses the frozen original n/96 baseline on this Mac. The game's own resolution still matters: High can retain an older low resolution and look soft until adjusted inside the game.
 
-Muck's fullscreen menu fits under all three requested profiles. Inherit and
-Standard look softer than High resolution on this Retina display. Peggle's
-launcher fits under all profiles; High resolution is sharper and physically
-smaller. Its launcher is **not** game-menu/gameplay acceptance.
+## Results matrix
 
-No tested capture shows zoom/crop, but no game completed all requested modes.
-Over the Hill remains a partial Dev installation. **No game is established to
-zoom under every profile, and no game is established to require #12 now.** Keep
-#12 open and finish the original-report reproduction before deciding whether
-#19 is enough. Separate prefixes have not been shown to solve a remaining bug.
+[Machine-readable matrix with per-cell screenshots and readbacks](matrix.json). The table below is generated from that matrix; menu and gameplay are separate observations. Fullscreen for Unity games means their full-monitor borderless mode; exclusive fullscreen was not independently established. Sharpness is a visual judgment about captured output, not a measurement of internal rendering resolution or FSR.
 
-## Build and boundaries
+| Game | Profile | Scene | Mode | Classification | Own resolution | Screenshot / readback |
+| --- | --- | --- | --- | --- | --- | --- |
+| Muck | Inherit | menu | fullscreen | fits but blurry | 1512x982@120 | [Image](followup/screenshots/muck-inherit-menu-fullscreen.png) · [APIs](followup/muck-inherit-fullscreen.json) |
+| Muck | Inherit | menu | windowed | fits but blurry | 1512x982@120 | [Image](followup/screenshots/muck-inherit-menu-windowed.png) · [APIs](followup/muck-inherit-windowed.json) |
+| Muck | Inherit | gameplay | fullscreen | fits but blurry | 1512x982@120 | [Image](followup/screenshots/muck-inherit-gameplay-fullscreen.png) · [APIs](followup/muck-inherit-fullscreen.json) |
+| Muck | Inherit | gameplay | windowed | fits but blurry | 1512x982@120 | [Image](followup/screenshots/muck-inherit-gameplay-windowed.png) · [APIs](followup/muck-inherit-windowed.json) |
+| Muck | Standard | menu | fullscreen | fits but blurry | 1512x982@120 | [Image](followup/screenshots/muck-standard-menu-fullscreen.png) · [APIs](followup/muck-standard-fullscreen.json) |
+| Muck | Standard | menu | windowed | fits but blurry | 1512x982@120 | [Image](followup/screenshots/muck-standard-menu-windowed.png) · [APIs](followup/muck-standard-windowed.json) |
+| Muck | Standard | gameplay | fullscreen | fits but blurry | 1512x982@120 | [Image](followup/screenshots/muck-standard-gameplay-fullscreen.png) · [APIs](followup/muck-standard-fullscreen.json) |
+| Muck | Standard | gameplay | windowed | fits but blurry | 1512x982@120 | [Image](followup/screenshots/muck-standard-gameplay-windowed.png) · [APIs](followup/muck-standard-windowed.json) |
+| Muck | High resolution | menu | fullscreen | fits and sharp | 3024x1964@120 | [Image](followup/screenshots/muck-high-menu-fullscreen.png) · [APIs](followup/muck-high-fullscreen.json) |
+| Muck | High resolution | menu | windowed | fits and sharp | 3024x1964@120 | [Image](followup/screenshots/muck-high-menu-windowed.png) · [APIs](followup/muck-high-windowed.json) |
+| Muck | High resolution | gameplay | fullscreen | fits and sharp | 3024x1964@120 | [Image](followup/screenshots/muck-high-gameplay-fullscreen.png) · [APIs](followup/muck-high-fullscreen.json) |
+| Muck | High resolution | gameplay | windowed | fits and sharp | 3024x1964@120 | [Image](followup/screenshots/muck-high-gameplay-windowed.png) · [APIs](followup/muck-high-windowed.json) |
+| Peggle Extreme | Inherit | menu | fullscreen | fits but blurry | Fixed 800x600 artwork; fullscreen scales/pillarboxes to 1512x982 | [Image](followup/screenshots/peggle-inherit-menu-fullscreen.png) · [APIs](followup/peggle-inherit-fullscreen.json) |
+| Peggle Extreme | Inherit | menu | windowed | fits but blurry | 800x600 | [Image](followup/screenshots/peggle-inherit-menu-windowed.png) · [APIs](followup/peggle-inherit-windowed.json) |
+| Peggle Extreme | Inherit | gameplay | fullscreen | fits but blurry | Fixed 800x600 artwork; fullscreen scales/pillarboxes to 1512x982 | [Image](followup/screenshots/peggle-inherit-gameplay-fullscreen.png) · [APIs](followup/peggle-inherit-fullscreen.json) |
+| Peggle Extreme | Inherit | gameplay | windowed | fits but blurry | 800x600 | [Image](followup/screenshots/peggle-inherit-gameplay-windowed.png) · [APIs](followup/peggle-inherit-windowed.json) |
+| Peggle Extreme | Standard | menu | fullscreen | fits but blurry | Fixed 800x600 artwork; fullscreen scales/pillarboxes to 1512x982 | [Image](followup/screenshots/peggle-standard-menu-fullscreen.png) · [APIs](followup/peggle-standard-fullscreen.json) |
+| Peggle Extreme | Standard | menu | windowed | fits but blurry | 800x600 | [Image](followup/screenshots/peggle-standard-menu-windowed.png) · [APIs](followup/peggle-standard-windowed.json) |
+| Peggle Extreme | Standard | gameplay | fullscreen | fits but blurry | Fixed 800x600 artwork; fullscreen scales/pillarboxes to 1512x982 | [Image](followup/screenshots/peggle-standard-gameplay-fullscreen.png) · [APIs](followup/peggle-standard-fullscreen.json) |
+| Peggle Extreme | Standard | gameplay | windowed | fits but blurry | 800x600 | [Image](followup/screenshots/peggle-standard-gameplay-windowed.png) · [APIs](followup/peggle-standard-windowed.json) |
+| Peggle Extreme | High resolution | menu | fullscreen | fits but blurry | Fixed 800x600 artwork/client in windowed; fullscreen scales with pillarboxing; no numerical selector | [Image](followup/screenshots/peggle-high-menu-fullscreen.png) · [APIs](followup/peggle-high-fullscreen.json) |
+| Peggle Extreme | High resolution | menu | windowed | fits and sharp | Fixed 800x600 artwork/client in windowed; fullscreen scales with pillarboxing; no numerical selector | [Image](followup/screenshots/peggle-high-menu-windowed.png) · [APIs](followup/peggle-high-windowed.json) |
+| Peggle Extreme | High resolution | gameplay | fullscreen | fits but blurry | Fixed 800x600 artwork/client in windowed; fullscreen scales with pillarboxing; no numerical selector | [Image](followup/screenshots/peggle-high-gameplay-fullscreen.png) · [APIs](followup/peggle-high-fullscreen.json) |
+| Peggle Extreme | High resolution | gameplay | windowed | fits and sharp | Fixed 800x600 artwork/client in windowed; fullscreen scales with pillarboxing; no numerical selector | [Image](followup/screenshots/peggle-high-gameplay-windowed.png) · [APIs](followup/peggle-high-windowed.json) |
+| over the hill | Inherit | menu | fullscreen | fits but blurry | 1512x982 | [Image](followup/screenshots/overhill-inherit-menu-fullscreen.png) · [APIs](followup/overhill-inherit-fullscreen.json) |
+| over the hill | Inherit | menu | windowed | fits but blurry | 1352x878 | [Image](followup/screenshots/overhill-inherit-menu-windowed.png) · [APIs](followup/overhill-inherit-windowed.json) |
+| over the hill | Inherit | gameplay | fullscreen | fits but blurry | 1512x945 | [Image](followup/screenshots/overhill-inherit-gameplay-fullscreen.png) · [APIs](followup/overhill-inherit-fullscreen.json) |
+| over the hill | Inherit | gameplay | windowed | fits but blurry | 1352x878 | [Image](followup/screenshots/overhill-inherit-gameplay-windowed.png) · [APIs](followup/overhill-inherit-windowed.json) |
+| over the hill | Standard | menu | fullscreen | fits but blurry | 1512x982 | [Image](followup/screenshots/overhill-standard-menu-fullscreen.png) · [APIs](followup/overhill-standard-fullscreen.json) |
+| over the hill | Standard | menu | windowed | fits but blurry | 1352x878 | [Image](followup/screenshots/overhill-standard-menu-windowed.png) · [APIs](followup/overhill-standard-windowed.json) |
+| over the hill | Standard | gameplay | fullscreen | fits but blurry | 1512x982 | [Image](followup/screenshots/overhill-standard-gameplay-fullscreen.png) · [APIs](followup/overhill-standard-fullscreen.json) |
+| over the hill | Standard | gameplay | windowed | fits but blurry | 1352x878 | [Image](followup/screenshots/overhill-standard-gameplay-windowed.png) · [APIs](followup/overhill-standard-windowed.json) |
+| over the hill | High resolution | menu | fullscreen | fits and sharp | 3024x1964 | [Image](followup/screenshots/overhill-high-menu-fullscreen.png) · [APIs](followup/overhill-high-fullscreen.json) |
+| over the hill | High resolution | menu | windowed | fits and sharp | 1352x878 | [Image](followup/screenshots/overhill-high-menu-windowed.png) · [APIs](followup/overhill-high-windowed.json) |
+| over the hill | High resolution | gameplay | fullscreen | fits and sharp | 3024x1964 | [Image](followup/screenshots/overhill-high-gameplay-fullscreen.png) · [APIs](followup/overhill-high-fullscreen.json) |
+| over the hill | High resolution | gameplay | windowed | fits and sharp | 1352x878 | [Image](followup/screenshots/overhill-high-gameplay-windowed.png) · [APIs](followup/overhill-high-windowed.json) |
 
-Normal signed Debug build: `me.balaj.SteamLibrary.dev`, product/executable
-`Pufflet Dev`. Fetched main and matched HEAD before building and again before
-the second slot. [Identity and strict/deep signature verification](build-identity.json)
-pass. Build succeeded with:
+## Saved resolutions and configurations
 
-```sh
-xcodebuild -project SteamLibrary.xcodeproj -scheme SteamLibrary \
-  -configuration Debug -destination 'platform=macOS,arch=arm64' \
-  -derivedDataPath /tmp/pufflet-real-games-build build
-```
+- **Over the Hill:** Dev `prefix/user.reg`, `Software\\Funselektor\\over the hill`, Unity Screenmanager and window-size values. Own Graphics UI exposes resolution and Fullscreen Window/Windowed. Low quality and FSR3 Quality stayed unchanged. Inherit fullscreen menu used 1512×982, then gameplay retained 1512×945 with narrow letterboxing. Standard observed that saved size and selected 1512×982. High initially retained windowed 1352×878; its fullscreen image became sharper after selecting 3024×1964. Windowed 1352×878 leaves room for the native title bar under n/96; High makes that same client physically smaller. No separate prefix was needed to change the saved size. [Config snapshots](followup/display-config-overhill-high.txt), [stale High screenshot](followup/screenshots/overhill-high-fullscreen-stale-resolution.png).
+- **Muck:** Dev `prefix/user.reg`, `Software\\Dani\\Muck`, Unity Screenmanager values. Own Video UI showed 1512×982 or 3024×1964 at 120 Hz. A stale High resolution normalized on a later n/96 launch. A desktop-sized window plus its title bar extends beyond the physical screen even though the client capture contains the full HUD. This is outer-window overflow, distinct from internal zoom. Selecting 1352×878 and disabling Fullscreen makes the complete outer window fit at native (80,33), size 1352×910: [own Video UI](followup/screenshots/muck-smaller-window-video.png), [client readback](followup/muck-smaller-window.json). [Video UI](followup/screenshots/muck-inherit-video-resolution.png).
+- **Peggle Extreme:** fixed 800×600 artwork/client in windowed mode; fullscreen scales it with 4:3 pillarboxing. Own Options has a Fullscreen checkbox and no numerical resolution selector. Dev `user.reg`, `Software\\Steam\\PeggleExtreme`, `ScreenMode`; binary save files under `ProgramData/Steam/PeggleExtreme/userdata` were not copied. The separate launcher is fixed 640×480 and is excluded from gameplay acceptance.
 
-All launches, profiles, downloads and Pause/Stop/Retry used the signed-in Dev
-app's UI and managed Steam host. No direct game-exe/SteamAppId launches.
-Installed runtime: `wine-11.0-dxmt-2`; DXMT/Auto unchanged. Production logs and
-display registry values were read only. Production prefix/content and the user's
-real Steam library were not modified or used for launches. No product source or
-build identity changes were made.
+## Session reuse, restarts and guards
 
-## Captured results
+Compatible n/96 configurations reused host PID 65459 across Muck Inherit → Peggle Inherit → Muck Standard in the initial batch. In the follow-up, Peggle Standard → Inherit reused host 63284 after normal game/launcher Quit. Differing n/y profiles ended old hosts and created new ones; Over the Hill Standard host 21298 → High host 40924 is another actual-game round trip. Registry and desktop/client probes confirm the applied configuration. [Initial lifecycle detail](initial-report.md#lifecycle-and-guards), [Over the Hill Standard](followup/overhill-standard-fullscreen.json), [High](followup/overhill-high-fullscreen.json), [cross-game n→y transition](followup/transition-overhill-inherit-peggle-high.json).
 
-Visual labels describe captured output, not internal render-buffer measurements.
-Screenshots have panel pixel density; Wine dimensions are API readback, not
-inferred from screenshots. Saved Unity fullscreen mode 1 and a full-monitor
-client are called fullscreen here; exclusive mode was not independently checked.
+Active and paused downloads refused a mismatched-profile Play with a clear finish-work/restart message: [active](screenshots/guard-active-download.jpg), [paused](screenshots/guard-paused-download.jpg), [paused download state](screenshots/download-paused.jpg). While Muck ran, another game's Play was disabled: [running-game gate](screenshots/guard-running-game.jpg). This tests the UI gate, not a forced backend call.
 
-| Game / scene / mode | Profile | Classification | Wine desktop / client | Evidence |
-| --- | --- | --- | --- | --- |
-| Muck / menu / fullscreen | Inherit | Fits but blurry | 1512×982 / 1512×982 | [Screenshot](screenshots/muck-inherit-restored-menu-fullscreen.png), [readback](muck-inherit-restored.json) |
-| Muck / menu / fullscreen | Standard | Fits but blurry | 1512×982 / 1512×982 | [Screenshot](screenshots/muck-standard-menu-fullscreen.png), [readback](muck-standard-menu.json) |
-| Muck / menu / fullscreen | High resolution | Fits and sharp | 3024×1964 / 3024×1964 | [Screenshot](screenshots/muck-high-menu-fullscreen.png), [readback](muck-high-menu.json) |
-| Peggle Extreme / launcher / windowed | Inherit | Fits but blurry | 1512×982 / 640×480 | [Screenshot](screenshots/peggle-inherit-launcher-windowed.png), [readback](peggle-inherit-menu.json) |
-| Peggle Extreme / launcher / windowed | Standard | Fits but blurry | 1512×982 / 640×480 | [Screenshot](screenshots/peggle-standard-launcher-windowed.png), [readback](peggle-standard-launcher.json) |
-| Peggle Extreme / launcher / windowed | High resolution | Fits and sharp; small | 3024×1964 / 640×480 | [Screenshot](screenshots/peggle-high-launcher-windowed.png), [readback](peggle-high-launcher.json) |
+Dock inspection used filtered literal AX readback plus exact-prefix native process policies. Muck/Over the Hill have a regular game and prohibited host siblings; pinned Pufflet Dev entries also remain in the user's Dock. Peggle fails the intended child classification: its launcher is regular but its real PopCap child is prohibited. Normal real-game Quit leaves the launcher alive and Pufflet Playing until that launcher is normally quit. Filed [#23](https://github.com/talhabalaj/pufflet/issues/23). This is a launcher/Dock lifecycle bug, not evidence that prefix isolation fixes zoom. [Muck Dock](followup/dock-muck-high.txt), [Over the Hill Dock](followup/dock-overhill-high.txt), [Peggle Dock](followup/dock-peggle-high.txt).
 
-[Machine-readable matrix](matrix.json) includes all **36 requested game × profile
-× menu/gameplay × fullscreen/windowed cells**, plus the three separate launcher
-observations. Muck gameplay/windowed, Peggle game menu/gameplay/fullscreen, and
-every Over the Hill cell remain **not tested**. Missing screenshots are not
-passes. No in-game resolution UI was reached; saved config is not that UI check.
+## Crashes and extra fallback
 
-## Lifecycle and guards
+No Over the Hill game-process DXMT crash occurred in the three profile runs, including actual driving at Emerald Lake. Nonfatal graphics warnings do not establish a crash. One Steam download-host disconnect near 4.04 GB staged recovered through UI Retry using retained files and the existing sign-in: [log excerpt](followup/overhill-install-disconnect.txt), [UI](followup/screenshots/overhill-install-disconnected.jpg). The completed Dev installation is 4.32 GB. Production logs and production display registry were read only; no historical DXMT crash could be clearly attributed from those markers.
 
-| Action | Observed result |
-| --- | --- |
-| Muck Inherit → Peggle Inherit → Muck Standard | Compatible n/96 session reused host PID 65459. |
-| Muck High Play after stopping submitted work | Host 65459/server 65335 ended; new host 88341/server 88233. Effective y/96; Muck desktop/client 3024×1964. |
-| Quit Muck High → Play Peggle Standard | New host 92125/server 92073; n/96, client 640×480. No last-game Retina override leaked. |
-| Quit Peggle Standard → Play Peggle High | New host 95684/server 95287; y/96, client 640×480. Native window width changed from 640 to 320 logical points. |
-| Active Over the Hill download + Muck High mismatch | Refused with restart/finish-work message. [Alert](screenshots/guard-active-download.jpg). |
-| Pause that download + same mismatch | Same clear refusal. [Paused state](screenshots/download-paused.jpg), [alert](screenshots/guard-paused-download.jpg). |
-| Muck High running, downloads stopped, Peggle Standard selected | Peggle Play disabled while Muck is Playing. [UI](screenshots/guard-running-game.jpg). This tests the UI gate, not a forced call behind it. |
+Super Crate Box was an extra small fallback while Peggle input was blocked. Inherit fullscreen menu/tutorial fit with sharp intended pixel art. Its own fullscreen→windowed switch removes the visible window while leaving the process alive, reproduced twice: [#25](https://github.com/talhabalaj/pufflet/issues/25), [evidence](followup/README.md#super-crate-box-fallback). Other profiles/windowed acceptance for this extra game remain untested. No small product fix with a proven root cause was established; both bugs were filed rather than changing product behavior speculatively.
 
-The frozen n/96 baseline stayed unchanged through overrides. Saving another
-intent while Muck ran did not mutate its live n/96 session. Exact-prefix native
-app discovery showed the game regular and host siblings background/prohibited.
-**Literal Dock-only-game visual acceptance and a complete process-leak audit
-between every switch remain open.** Activation policy is not a Dock screenshot.
+## Reproduction and boundaries
 
-## Saved resolution and content
+All profile choices and launches used Pufflet's UI/Play with the signed-in Dev Steam session; no direct game-executable launches. Runtime `wine-11.0-dxmt-2`, Graphics Auto/DXMT unchanged. Production data/content and the user's real Steam library were untouched. Over the Hill was installed through Pufflet in Dev instead of launching production content.
 
-[Display-only registry snapshot](display-config-before.txt) excludes unrelated
-account data. Muck's configuration is Dev `prefix/user.reg`, `Software\\Dani\\Muck`.
-At the first slot's start, Unity saved 3024×1964 with Use Native enabled while
-the prefix was n/96. After its n/96 launch and native Quit, Unity stored
-1512×982 with Use Native enabled. The stale larger saved resolution normalized
-on launch without observed menu crop. This does not establish the original
-user's cause. Saved fullscreen mode was 1.
-
-Production Over the Hill's read-only registry section is
-`Software\\Funselektor\\over the hill`: 1512×982, fullscreen mode 1, Use Native
-disabled. It was not copied into Dev. Its Dev config and in-game controls remain
-untested. Peggle's fixed 640×480 launcher was reached, but no game settings file
-was created/reached. Its empty Dev `ProgramData/PopCap Games` directory was
-inspected for configuration filenames only.
-
-The Forest's existing folder is incomplete: initial manifest StateFlags 1538,
-SizeOnDisk 0, 1482055168/2129681056 downloaded, no committed InstalledDepots. It
-was not resumed or modified. Peggle was installed through Pufflet as the small
-23.4 MB older-title candidate. After explicit approval, Over the Hill's Dev
-installation started (2.29 GB compressed; about 4.32 GB staged work). Stop/Retry
-retained files. It remains incomplete and Stopped at handoff. **No Over the Hill
-DXMT crash was reproduced**, so there is no new crash excerpt to attribute to it.
-
-## Input blocker and reproducibility
-
-Computer use operates Pufflet but cannot bind to Wine by name/executable because
-Wine has no bundle ID. The user approved a scoped native helper. It has macOS
-accessibility/event access, but `coreautha` holds foreground and secure input.
-Activation failed; one PID-directed click did not change Muck's menu. The helper
-now refuses input while secure input is active or the exact Dev game is not
-foreground. Native Quit requests remain possible without injected input.
-No authentication prompt was dismissed/completed; no credentials were read.
-
-Automatic review rejected full-desktop capture and binding to authentication UI
-because of unrelated/private content. Neither was captured or inspected. The
-user must finish/dismiss the system prompt before game controls can continue.
-This is an environment blocker, not an established Pufflet bug.
-
-`game-ui.swift` restricts target PIDs to regular native apps with the exact Dev
-WINEPREFIX. `display-probe.c` only reads geometry; `probe.py` queries registry
-and APIs in the owned session; `config-snapshot.py` emits only selected display
-values. Compile the C probe with the project's existing llvm-mingw clang and
-`-luser32 -lgdi32` to `/tmp/pufflet-real-games-display-probe.exe`. Compile the
-Swift helper with `swiftc game-ui.swift -o /tmp/pufflet-real-game-ui`.
-
-The first probe's missing Wine DLL paths/flag gave exit 1, retained in
-`muck-inherit-initial.json` and not counted as success. Corrected live probes
-succeed. Initial cleanup artifacts are `initial-teardown.json` and
-`initial-final-audit.json`. All screenshot classifications were visually reviewed.
-No product bug with a demonstrated root cause was established; no product fix
-or new product test is claimed.
+Scoped evidence helpers read only selected display values and exact Dev-prefix process/window state. The user explicitly approved input to the visible exact Peggle child without changing its Dock policy; all other native input requires a regular foreground Dev game. Secure-input/system prompts are excluded. Only target-window screenshots were captured. [Helper source](game-ui.swift), [Wine input gate](followup/wine-ui.py), [geometry probe](display-probe.c), [exact-prefix audit](followup/audit.py). [Historical initial pass and build command](initial-report.md).
 
 ## Final restoration and cleanup
 
-The final [Inherit round trip](muck-inherit-restored.json) restored n/96 and a
-1512×982 Muck client in new host PID 3411/server 3358. Both saved game choices
-are back to Inherit (empty games map). [Final audit](final-audit.json) confirms
-no Dev-prefix clients and no test Dev app remain. After native Quit, explicit
-same-prefix wineserver `-k` returned 1 (already stopped), and bounded `-w`
-returned 0. No leftover signals were needed. Dev slot released. The pre-existing
-rundll32 referencing the Dev runtime belongs to `/tmp/pufflet-dx12-check/prefix`
-and was left untouched. Over the Hill is Stopped with partial files retained;
-The Forest remains Interrupted. Peggle remains installed.
+All saved profiles are back to Inherit (empty per-game map); the frozen baseline remains n/96. [Final Inherit round trip](followup/final-inherit-roundtrip.json) shows desktop/client 1512×982 and compatible host 63284 reused after Peggle/Muck. Over the Hill still displayed saved 3024×1964 on that n/96 launch without cropping; its own UI was restored to [1512×982 Fullscreen Window](followup/screenshots/overhill-final-inherit-restored-resolution.png). [Final display-only registry snapshot](followup/display-config-final.txt). Muck's fullscreen mode was restored after the fitting smaller-window check; its selected resolution is 1352×878. Peggle was left fullscreen. Dev-installed games were retained; no uninstalls were requested.
+
+After normal game and Pufflet Quit, same-explicit-prefix wineserver `-k` returned 1 (already stopped) and bounded `-w` returned 0: [teardown](followup/final-teardown.json). [Full process audit](followup/final-audit.json) confirms **zero exact Dev-prefix clients and zero test-build processes**. No leftover signals were needed. Dev slot released. The unrelated pre-existing Wine process in another temporary prefix was untouched.
+
+All 36 required screenshot/metric links, JSON parsing and image signatures were checked. Input/geometry helper compilation and `git diff --check` passed; no product code changed, so no product regression test is claimed. [Nonfatal graphics warnings](followup/overhill-graphics-warnings.txt) are retained separately from the download-host failure.

@@ -1,0 +1,62 @@
+{
+  "dev_prefix_clients": [
+    {
+      "pid": 29059,
+      "executable": "~/Library/Application Support/PuffletDev/Runtimes/wine-11.0-dxmt-2/PuffletRuntime.app/Contents/SharedSupport/wine/lib/wine/../../bin/wineserver"
+    },
+    {
+      "pid": 29068,
+      "executable": "C:\\windows\\system32\\services.exe"
+    },
+    {
+      "pid": 29070,
+      "executable": "C:\\windows\\system32\\winedevice.exe"
+    },
+    {
+      "pid": 29072,
+      "executable": "C:\\windows\\system32\\plugplay.exe"
+    },
+    {
+      "pid": 29075,
+      "executable": "C:\\windows\\system32\\explorer.exe"
+    },
+    {
+      "pid": 29078,
+      "executable": "C:\\windows\\system32\\svchost.exe"
+    },
+    {
+      "pid": 29080,
+      "executable": "C:\\windows\\system32\\winedevice.exe"
+    },
+    {
+      "pid": 29089,
+      "executable": "C:\\windows\\system32\\rpcss.exe"
+    },
+    {
+      "pid": 29090,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/wine-process-guard.exe"
+    },
+    {
+      "pid": 29111,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/dockhost.exe"
+    },
+    {
+      "pid": 34689,
+      "executable": "C:\\Program Files (x86)\\Common Files\\Steam\\SteamService.exe"
+    }
+  ],
+  "test_build_processes": [
+    {
+      "pid": 18122,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/MacOS/Pufflet Dev"
+    },
+    {
+      "pid": 29090,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/wine-process-guard.exe"
+    },
+    {
+      "pid": 29111,
+      "executable": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/dockhost.exe"
+    }
+  ]
+}
