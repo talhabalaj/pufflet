@@ -35,6 +35,7 @@ nonisolated struct SteamRuntime: Sendable {
     let installation: SteamInstallation
     let dockBridge: URL
     var logDirectory: URL? = nil
+    var d3dMetal: D3DMetalInstallation? = nil
 
     struct Identity: Equatable, Sendable {
         let prefix: URL
@@ -112,7 +113,7 @@ nonisolated struct SteamRuntime: Sendable {
         env["STEAM_LIBRARY_DOCK_BRIDGE"] = "1"
         env["STEAM_LIBRARY_PREFIX"] = prefix
         env["DYLD_INSERT_LIBRARIES"] = dockBridge.path
-        return env
+        return d3dMetal?.environment(over: env) ?? env
     }
 
     @concurrent func send(_ arguments: [String]) async throws {

@@ -27,3 +27,9 @@ The three example covers were downloaded from the public Steam CDN on 2026-10-15
 Game names and artwork belong to their respective owners. The page labels the covers as examples, not a compatibility list. Assets are served locally with no external font or runtime image requests.
 
 Design direction was informed by Said's public website and an Opus 5.5 consultation: rounded system type, Pufflet's cream/teal/coral palette, a small mascot companion, an app preview, brief explanatory sections, and a requirements FAQ.
+
+## Game Porting Toolkit guide
+
+`public/images/gptk/apple-download.png` and `apple-sign-in.png` are real 1280 × 800 browser screenshots captured with T3 preview on 2026-10-16, from Apple's public GPTK page and its blank Apple Developer sign-in page. No account identifiers or credentials appear. The authenticated download list was unavailable and is described in text rather than recreated.
+
+`public/images/gptk/open-evaluation.png` and `evaluation-lib.png` are real Finder window screenshots, 1840 × 872, captured through computer use from Apple's already-downloaded Game Porting Toolkit 4.0 beta 2 and nested evaluation images mounted read-only. The selected row highlights the actual nested image and then `redist/lib`. The sidebar was hidden in the screenshot window to exclude personal locations. These screenshots were not generated or recreated; they depict Apple's software and Finder, attributed in the guide. Apple binaries are not included in the site.

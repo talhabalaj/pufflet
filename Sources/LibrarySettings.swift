@@ -142,6 +142,11 @@ private struct AdvancedSettings: View {
                 LabeledContent("Wine and DXMT", value: model.runtimeSetup.isReady ? "Installed" : "Setup needed")
                 LabeledContent("") { Button("Set Up Pufflet…") { model.showsSetup = true } }
             }
+            Section("Game Porting Toolkit") {
+                ToolkitControls(support: model.graphics)
+                Text("Only needed for DirectX 12 games. Download it from Apple, then add the complete evaluation environment folder.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
             Section {
                 LabeledContent("App data") { Button("Show in Finder") { NSWorkspace.shared.open(SteamHeadlessPaths.support) } }
                     .help(SteamHeadlessPaths.support.path)
