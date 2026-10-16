@@ -1,0 +1,19 @@
+{
+  "soft_stop": 1,
+  "server_wait": 0,
+  "before": [],
+  "leftover_sigterm": [],
+  "after": [],
+  "dev_app_pids": [],
+  "restored_preferences": {
+    "version": 1,
+    "games": {}
+  },
+  "baseline": {
+    "version": 1,
+    "configuration": {
+      "retinaValue": "n",
+      "dpi": 96
+    }
+  }
+}

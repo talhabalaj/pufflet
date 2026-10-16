@@ -1,0 +1,26 @@
+{
+  "retina": {
+    "exit": 0,
+    "output": "msync: bootstrapped mach port on wine-be4e680-msync.\nmsync: up and running.\n\nHKEY_CURRENT_USER\\Software\\Wine\\Mac Driver\n    RetinaMode    REG_SZ    n\n\n"
+  },
+  "dpi": {
+    "exit": 0,
+    "output": "msync: bootstrapped mach port on wine-be4e680-msync.\nmsync: up and running.\n\nHKEY_CURRENT_USER\\Control Panel\\Desktop\n    LogPixels    REG_DWORD    0x60\n\n"
+  },
+  "desktop": {
+    "exit": 0,
+    "output": "msync: bootstrapped mach port on wine-be4e680-msync.\nmsync: up and running.\nmetrics=1512x982 mode=1512x982 dpi=96\n"
+  },
+  "windows": {
+    "exit": 0,
+    "output": "msync: bootstrapped mach port on wine-be4e680-msync.\nmsync: up and running.\n"
+  },
+  "baseline": null,
+  "preferences": {
+    "games": {
+      "1625450": "highResolution"
+    },
+    "version": 1
+  },
+  "processes": []
+}

@@ -1,0 +1,11 @@
+## PuffletDev/prefix/user.reg
+[Software\\Dani\\Muck] 1792169216
+"Screenmanager Fullscreen mode Default_h401710285"=dword:00000001
+"Screenmanager Fullscreen mode_h3630240806"=dword:00000001
+"Screenmanager Resolution Height Default_h1380706816"=dword:00000438
+"Screenmanager Resolution Height_h2627697771"=dword:000003d6
+"Screenmanager Resolution Use Native Default_h1405981789"=dword:00000001
+"Screenmanager Resolution Use Native_h1405027254"=dword:00000001
+"Screenmanager Resolution Width Default_h680557497"=dword:00000780
+"Screenmanager Resolution Width_h182942802"=dword:000005e8
+"Screenmanager Stereo 3D_h1665754519"=dword:00000001

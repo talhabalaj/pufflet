@@ -1,0 +1,9 @@
+{
+  "head": "0803603712fc58d8f4e11fc94f4fd77e1f072717",
+  "configuration": "Debug",
+  "CFBundleIdentifier": "me.balaj.SteamLibrary.dev",
+  "CFBundleName": "Pufflet Dev",
+  "CFBundleExecutable": "Pufflet Dev",
+  "codesign_verify_exit": 0,
+  "codesign_verify_output": ""
+}

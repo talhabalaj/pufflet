@@ -1,0 +1,6 @@
+{
+  "dev_prefix_clients_by_cwd": [],
+  "muck_restored_preference": "Inherit",
+  "preexisting_pid_91161_cwd": "/private/tmp/pufflet-dx12-check/prefix/drive_c/windows",
+  "preexisting_pid_91161_action": "left untouched; different prefix, not started by this test"
+}
