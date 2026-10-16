@@ -1,0 +1,238 @@
+[
+  {
+    "verified_registry": [
+      "LogPixels=0x60",
+      "RetinaMode=n"
+    ],
+    "game": "muck",
+    "retina": "n",
+    "dpi": 96,
+    "windows": "title=Muck window=1512x982 client=1512x982 dpi=96 awareness=0",
+    "display": "metrics=1512x982 mode=1512x982 dpi=96",
+    "exit": null,
+    "screenmanager": [
+      "\"Screenmanager Fullscreen mode Default_h401710285\"=dword:00000001",
+      "\"Screenmanager Fullscreen mode_h3630240806\"=dword:00000001",
+      "\"Screenmanager Resolution Height Default_h1380706816\"=dword:00000438",
+      "\"Screenmanager Resolution Height_h2627697771\"=dword:000007ac",
+      "\"Screenmanager Resolution Use Native Default_h1405981789\"=dword:00000001",
+      "\"Screenmanager Resolution Use Native_h1405027254\"=dword:00000001",
+      "\"Screenmanager Resolution Width Default_h680557497\"=dword:00000780",
+      "\"Screenmanager Resolution Width_h182942802\"=dword:00000bd0",
+      "\"Screenmanager Stereo 3D_h1665754519\"=dword:00000001"
+    ]
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0x60",
+      "RetinaMode=n"
+    ],
+    "game": "scb",
+    "retina": "n",
+    "dpi": 96,
+    "windows": "title=Super Crate Box window=1512x982 client=1512x982 dpi=96 awareness=0",
+    "display": "metrics=1512x982 mode=1512x982 dpi=96",
+    "exit": null
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0x60",
+      "RetinaMode=n"
+    ],
+    "game": "peggle",
+    "retina": "n",
+    "dpi": 96,
+    "windows": "title=STEAM ERROR window=194x114 client=188x82 dpi=96 awareness=0",
+    "display": "metrics=1512x982 mode=1512x982 dpi=96",
+    "exit": null
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0x60",
+      "RetinaMode=n"
+    ],
+    "game": "trailmakers",
+    "retina": "n",
+    "dpi": 96,
+    "windows": "title=Steam window=400x129 client=394x97 dpi=96 awareness=0",
+    "display": "metrics=1512x982 mode=1512x982 dpi=96",
+    "exit": 0
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0xc0",
+      "RetinaMode=n"
+    ],
+    "game": "muck",
+    "retina": "n",
+    "dpi": 192,
+    "windows": "title=Muck window=1512x982 client=1512x982 dpi=192 awareness=0",
+    "display": "metrics=1512x982 mode=1512x982 dpi=192",
+    "exit": null,
+    "screenmanager": [
+      "\"Screenmanager Fullscreen mode Default_h401710285\"=dword:00000001",
+      "\"Screenmanager Fullscreen mode_h3630240806\"=dword:00000001",
+      "\"Screenmanager Resolution Height Default_h1380706816\"=dword:00000438",
+      "\"Screenmanager Resolution Height_h2627697771\"=dword:000007ac",
+      "\"Screenmanager Resolution Use Native Default_h1405981789\"=dword:00000001",
+      "\"Screenmanager Resolution Use Native_h1405027254\"=dword:00000001",
+      "\"Screenmanager Resolution Width Default_h680557497\"=dword:00000780",
+      "\"Screenmanager Resolution Width_h182942802\"=dword:00000bd0",
+      "\"Screenmanager Stereo 3D_h1665754519\"=dword:00000001"
+    ]
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0xc0",
+      "RetinaMode=n"
+    ],
+    "game": "scb",
+    "retina": "n",
+    "dpi": 192,
+    "windows": "title=Super Crate Box window=3024x1964 client=3024x1964 dpi=96 awareness=0",
+    "display": "metrics=1512x982 mode=1512x982 dpi=192",
+    "exit": null
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0xc0",
+      "RetinaMode=n"
+    ],
+    "game": "peggle",
+    "retina": "n",
+    "dpi": 192,
+    "windows": "title=STEAM ERROR window=388x228 client=376x164 dpi=96 awareness=0",
+    "display": "metrics=1512x982 mode=1512x982 dpi=192",
+    "exit": null
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0xc0",
+      "RetinaMode=n"
+    ],
+    "game": "trailmakers",
+    "retina": "n",
+    "dpi": 192,
+    "windows": "title=Steam window=800x258 client=794x201 dpi=192 awareness=0",
+    "display": "metrics=1512x982 mode=1512x982 dpi=192",
+    "exit": 0
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0x60",
+      "RetinaMode=y"
+    ],
+    "game": "muck",
+    "retina": "y",
+    "dpi": 96,
+    "windows": "unaware-view title=Muck client=3024x1964 screen=3024x1964\ntitle=Muck window=3024x1964 client=3024x1964 dpi=96 awareness=0",
+    "display": "metrics=3024x1964 mode=3024x1964 dpi=96",
+    "exit": null,
+    "screenmanager": [
+      "\"Screenmanager Fullscreen mode Default_h401710285\"=dword:00000001",
+      "\"Screenmanager Fullscreen mode_h3630240806\"=dword:00000001",
+      "\"Screenmanager Resolution Height Default_h1380706816\"=dword:00000438",
+      "\"Screenmanager Resolution Height_h2627697771\"=dword:000007ac",
+      "\"Screenmanager Resolution Use Native Default_h1405981789\"=dword:00000001",
+      "\"Screenmanager Resolution Use Native_h1405027254\"=dword:00000001",
+      "\"Screenmanager Resolution Width Default_h680557497\"=dword:00000780",
+      "\"Screenmanager Resolution Width_h182942802\"=dword:00000bd0",
+      "\"Screenmanager Stereo 3D_h1665754519\"=dword:00000001"
+    ]
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0x60",
+      "RetinaMode=y"
+    ],
+    "game": "scb",
+    "retina": "y",
+    "dpi": 96,
+    "windows": "unaware-view title=Super Crate Box client=3024x1964 screen=3024x1964\nwindow-awareness=0\ntitle=Super Crate Box window=3024x1964 client=3024x1964 dpi=96 awareness=0",
+    "display": "metrics=3024x1964 mode=3024x1964 dpi=96",
+    "exit": null
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0x60",
+      "RetinaMode=y"
+    ],
+    "game": "peggle",
+    "retina": "y",
+    "dpi": 96,
+    "windows": "unaware-view title=STEAM ERROR client=188x82 screen=3024x1964\nwindow-awareness=0\ntitle=STEAM ERROR window=194x114 client=188x82 dpi=96 awareness=0",
+    "display": "metrics=3024x1964 mode=3024x1964 dpi=96",
+    "exit": null
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0x60",
+      "RetinaMode=y"
+    ],
+    "game": "trailmakers",
+    "retina": "y",
+    "dpi": 96,
+    "windows": "unaware-view title=Steam client=394x97 screen=3024x1964\nwindow-awareness=2\ntitle=Steam window=400x129 client=394x97 dpi=96 awareness=0",
+    "display": "metrics=3024x1964 mode=3024x1964 dpi=96",
+    "exit": 0
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0xc0",
+      "RetinaMode=y"
+    ],
+    "game": "muck",
+    "retina": "y",
+    "dpi": 192,
+    "windows": "unaware-view title=Muck client=1512x982 screen=1512x982\nwindow-awareness=2\ntitle=Muck window=3024x1964 client=3024x1964 dpi=192 awareness=0",
+    "display": "metrics=3024x1964 mode=3024x1964 dpi=192",
+    "exit": null,
+    "screenmanager": [
+      "\"Screenmanager Fullscreen mode Default_h401710285\"=dword:00000001",
+      "\"Screenmanager Fullscreen mode_h3630240806\"=dword:00000001",
+      "\"Screenmanager Resolution Height Default_h1380706816\"=dword:00000438",
+      "\"Screenmanager Resolution Height_h2627697771\"=dword:000007ac",
+      "\"Screenmanager Resolution Use Native Default_h1405981789\"=dword:00000001",
+      "\"Screenmanager Resolution Use Native_h1405027254\"=dword:00000001",
+      "\"Screenmanager Resolution Width Default_h680557497\"=dword:00000780",
+      "\"Screenmanager Resolution Width_h182942802\"=dword:00000bd0",
+      "\"Screenmanager Stereo 3D_h1665754519\"=dword:00000001"
+    ]
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0xc0",
+      "RetinaMode=y"
+    ],
+    "game": "scb",
+    "retina": "y",
+    "dpi": 192,
+    "windows": "unaware-view title=Super Crate Box client=3024x1964 screen=1512x982\nwindow-awareness=0\ntitle=Super Crate Box window=6048x3928 client=6048x3928 dpi=96 awareness=0",
+    "display": "metrics=3024x1964 mode=3024x1964 dpi=192",
+    "exit": null
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0xc0",
+      "RetinaMode=y"
+    ],
+    "game": "peggle",
+    "retina": "y",
+    "dpi": 192,
+    "windows": "unaware-view title=STEAM ERROR client=188x82 screen=1512x982\nwindow-awareness=0\ntitle=STEAM ERROR window=388x228 client=376x164 dpi=96 awareness=0",
+    "display": "metrics=3024x1964 mode=3024x1964 dpi=192",
+    "exit": null
+  },
+  {
+    "verified_registry": [
+      "LogPixels=0xc0",
+      "RetinaMode=y"
+    ],
+    "game": "trailmakers",
+    "retina": "y",
+    "dpi": 192,
+    "windows": "unaware-view title=Steam client=397x101 screen=1512x982\nwindow-awareness=2\ntitle=Steam window=800x258 client=794x201 dpi=192 awareness=0\nunaware-view title=Trailmakers client=1512x982 screen=1512x982\nwindow-awareness=2\ntitle=Trailmakers window=3024x1964 client=3024x1964 dpi=192 awareness=0",
+    "display": "metrics=3024x1964 mode=3024x1964 dpi=192",
+    "exit": 0
+  }
+]
