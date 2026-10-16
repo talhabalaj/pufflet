@@ -20,6 +20,9 @@ first() { ls "$Q" | sort | head -1 | sed 's/^[0-9]*-//' }
 waiting() { ls "$Q" | grep -cv -- "-$1\$" }
 
 cmd=${1:-status} name=${2:-}
+# Branch names may contain slashes; queue entries must be single filenames.
+name=${name//\%/%25}
+name=${name//\//%2F}
 case $cmd in
 acquire)
   [[ -n $name ]] || { echo "need a name"; exit 2 }
