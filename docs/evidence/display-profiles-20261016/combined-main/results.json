@@ -1,0 +1,41 @@
+{
+  "testedCode": "28431b5",
+  "base": "65fed9b",
+  "swiftTests": 122,
+  "swiftSuites": 22,
+  "swiftSeconds": 37.049,
+  "nodeTests": 39,
+  "siteTests": 7,
+  "dockPolicyProbes": 22,
+  "liveResults": [
+    {
+      "name": "full-native-final",
+      "exitCode": 0
+    },
+    {
+      "name": "display-intent",
+      "exitCode": 0
+    },
+    {
+      "name": "dock-exit",
+      "exitCode": 0
+    },
+    {
+      "name": "d3d12",
+      "exitCode": 0
+    },
+    {
+      "name": "native-ui",
+      "exitCode": 0
+    },
+    {
+      "name": "profile-transitions",
+      "exitCode": 0
+    }
+  ],
+  "prefixAuditRemaining": 0,
+  "initialDockTimeoutCompleteCause": "unconfirmed",
+  "literalDockMenu": "unverified",
+  "authenticatedSteam": "not_run",
+  "overTheHill": "unverified"
+}

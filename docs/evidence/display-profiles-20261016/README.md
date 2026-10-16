@@ -1,5 +1,9 @@
 # Display profiles: isolated verification, 2026-10-16
 
+Current combined main integration (including #14, #16, #18 and #20) is recorded
+in [the combined acceptance report](combined-main/README.md). The original
+pre-integration observations below are historical, not the latest test head.
+
 108 native tests in 20 suites passed with the optional picker preview enabled;
 the real-Wine XCTest test was disabled in that run. Regression coverage includes
 per-game persistence, frozen/custom/missing inheritance, corrupt or unwritable
