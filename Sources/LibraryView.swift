@@ -220,7 +220,7 @@ struct GameMenuItems: View {
         if model.isPlaying(game) { return "Return to Game" }
         if model.isLaunching(game) { return "Launching…" }
         if game.installation != nil { return "Play" }
-        return model.isPending(game) ? "Downloading…" : "Install"
+        return model.isPending(game) ? "Downloading…" : "Install…"
     }
 }
 
@@ -248,14 +248,14 @@ private struct GameTile: View {
             .overlay(alignment: .bottomLeading) {
                 if hovering, model.canStart(game) {
                     let playing = model.isPlaying(game)
-                    Button(playing ? "Return to Game" : game.installation == nil ? "Install" : "Play",
+                    Button(playing ? "Return to Game" : game.installation == nil ? "Install…" : "Play",
                            systemImage: playing ? "arrow.up.forward" : game.installation == nil ? "arrow.down" : "play.fill") {
                         model.selectedID = game.id
                         model.primaryAction(game)
                     }
                     .labelStyle(.iconOnly).font(.title3)
                     .buttonStyle(.glassProminent).buttonBorderShape(.circle).controlSize(.extraLarge)
-                    .help(playing ? "Return to \(game.name)" : game.installation == nil ? "Install \(game.name)" : "Play \(game.name)")
+                    .help(playing ? "Return to \(game.name)" : game.installation == nil ? "See the download size and install \(game.name)" : "Play \(game.name)")
                     .padding(8)
                 }
             }
@@ -383,13 +383,13 @@ struct GameInspector: View {
             .buttonStyle(.glass).controlSize(.large)
         } else {
             let playing = model.isPlaying(game)
-            Button { model.primaryAction(game) } label: {
+            Button { if game.installation == nil { model.install(game) } else { model.primaryAction(game) } } label: {
                 Label(playing ? "Return to Game" : model.isLaunching(game) ? "Launching…" : game.installation == nil ? "Install" : "Play",
                       systemImage: playing ? "arrow.up.forward" : game.installation == nil ? "arrow.down" : "play.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.glassProminent).controlSize(.large)
-            .disabled(!model.canStart(game))
+            .disabled(game.installation == nil ? !model.canInstall : !model.canStart(game))
         }
     }
 

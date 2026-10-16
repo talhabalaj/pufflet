@@ -428,8 +428,10 @@ import os
         }
     }
 
+    /// Plays an installed game. A game that isn't installed opens Get Info instead,
+    /// so its download size and free space are visible before anything is downloaded.
     func primaryAction(_ entry: LibraryGame) {
-        if entry.installation == nil { install(entry) } else { Task { await play(entry) } }
+        if entry.installation == nil { selectedID = entry.id; showsInspector = true } else { Task { await play(entry) } }
     }
 
     func isPending(_ entry: LibraryGame) -> Bool {
@@ -439,7 +441,7 @@ import os
     func canStart(_ entry: LibraryGame) -> Bool {
         if isPlaying(entry) { return true }
         if isPending(entry) || isLaunching(entry) { return false }
-        return entry.installation == nil ? canInstall : canPlay
+        return entry.installation == nil || canPlay
     }
 
     func downloadProgress(for id: String) -> (done: Int64, total: Int64)? {

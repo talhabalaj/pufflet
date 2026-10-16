@@ -77,6 +77,23 @@ import Testing
         }
     }
 
+    @Test func primaryActionOnUninstalledGameOpensGetInfoWithoutDownloading() throws {
+        let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
+        let suite = "OwnedLibraryTests." + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite)); defer { defaults.removePersistentDomain(forName: suite) }
+        let downloads = SteamDownloadQueue(root: root.appendingPathComponent("Queue")); downloads.activate(account: 1)
+        let model = LibraryModel(settings: LibrarySettings(defaults: defaults, support: root, home: root),
+                                 headless: SteamHeadlessSession(paths: .init(support: root)),
+                                 ownedLibrary: SteamOwnedLibrary(cache: root.appendingPathComponent("Owned")),
+                                 downloads: downloads, paths: .init(support: root))
+        let entry = LibraryGame(id: "10", name: "Fixture", installation: nil, owned: OwnedSteamGame(id: "10", name: "Fixture", estimatedBytes: 1 << 40))
+        #expect(model.canStart(entry))
+        model.primaryAction(entry)
+        #expect(model.showsInspector)
+        #expect(model.selectedID == "10")
+        #expect(downloads.jobs.isEmpty)
+    }
+
     @Test func clearingFinishedDownloadsKeepsPendingWorkAndPersists() throws {
         let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
         let queue = SteamDownloadQueue(root: root); queue.activate(account: 1)
