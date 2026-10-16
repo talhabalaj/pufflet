@@ -224,20 +224,22 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
         if persistentEnabled {
             guard !hasLaunchWork, let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
+            preparing = true
+            defer { preparing = false }
             observeSession()
             isActive = true; launchingAppID = game.id; errorMessage = nil
             report = SteamHostReport(); status = "Preparing Steam support…"
             do {
                 let selection = try await SteamLaunchConfiguration.selection(for: game, caches: metadataCaches)
                 let root = game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-                try await sessionHost.start(appID: appID, destination: root, library: library, credentials: credentials, runtime: runtime, graphicsForLaunch: true)
-                try await sessionHost.launch(game: game, option: selection.option, executable: selection.executable)
+                try await sessionHost.startGame(game, option: selection.option, executable: selection.executable, destination: root, library: library, credentials: credentials, runtime: runtime)
             } catch { launchingAppID = nil; isActive = await sessionHost.isActive; throw error }
             return
         }
         guard !isActive, let appID = UInt32(game.id), appID > 0, appID < UInt32.max else {
             throw SteamError.authenticationFailed("A game is already starting or its Steam App ID is invalid.")
         }
+        try SteamDisplayProfiles(paths: paths).requireFallbackSupport(for: game.id)
         isActive = true; installing = false; stopping = false; errorMessage = nil; status = "Preparing Steam support…"
         do {
             var setupRuntime = runtime
@@ -300,7 +302,9 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         case let .preparing(text): status = text
         case .running: isActive = true; status = "Steam is ready"
         case let .stopped(error):
-            isActive = false; launchingAppID = nil; playingAppID = nil
+            isActive = preparing
+            if !preparing { launchingAppID = nil }
+            playingAppID = nil
             status = error == nil ? "Ready to play" : "Steam needs attention"
             if let error { errorMessage = error }
             if let error { for id in submittedInstalls { installResults[id] = .some(error) } }

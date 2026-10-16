@@ -97,6 +97,7 @@ actor SteamSessionHost {
     private var displayConfiguration: SteamDisplayConfiguration?
     private var preparingSupport = false
     private var ownsPreparedPrefix = false
+    private var switchingDisplay = false
 
     init(paths: SteamClientPaths = .standard, hostURL: URL? = Bundle.main.url(forResource: "dockhost", withExtension: "exe"),
          installer: (any SteamClientPreparing)? = nil) {
@@ -107,25 +108,49 @@ actor SteamSessionHost {
         (events, continuation) = AsyncStream.makeStream()
     }
 
-    func start(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime,
-               graphicsForLaunch: Bool = false) async throws {
+    func start(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime, graphicsForLaunch: Bool = false) async throws {
+        guard !switchingDisplay else { throw SteamDisplayProfiles.Failure.busy }
+        try await startManaged(appID: appID, destination: destination, library: library, credentials: credentials, runtime: runtime, graphicsForLaunch: graphicsForLaunch)
+    }
+
+    // Resolve a preference once per Play. The gate spans profile read, stop,
+    // configuration, startup and launch submission, preventing queued installs
+    // or a second Play from entering between these suspended steps.
+    func startGame(_ game: SteamGame, option: UInt32, executable: URL, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
+        guard !switchingDisplay, !starting, !preparingSupport, !stopping,
+              ongoing.subtracting(installRequests).isEmpty else { throw SteamDisplayProfiles.Failure.busy }
+        let preference = try SteamDisplayProfiles(paths: paths).preference(for: game.id)
+        guard let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
+        switchingDisplay = true
+        defer { switchingDisplay = false }
+        try await startManaged(appID: appID, destination: destination, library: library, credentials: credentials, runtime: runtime, requestedDisplay: preference, graphicsForLaunch: true)
+        try await validateReuse(runtime: runtime, identity: runtime.identity(), destination: destination.resolvingSymlinksInPath(), accountID: credentials.steamID, graphicsForLaunch: true)
+        try Task.checkCancellation()
+        try await launchPrepared(game: game, option: option, executable: executable)
+    }
+
+    private func startManaged(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime,
+                              requestedDisplay: SteamDisplayPreference? = nil, graphicsForLaunch: Bool = false) async throws {
         guard !stopping, !preparingSupport else { throw Failure.stopped("Steam is being prepared or stopped. Try again shortly.") }
         let identity = try runtime.identity()
         guard identity.prefix == paths.prefix.standardizedFileURL,
               paths.prefix.standardizedFileURL == paths.prefix.resolvingSymlinksInPath().standardizedFileURL else { throw SteamClientPackages.Failure.conflict }
-        if process == nil, ownsPreparedPrefix, !starting { try await shutdown() }
+        if process == nil, ownsPreparedPrefix, !starting { try await shutdownOwned() }
         if let process, !process.isRunning { await exited(code: Int(process.terminationStatus), generation: generation) }
         guard !stopping else { throw Failure.stopped("Steam is still shutting down. Try again shortly.") }
-        if !starting, process != nil, !ready { try await shutdown() }
+        if !starting, process != nil, !ready { try await shutdownOwned() }
         let root = destination.resolvingSymlinksInPath()
         if ready {
             try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
-            if graphicsForLaunch, self.runtime?.d3dMetal != runtime.d3dMetal {
-                // Validate account/library/prefix before stopping an idle host.
-                guard ongoing.isEmpty, pending.isEmpty, installRequests.isEmpty else {
-                    throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
-                }
-                try await shutdown(notify: false)
+            guard let observed = displayConfiguration else { throw SteamDisplayProfiles.Failure.invalidSettings }
+            let target = try requestedDisplay.flatMap {
+                try SteamDisplayProfiles(paths: paths).target(for: $0, observed: observed)
+            }
+            let changesDisplay = target.map { $0 != displayConfiguration } ?? false
+            let changesGraphics = graphicsForLaunch && self.runtime?.d3dMetal != runtime.d3dMetal
+            if changesDisplay || changesGraphics {
+                guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty else { throw SteamDisplayProfiles.Failure.busy }
+                try await shutdownOwned(notify: false)
             } else { return }
         }
         if starting {
@@ -150,7 +175,19 @@ actor SteamSessionHost {
             let configuration = try await installer.displayConfiguration(runtime: setupRuntime)
             guard generation == current, !stopping else { throw CancellationError() }
             guard try runtime.identity() == identity else { throw SteamClientPackages.Failure.activeSession }
-            displayConfiguration = configuration
+            if let requestedDisplay,
+               let target = try SteamDisplayProfiles(paths: paths).target(for: requestedDisplay, observed: configuration), target != configuration {
+                try await installer.applyDisplayConfiguration(target, runtime: setupRuntime)
+                guard generation == current, !stopping, try runtime.identity() == identity else { throw CancellationError() }
+                let verified = try await installer.displayConfiguration(runtime: setupRuntime)
+                guard generation == current, !stopping, try runtime.identity() == identity, verified == target else { throw SteamDisplayProfiles.Failure.invalidSettings }
+                // The implementation's apply operation ends its readback Wine;
+                // this final observation also must not become the host session.
+                try await setupRuntime.stopPrivatePrefix(expectedPrefix: paths.prefix)
+                guard generation == current, !stopping, try runtime.identity() == identity else { throw CancellationError() }
+                displayConfiguration = target
+            } else { displayConfiguration = configuration }
+            try Task.checkCancellation()
             guard let hostURL else { throw SteamRuntime.RuntimeError.missingSetup }
             try prepareRequests()
             try? FileManager.default.removeItem(at: paths.report)
@@ -217,7 +254,7 @@ actor SteamSessionHost {
                     // A concurrent shutdown owns teardown. Its suspended
                     // start waiter must not discard the process or prefix.
                     if !stopping {
-                        do { try await shutdown() }
+                        do { try await shutdownOwned() }
                         catch { starting = false } // Retain ownership for a cleanup retry.
                     }
                 } else if !stopping { reset(error: error.localizedDescription) }
@@ -259,7 +296,7 @@ actor SteamSessionHost {
     // Standalone setup and online startup share the same owner. A separate
     // installer actor would not prevent one from mutating the other's prefix.
     func prepareSupport(runtime: SteamRuntime, library: [SteamGame], destination: URL?) async throws {
-        guard !isActive else { throw SteamClientPackages.Failure.activeSession }
+        guard !isActive, !switchingDisplay else { throw SteamClientPackages.Failure.activeSession }
         preparingSupport = true
         let current = generation
         defer { preparingSupport = false }
@@ -284,19 +321,23 @@ actor SteamSessionHost {
         guard self.generation == generation, starting else { return }
         failureMessage = "Steam took too long to sign in. Check your connection and try again."
         failWaiters(Failure.stopped(failureMessage!))
-        try? await shutdown()
+        try? await shutdownOwned()
     }
     private func readFailed(generation: UUID) async {
         guard self.generation == generation, !stopping else { return }
         failureMessage = "The Steam control channel disconnected. Try again to restart Steam support."
         failWaiters(Failure.stopped(failureMessage!))
-        try? await shutdown()
+        try? await shutdownOwned()
     }
 
-    var isActive: Bool { starting || process != nil || stopping || preparingSupport || ownsPreparedPrefix }
+    var isActive: Bool { starting || process != nil || stopping || preparingSupport || ownsPreparedPrefix || switchingDisplay }
 
-    func install(appID: UInt32) async throws { try await command("install \(appID)", app: Int(appID)) }
+    func install(appID: UInt32) async throws {
+        guard !switchingDisplay else { throw SteamDisplayProfiles.Failure.busy }
+        try await command("install \(appID)", app: Int(appID))
+    }
     func control(_ action: String, appID: UInt32) async throws {
+        guard !switchingDisplay else { throw SteamDisplayProfiles.Failure.busy }
         guard ["pause", "resume", "cancel"].contains(action) else { throw SteamError.invalidMessage }
         try await command("\(action) \(appID)", app: Int(appID))
         if action == "cancel" {
@@ -306,6 +347,10 @@ actor SteamSessionHost {
         }
     }
     func launch(game: SteamGame, option: UInt32, executable: URL) async throws {
+        guard !switchingDisplay else { throw SteamDisplayProfiles.Failure.busy }
+        try await launchPrepared(game: game, option: option, executable: executable)
+    }
+    private func launchPrepared(game: SteamGame, option: UInt32, executable: URL) async throws {
         guard let app = UInt32(game.id), app > 0, app <= Int32.max else { throw SteamError.invalidMessage }
         let root = game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath()
         guard root.standardizedFileURL.path == destination?.standardizedFileURL.path, !game.installDirectory.contains("\\"), !game.installDirectory.contains("/"),
@@ -359,7 +404,7 @@ actor SteamSessionHost {
     private func commandTimedOut(_ id: Int, generation: UUID) async {
         guard self.generation == generation, let request = pending.removeValue(forKey: id) else { return }
         request.continuation.resume(throwing: Failure.stopped("Steam did not acknowledge the request. Its session will restart on your next action; existing files are kept."))
-        try? await shutdown()
+        try? await shutdownOwned()
     }
     private func receive(_ data: Data, generation: UUID) {
         guard self.generation == generation else { return }
@@ -405,6 +450,10 @@ actor SteamSessionHost {
     }
 
     func shutdown(notify: Bool = true) async throws {
+        guard !switchingDisplay else { throw SteamDisplayProfiles.Failure.busy }
+        try await shutdownOwned(notify: notify)
+    }
+    private func shutdownOwned(notify: Bool = true) async throws {
         guard !stopping, !preparingSupport, !(starting && process == nil && !ownsPreparedPrefix) else {
             throw Failure.stopped("Steam is preparing or shutting down. Keep Pufflet open and try again.")
         }
