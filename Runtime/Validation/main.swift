@@ -88,7 +88,7 @@ import Synchronization
         let server = wine.appendingPathComponent("bin/wineserver")
         func cleanPrefix() throws {
             // WINEPREFIX restricts both cleanup commands to this checker's scratch prefix.
-            try execute(server, arguments: ["-k9"], directory: prefix, environment: launchEnvironment,
+            try? execute(server, arguments: ["-k"], directory: prefix, environment: launchEnvironment,
                         label: "Stop private validation prefix", timeout: 5)
             try execute(server, arguments: ["-w"], directory: prefix, environment: launchEnvironment,
                         label: "Wait for private validation prefix", timeout: 5)

@@ -29,6 +29,7 @@ private actor PreparedClient: SteamClientPreparing {
     private var configuration = SteamDisplayConfiguration(retinaQuery: "RetinaMode REG_SZ n", dpiQuery: "LogPixels REG_DWORD 0x60")
     private var holdQueries = false
     private var heldQuery: CheckedContinuation<SteamDisplayConfiguration, Never>?
+
     func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL?, progress: @Sendable (String) async -> Void) async throws -> [String: String] {
         calls += 1
         preparedWithD3DMetal = preparedWithD3DMetal || runtime.d3dMetal != nil
@@ -168,7 +169,11 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.install(appID: 1)
         try await host.install(appID: 2)
         let game = SteamGame(id: "3", name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: root.appendingPathComponent("steamapps/common/Fixture"))
-        try await host.launch(game: game, option: 9)
+        try FileManager.default.createDirectory(at: game.folder, withIntermediateDirectories: true)
+        let image = game.folder.appendingPathComponent("game.exe")
+        try Data([0]).write(to: image)
+        try await host.launch(game: game, option: 9, executable: image)
+        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8) == image.resolvingSymlinksInPath().path)
         try await host.control("pause", appID: 1)
         try await host.control("resume", appID: 1)
         #expect(await host.isActive)
@@ -272,6 +277,16 @@ private actor PreparedClient: SteamClientPreparing {
         #expect(await !actor.isActive)
     }
 
+    @Test func startupRecoveryCannotReapAnActiveSession() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
+        await #expect(throws: (any Error).self) { try await host.recoverPreviousSession(runtime: runtime) }
+        #expect(await host.isActive)
+        try await host.install(appID: 2)
+        try await host.shutdown()
+    }
+
     @Test func liveSessionCannotBeReusedForAnotherAccount() async throws {
         let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
         let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
@@ -361,6 +376,8 @@ private actor PreparedClient: SteamClientPreparing {
             with open(path) as file: fields = file.read().splitlines()
             assert fields[:4] == ['MDOCKL01', str(app), parts[3], '0']
             os.unlink(path)
+            with open(os.path.join(os.environ['WINEPREFIX'], '.pufflet-dock-allow')) as record:
+                assert os.path.samefile(record.read(), os.path.join(os.path.dirname(__file__), 'steamapps/common/Fixture/game.exe'))
         emit(req, app + 1, 'command-result', 35) # Wrong-app responses must not settle a request.
         emit(req, app, 'command-result', 0)
         if action == 'launch': emit(req, app, 'launch-game-running', 1)

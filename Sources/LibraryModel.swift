@@ -91,6 +91,12 @@ import os
         account.refresh()
         graphics.refresh()
         await runtimeSetup.check()
+        if runtimeSetup.isReady, !headless.isActive {
+            isStoppingDownload = true
+            defer { isStoppingDownload = false }
+            do { try await headless.recoverPreviousSession(runtime: nativeRuntime) }
+            catch { errorMessage = error.localizedDescription; return }
+        }
         steamSupportReady = await SteamClientInstaller.isPrepared(paths: paths)
         showsSetup = settings.libraryURL == nil || !runtimeSetup.isReady || (!graphics.skipped && graphics.installation == nil)
         accountChanged()
@@ -404,6 +410,9 @@ import os
         let pending = downloadTask
         pending?.cancel()
         try await headless.shutdown(runtime: nativeRuntime)
+        // Setup and desktop-Steam commands can leave helpers without an active
+        // headless host. App quit still owns its private prefix.
+        if runtimeSetup.isReady { try await nativeRuntime.stopPrivatePrefix(expectedPrefix: paths.prefix) }
         await pending?.value
         _ = headless.takeInstallResults()
         for job in downloads.jobs where [.preparing, .installing].contains(job.state) {

@@ -103,9 +103,11 @@ import Testing
             try milestone("second-installed")
             try await Task.sleep(for: .seconds(20))
             try await host.shutdown(runtime: runtime)
+            try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
             try milestone("finished")
         } catch {
             try? await host.shutdown(runtime: runtime)
+            try? await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
             try? milestone("failed")
             throw error
         }
@@ -150,6 +152,7 @@ import Testing
             try await host.controlDownload("resume", id: game.id)
             try await wait("resumed") { host.installReports[game.id]?.fields["install-user-paused"] == 0 }
             try await host.shutdown(runtime: runtime)
+            try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
             _ = host.takeInstallResults()
             try await wait("quit-mid-repair") { !host.isActive }
             try await host.install(appID: game.id, destination: library, library: [], credentials: credentials, runtime: runtime)
@@ -177,6 +180,7 @@ import Testing
             print("Isolated recovery stage: one-shot-install-passed")
         } catch {
             try? await host.shutdown(runtime: runtime)
+            try? await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
             // Retain both the backup and Valve's partial repair for diagnosis.
             throw error
         }

@@ -126,6 +126,18 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         cleanupHandoff()
     }
 
+    func recoverPreviousSession(runtime: SteamRuntime) async throws {
+        guard !isActive, !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
+        isActive = true
+        do {
+            try await sessionHost.recoverPreviousSession(runtime: runtime)
+            isActive = false
+        } catch {
+            isActive = await sessionHost.isActive
+            throw error
+        }
+    }
+
     func prepare(runtime: SteamRuntime, library: [SteamGame], destination: URL? = nil) async throws {
         guard !isActive, !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
         preparing = true
@@ -177,6 +189,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
                 "MADEIRA_STEAM_HOST_APPID": appID, "MADEIRA_DOCK_INSTALL_LIBRARY": SteamClientInstaller.windowsLibraryRoot(for: destination),
                 "MADEIRA_STEAM_HOST_CLIENT_DIR": "C:\\Program Files (x86)\\Steam", "MADEIRA_STEAM_HOST_LOG": "C:\\steam-library-host.txt",
                 "MADEIRA_DOCK_AUTH_FILE": Self.windowsHandoffPath(paths.handoff)]
+            try await runtime.prepareProcessGuard()
             let launched = try runtime.startWindows([host.path, "--install", appID], extraEnvironment: env)
             process = launched
             launched.terminationHandler = { [weak self] ended in
@@ -215,10 +228,10 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
             isActive = true; launchingAppID = game.id; errorMessage = nil
             report = SteamHostReport(); status = "Preparing Steam support…"
             do {
-                let option = try await SteamLaunchConfiguration.option(for: game, caches: metadataCaches)
+                let selection = try await SteamLaunchConfiguration.selection(for: game, caches: metadataCaches)
                 let root = game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
                 try await sessionHost.start(appID: appID, destination: root, library: library, credentials: credentials, runtime: runtime, graphicsForLaunch: true)
-                try await sessionHost.launch(game: game, option: option)
+                try await sessionHost.launch(game: game, option: selection.option, executable: selection.executable)
             } catch { launchingAppID = nil; isActive = await sessionHost.isActive; throw error }
             return
         }
@@ -233,18 +246,20 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
                 await self?.setStatus(text)
             }
             guard let folder = folders[game.id] else { throw SteamClientPackages.Failure.conflict }
-            let launchOption = try await SteamLaunchConfiguration.option(for: game, caches: metadataCaches)
+            let selection = try await SteamLaunchConfiguration.selection(for: game, caches: metadataCaches)
             guard let host = hostURL else { throw SteamRuntime.RuntimeError.missingSetup }
             cleanupHandoff()
             try? FileManager.default.removeItem(at: paths.report)
             try writeHandoff(credentials, appID: appID)
             let env = ["MADEIRA_STEAM_HOST_PROBE": "1", "MADEIRA_STEAM_HOST_SESSION": "1",
                        "MADEIRA_STEAM_HOST_LOGIN": "1", "MADEIRA_STEAM_HOST_LAUNCH": "1",
-                       "MADEIRA_STEAM_HOST_APPID": game.id, "MADEIRA_STEAM_HOST_LAUNCH_OPTION": String(launchOption),
+                       "MADEIRA_STEAM_HOST_APPID": game.id, "MADEIRA_STEAM_HOST_LAUNCH_OPTION": String(selection.option),
                        "MADEIRA_STEAM_HOST_CLIENT_DIR": "C:\\Program Files (x86)\\Steam",
                        "MADEIRA_STEAM_HOST_EXPECTED_INSTALL": folder,
                        "MADEIRA_STEAM_HOST_LOG": "C:\\steam-library-host.txt",
                        "MADEIRA_DOCK_AUTH_FILE": Self.windowsHandoffPath(paths.handoff)]
+            try runtime.allowDockExecutable(selection.executable, for: game)
+            try await runtime.prepareProcessGuard()
             let launched = try runtime.startWindows([host.path], extraEnvironment: env)
             process = launched
             launched.terminationHandler = { [weak self] ended in
@@ -256,6 +271,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
             }
             status = "Starting Steam support…"
         } catch {
+            runtime.clearDockExecutable()
             isActive = false; cleanupHandoff(); throw error
         }
     }
@@ -333,7 +349,8 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
         stopping = true
         defer { stopping = false }
-        if persistentEnabled { try await sessionHost.shutdown() }
+        let sessionActive = await sessionHost.isActive
+        if persistentEnabled || sessionActive { try await sessionHost.shutdown() }
         else if installing { try await stopInstall(runtime: runtime) }
         else if isActive {
             try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
@@ -346,6 +363,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     private func setStatus(_ text: String) { status = text }
 
     private func didExit(_ code: Int) {
+        try? FileManager.default.removeItem(at: paths.prefix.appendingPathComponent(".pufflet-dock-allow"))
         let report = SteamHostReport.read(from: paths.report)
         var result = report.fields["probe-result"] ?? code
         if installing { result = code == 0 && result == 0 && report.installComplete && !stopping ? 0 : result == 0 ? 65 : result }

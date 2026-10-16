@@ -30,7 +30,8 @@ try:
 finally:
     # WINEPREFIX selects only this new validation server and its processes.
     try:
-        subprocess.run([str(server), "-k"], env=environment, timeout=15, check=True)
+        subprocess.run([str(server), "-k"], env=environment, timeout=15, check=False)
+        subprocess.run([str(server), "-w"], env=environment, timeout=15, check=True)
     finally:
         if process is not None and process.poll() is None:
             process.kill()

@@ -108,10 +108,9 @@ nonisolated struct SteamRuntime: Sendable {
         env["WINEDEBUG"] = "-all"
         env["SikarugirAppWine11"] = "1"
         env["METAL_HUD"] = "1"
-        // The bundled legacy bridge hides every Wine Dock entry when enabled.
-        // Let winemac.drv promote GUI processes and handle their native Quit
-        // requests (WM_QUERYENDSESSION / WM_ENDSESSION) independently instead.
-        env["STEAM_LIBRARY_DOCK_BRIDGE"] = "0"
+        // The bridge permits game images while keeping Wine services/helpers
+        // background-only. Wine retains its native Quit delegate.
+        env["STEAM_LIBRARY_DOCK_BRIDGE"] = "1"
         env["STEAM_LIBRARY_PREFIX"] = prefix
         env["DYLD_INSERT_LIBRARIES"] = dockBridge.path
         return d3dMetal?.environment(over: env) ?? env
@@ -136,6 +135,7 @@ nonisolated struct SteamRuntime: Sendable {
         let process = Process()
         process.executableURL = installation.wine
         process.currentDirectoryURL = installation.steam
+        if arguments != ["-shutdown"] { try await prepareProcessGuard() }
         process.arguments = [installation.steamExecutable.path] + arguments
         process.environment = environment()
         process.standardOutput = handle
@@ -198,6 +198,8 @@ nonisolated struct SteamRuntime: Sendable {
               expectedPrefix.standardizedFileURL == expectedPrefix.resolvingSymlinksInPath().standardizedFileURL else { throw RuntimeError.missingSetup }
         if let status = try await serverCommand("-w", timeout: gracePeriod) {
             guard status == 0 else { throw RuntimeError.launchFailed("Windows session shutdown could not be verified. Keep Pufflet open and retry.") }
+            try await reapStoppedPrefix()
+            clearDockExecutable()
             return
         }
         // Never SIGKILL wineserver on the normal path: it discards dirty hives.
@@ -206,6 +208,36 @@ nonisolated struct SteamRuntime: Sendable {
         guard try await serverCommand("-w", timeout: stopTimeout) == 0 else {
             throw RuntimeError.launchFailed("Windows is still shutting down. Its saved state is uncertain; keep Pufflet open and retry.")
         }
+        try await reapStoppedPrefix()
+        clearDockExecutable()
+    }
+
+    /// Called only after -w has verified server exit; no live session may be
+    /// reclaimed just because its clients were reparented to launchd.
+    private func reapStoppedPrefix() async throws {
+        let clients = WineProcessIdentity.clients(prefix: installation.prefix)
+        for client in clients { client.signal(SIGTERM, prefix: installation.prefix) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while clients.contains(where: { $0.isCurrent }), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        // The server has already flushed its hives. Only exact leftover client
+        // identities may need escalation; never SIGKILL wineserver itself.
+        for client in clients where client.isCurrent { client.signal(SIGKILL, prefix: installation.prefix) }
+        let final = ContinuousClock.now.advanced(by: .seconds(2))
+        while clients.contains(where: { $0.isCurrent }), ContinuousClock.now < final {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        guard !clients.contains(where: { $0.isCurrent }) else {
+            throw RuntimeError.launchFailed("Windows helper processes have not stopped. Keep Pufflet open and retry.")
+        }
+    }
+
+    func recoverPreviousSession() async throws {
+        // The app's single-instance lock excludes another owner of its own
+        // prefix. Other prefixes (including agents' temporary tests) are excluded.
+        guard !WineProcessIdentity.clients(prefix: installation.prefix).isEmpty else { return }
+        try await stopPrivatePrefix(expectedPrefix: installation.prefix)
     }
 
     func requireStoppedPrefix(expectedPrefix: URL, timeout: Duration = .seconds(5)) async throws {
@@ -253,6 +285,42 @@ nonisolated struct SteamRuntime: Sendable {
         let output = try FileHandle(forWritingTo: log)
         try output.seekToEnd()
         return output
+    }
+
+    var dockAllowRecord: URL { installation.prefix.appendingPathComponent(".pufflet-dock-allow") }
+
+    func allowDockExecutable(_ executable: URL, for game: SteamGame) throws {
+        let image = executable.resolvingSymlinksInPath().standardizedFileURL
+        let folder = game.folder.resolvingSymlinksInPath().standardizedFileURL
+        guard image.path.hasPrefix(folder.path + "/"), image.pathExtension.lowercased() == "exe",
+              !image.path.contains("\n"), image.path.utf8.count < PATH_MAX,
+              try image.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
+            throw SteamClientPackages.Failure.conflict
+        }
+        let temporary = installation.prefix.appendingPathComponent(".dock-allow-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        guard FileManager.default.createFile(atPath: temporary.path, contents: Data(image.path.utf8),
+                                             attributes: [.posixPermissions: 0o600]),
+              rename(temporary.path, dockAllowRecord.path) == 0 else { throw RuntimeError.missingSetup }
+    }
+
+    func clearDockExecutable() { try? FileManager.default.removeItem(at: dockAllowRecord) }
+
+    @concurrent func prepareProcessGuard() async throws {
+        guard let guardURL = Bundle.main.url(forResource: "wine-process-guard", withExtension: "exe") else { throw RuntimeError.missingSetup }
+        let marker = installation.prefix.appendingPathComponent(".guard-ready-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: marker) }
+        // The prefix-local Windows mutex prevents duplicate supervisors. Wait
+        // for the initial process snapshot before permitting a game to launch.
+        let child = try spawn([guardURL.path, SteamHeadlessSession.windowsHandoffPath(marker)])
+        let deadline = ContinuousClock.now.advanced(by: .seconds(15))
+        while !FileManager.default.fileExists(atPath: marker.path) {
+            guard child.isRunning, ContinuousClock.now < deadline else {
+                throw RuntimeError.launchFailed("Game process supervision could not start. Restart Steam support and retry.")
+            }
+            try Task.checkCancellation()
+            try await Task.sleep(for: .milliseconds(50))
+        }
     }
 
     private func spawn(_ arguments: [String], extraEnvironment: [String: String] = [:], input: Pipe? = nil, output: Pipe? = nil) throws -> Process {

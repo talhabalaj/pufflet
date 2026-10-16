@@ -1,5 +1,17 @@
 # Game Dock entries and Quit
 
+The current helper policy and process-lifetime implementation are documented in
+[WINE_PROCESS_LIFETIME.md](WINE_PROCESS_LIFETIME.md). Games retain Wine's native
+Quit handler; helpers are background-only. The commands below build/run the
+account-free fixture, now including crash-handler children and both normal exit
+and native Quit.
+
+## PR #11 historical implementation and evidence
+
+The following describes the earlier implementation; its global bridge-disable
+policy has been superseded by selective game promotion.
+
+
 Pufflet lets Wine's Mac driver make each GUI process a regular macOS application.
 A game's Dock entry supports the normal Quit command, and Command-Q in the game's
 menu uses the same path. The Windows application can accept or refuse shutdown.

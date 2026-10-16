@@ -74,7 +74,7 @@ struct SteamLibraryTests {
         let environment = runtime.environment()
         #expect(environment["WINEPREFIX"] == environment["STEAM_LIBRARY_PREFIX"])
         #expect(environment["DYLD_INSERT_LIBRARIES"] == "/tmp/DockBridge.dylib")
-        #expect(environment["STEAM_LIBRARY_DOCK_BRIDGE"] == "0")
+        #expect(environment["STEAM_LIBRARY_DOCK_BRIDGE"] == "1")
         #expect(environment["WINEDLLPATH_DXMT"]?.contains("SharedSupport/renderer/dxmt/wine") == true)
         #expect(setup.wine.path == "/private/runtime/PuffletRuntime.app/Contents/SharedSupport/wine/bin/wine")
         #expect(environment["DYLD_FALLBACK_LIBRARY_PATH"]?.contains("/private/runtime/PuffletRuntime.app/Contents/Frameworks") == true)

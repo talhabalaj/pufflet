@@ -10,6 +10,28 @@ incremental builds to remove obsolete runtime output from the **built app only**
 Sparkle remains a normal embedded framework. The saved Pufflet icon and bundled
 `dockhost.exe` are unchanged; no Dock source rebuild is needed during setup.
 
+## App-owned Dock bridge
+
+The bridge is an app resource, not part of the immutable downloaded runtime.
+After changing `DockBridge.m`, run `Runtime/build-dock-bridge.sh` to rebuild the
+universal checked-in dylib. The normal app build then copies and re-signs its
+**app-bundle copy** through `bundle-runtime.sh`; it does not re-sign Wine or
+change `RuntimeArtifact.json`. `Runtime/test-dock-bridge.sh` tests the policy
+without starting Wine.
+
+Pufflet sets `STEAM_LIBRARY_DOCK_BRIDGE=1` with matching `WINEPREFIX` and
+`STEAM_LIBRARY_PREFIX`. Regular activation is allowed only for the selected
+executable's file identity, never every EXE in its directory. A direct launch
+can specify `STEAM_LIBRARY_DOCK_ALLOW=<absolute executable path>`. The persistent
+host keeps its inherited environment: immediately before each LaunchApp request,
+Swift atomically writes the selected metadata executable into the prefix's
+`.pufflet-dock-allow` record (owner-only, 0600). The bridge refuses symlinks and
+unsafe records, resolves Wine drive aliases, and caches the process's decision.
+Helpers cannot gain an icon when a later game changes the record. Known Wine,
+Steam, host and crash-handler helpers are always denied. Exit/shutdown clears
+the record. This does not alter renderer environment selection or the Steam
+launch/entitlement protocol.
+
 `bootstrap-runtime.sh`, `sign-runtime.py`, and `Wine.entitlements` remain manual
 artifact-preparation helpers for the release pipeline, not app-build inputs.
 The release setup owner maintains `scripts/ci/package-runtime.sh` and publication.
