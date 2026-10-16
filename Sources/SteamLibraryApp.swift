@@ -4,6 +4,11 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var model: LibraryModel?
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Pufflet has one library window, so it offers no tab commands.
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if model?.returnToGame() == true { return false }
         if !flag { sender.windows.first?.makeKeyAndOrderFront(nil) }
@@ -63,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     var body: some Scene {
-        WindowGroup("Library", id: "library") {
+        Window("Library", id: "library") {
             LibraryView(model: model)
                 .onAppear { delegate.model = model; AppUpdater.shared.start(model: model) }
                 .onChange(of: model.headless.isActive) { AppUpdater.shared.resumePendingInstall() }
@@ -73,20 +78,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         .defaultSize(width: 900, height: 570)
         .windowResizability(.contentMinSize)
-        .commands {
-            CommandGroup(replacing: .newItem) { }
-            CommandGroup(after: .appInfo) {
-                Button("Check for Updates…") { AppUpdater.shared.checkForUpdates() }
-                    .disabled(!AppUpdater.shared.isAvailable || model.headless.isActive)
-            }
-            CommandMenu("Steam") {
-                Button("Steam account…") { model.showsAccount = true }
-                Button("Open Steam") { Task { await model.openSteam() } }
-                Button("Refresh library") { model.refresh() }.keyboardShortcut("r")
-            }
-        }
+        .keyboardShortcut("0")
+        .commands { LibraryCommands(model: model) }
         Settings {
             LibrarySettingsView(model: model)
+        }
+    }
+}
+
+struct LibraryCommands: Commands {
+    @Bindable var model: LibraryModel
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) { }
+        ToolbarCommands()
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { AppUpdater.shared.checkForUpdates() }
+                .disabled(!AppUpdater.shared.isAvailable || model.headless.isActive)
+        }
+        CommandGroup(after: .textEditing) {
+            Button("Find…") { model.searchRequest += 1 }.keyboardShortcut("f").disabled(model.entries.isEmpty)
+        }
+        CommandGroup(before: .toolbar) {
+            Picker("Show", selection: $model.filter) {
+                Text("All Games").tag(LibraryModel.Filter.all).keyboardShortcut("1")
+                Text("Installed").tag(LibraryModel.Filter.installed).keyboardShortcut("2")
+            }
+            .pickerStyle(.inline)
+            Divider()
+            Button("Refresh Library") { model.refresh() }.keyboardShortcut("r").disabled(model.ownedLibrary.isRefreshing)
+            Divider()
+        }
+        CommandMenu("Game") { GameMenuItems(game: model.selectedEntry, model: model) }
+        CommandMenu("Steam") {
+            if model.account.accountName == nil {
+                Button("Sign In…") { model.showsAccount = true }.disabled(!model.canManageAccount)
+            } else {
+                Button("Sign Out…") { model.confirmsSignOut = true }.disabled(!model.canManageAccount)
+            }
+            Divider()
+            Button("Prepare Steam Support…") { Task { await model.prepareSteamSupport() } }.disabled(model.headless.isActive)
+            Divider()
+            Button("Open Desktop Steam") { Task { await model.openSteam() } }.disabled(model.headless.isActive)
+            Button("Quit Desktop Steam") { Task { await model.quitSteam() } }
+                .disabled(model.snapshot.steam == nil || model.games.contains(where: model.isPlaying))
+            Divider()
+            Button("Set Up Pufflet…") { model.showsSetup = true }
+        }
+        CommandGroup(replacing: .help) {
+            Button("Show Launch Log") { NSWorkspace.shared.open(AppIdentity.logs) }
         }
     }
 }

@@ -23,9 +23,12 @@ import os
     let headless: SteamHeadlessSession
     let ownedLibrary: SteamOwnedLibrary
     let downloads: SteamDownloadQueue
-    enum Filter: String, CaseIterable { case all = "All games", installed = "Installed" }
+    enum Filter: String, CaseIterable { case all = "All Games", installed = "Installed" }
     var filter = Filter.all
     var showsDownloads = false
+    var showsInspector = false
+    var confirmsSignOut = false
+    var searchRequest = 0
     private(set) var activeDownloadID: String?
     private(set) var isStoppingDownload = false
     private var catalogueTask: Task<Void, Never>?
@@ -54,7 +57,7 @@ import os
     private let logger = Logger(subsystem: AppIdentity.bundleID, category: "Launcher")
     private let started = ContinuousClock.now
 
-    var selectedGame: SteamGame? { games.first { $0.id == selectedID } ?? games.first }
+    var selectedEntry: LibraryGame? { entries.first { $0.id == selectedID } }
     var playingGame: SteamGame? { games.first(where: isPlaying) }
     var filteredGames: [LibraryGame] {
         entries.filter { (filter == .all || $0.installation != nil) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
@@ -99,7 +102,6 @@ import os
         }
         do {
             games = try installation.library()
-            if !games.contains(where: { $0.id == selectedID }) { selectedID = games.first?.id }
             errorMessage = nil
         } catch {
             errorMessage = "Your Steam library could not be read. Check its location in Settings, then refresh."
@@ -424,6 +426,26 @@ import os
         downloads.jobs.first { $0.id == id }.map { job in
             job.state == .completed && !games.contains { $0.id == id } ? "Files missing" : job.state.title
         }
+    }
+
+    func primaryAction(_ entry: LibraryGame) {
+        if entry.installation == nil { install(entry) } else { Task { await play(entry) } }
+    }
+
+    func isPending(_ entry: LibraryGame) -> Bool {
+        downloads.jobs.contains { $0.id == entry.id && [.queued, .preparing, .installing, .paused].contains($0.state) }
+    }
+
+    func canStart(_ entry: LibraryGame) -> Bool {
+        if isPlaying(entry) { return true }
+        if isPending(entry) || isLaunching(entry) { return false }
+        return entry.installation == nil ? canInstall : canPlay
+    }
+
+    func downloadProgress(for id: String) -> (done: Int64, total: Int64)? {
+        guard let job = downloads.jobs.first(where: { $0.id == id }), [.preparing, .installing, .paused].contains(job.state) else { return nil }
+        let report = headless.persistentEnabled ? headless.installReports[id] ?? SteamHostReport() : headless.report
+        return report.installWork
     }
 
     func returnToGame() -> Bool {

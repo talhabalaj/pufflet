@@ -77,6 +77,23 @@ import Testing
         }
     }
 
+    @Test func clearingFinishedDownloadsKeepsPendingWorkAndPersists() throws {
+        let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
+        let queue = SteamDownloadQueue(root: root); queue.activate(account: 1)
+        let states: [GameDownload.State] = [.queued, .installing, .paused, .completed, .failed, .stopped]
+        for (index, state) in states.enumerated() {
+            let id = String(10 + index)
+            queue.enqueue(.init(id: id, name: id, estimatedBytes: nil), destination: root)
+            queue.update(id, state: state)
+        }
+        #expect(queue.hasFinished)
+        queue.clearFinished()
+        #expect(queue.jobs.map(\.state) == [.queued, .installing, .paused])
+        #expect(!queue.hasFinished)
+        let restored = SteamDownloadQueue(root: root); restored.activate(account: 1, resumePending: false)
+        #expect(restored.jobs.map(\.id) == ["10", "11", "12"])
+    }
+
     @Test func queueOrderRemovalAndRetryAreDeterministic() throws {
         let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
         let queue = SteamDownloadQueue(root: root); queue.activate(account: 1)

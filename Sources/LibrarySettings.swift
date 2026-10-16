@@ -67,6 +67,19 @@ import SwiftUI
 
 struct LibrarySettingsView: View {
     @Bindable var model: LibraryModel
+
+    var body: some View {
+        TabView {
+            Tab("General", systemImage: "gearshape") { GeneralSettings(model: model) }
+            Tab("Steam", systemImage: "person.crop.circle") { SteamAccountSettings(model: model) }
+            Tab("Advanced", systemImage: "wrench.and.screwdriver") { AdvancedSettings(model: model) }
+        }
+        .frame(width: 520)
+    }
+}
+
+private struct GeneralSettings: View {
+    @Bindable var model: LibraryModel
     @State private var locationError: String?
     @State private var automaticChecks = AppUpdater.shared.automaticallyChecks
     @State private var automaticDownloads = AppUpdater.shared.automaticallyDownloads
@@ -74,44 +87,32 @@ struct LibrarySettingsView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("Steam library") {
-                    Text(model.settings.libraryURL?.path ?? "No folder selected")
-                        .textSelection(.enabled).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
+                LabeledContent("Game library") {
+                    HStack {
+                        if let location = model.settings.libraryURL {
+                            Label {
+                                Text(FileManager.default.displayName(atPath: location.path))
+                            } icon: {
+                                Image(nsImage: NSWorkspace.shared.icon(forFile: location.path)).resizable().frame(width: 16, height: 16)
+                            }
+                            .help(location.path)
+                        } else {
+                            Text("No folder selected").foregroundStyle(.secondary)
+                        }
+                        Button("Change…") {
+                            do { try model.chooseLibraryFolder() } catch { locationError = error.localizedDescription }
+                        }
+                        .disabled(!model.canChangeLibrary)
+                    }
                 }
                 if let error = model.settings.creationError { Text(error).foregroundStyle(.red) }
-                HStack {
-                    Button("Choose or create folder…", action: chooseLibrary)
-                        .disabled(!model.canChangeLibrary)
-                    if let location = model.settings.libraryURL {
+                if let location = model.settings.libraryURL {
+                    LabeledContent("") {
                         Button("Show in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: location.path) }
                     }
                 }
-            } header: { Text("Games") }
-            footer: {
+            } footer: {
                 Text("New downloads go to this library. Choose an existing Steam library to use its games in place, or create a new folder.")
-            }
-            Section {
-                LabeledContent("App data") {
-                    Text(SteamHeadlessPaths.support.path).textSelection(.enabled)
-                        .foregroundStyle(.secondary).multilineTextAlignment(.trailing)
-                }
-                Button("Show app data") { NSWorkspace.shared.open(SteamHeadlessPaths.support) }
-                if model.headless.isActive {
-                    Button("End Steam session…") {
-                        Task {
-                            do { try await model.shutdownSession() }
-                            catch { locationError = error.localizedDescription }
-                        }
-                    }.disabled(model.headless.hasLaunchWork || model.isStoppingDownload)
-                    Text(model.headless.hasLaunchWork ? "Close the game before ending its Steam session." : "Ending the session keeps partial downloads for the next launch.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            } header: { Text("Steam support") }
-            footer: { Text("Verified Wine and DXMT downloads live in Runtimes, separately from your Steam prefix and session files. Games stay in your selected library.") }
-            Section("Windows support") {
-                LabeledContent("Runtime", value: model.runtimeSetup.isReady ? "Installed" : "Setup needed")
-                Button("Set Up Pufflet…") { model.showsSetup = true }
             }
             Section("Updates") {
                 Toggle("Check for updates automatically", isOn: $automaticChecks)
@@ -119,30 +120,54 @@ struct LibrarySettingsView: View {
                 Toggle("Download updates automatically", isOn: $automaticDownloads)
                     .onChange(of: automaticDownloads) { AppUpdater.shared.automaticallyDownloads = automaticDownloads }
                     .disabled(!automaticChecks)
-                Button("Check for Updates…") { AppUpdater.shared.checkForUpdates() }
-                    .disabled(model.headless.isActive)
-            }.disabled(!AppUpdater.shared.isAvailable)
+                LabeledContent("") {
+                    Button("Check Now") { AppUpdater.shared.checkForUpdates() }.disabled(model.headless.isActive)
+                }
+            }
+            .disabled(!AppUpdater.shared.isAvailable)
         }
-        .formStyle(.grouped).frame(width: 620, height: 500)
+        .formStyle(.grouped).scrollDisabled(true).fixedSize(horizontal: false, vertical: true)
         .alert("Choose a Steam library", isPresented: Binding(get: { locationError != nil }, set: { if !$0 { locationError = nil } })) {
             Button("OK", role: .cancel) { locationError = nil }
         } message: { Text(locationError ?? "") }
     }
+}
 
-    private func chooseLibrary() {
+private struct AdvancedSettings: View {
+    @Bindable var model: LibraryModel
+
+    var body: some View {
+        Form {
+            Section("Windows Support") {
+                LabeledContent("Wine and DXMT", value: model.runtimeSetup.isReady ? "Installed" : "Setup needed")
+                LabeledContent("") { Button("Set Up Pufflet…") { model.showsSetup = true } }
+            }
+            Section {
+                LabeledContent("App data") { Button("Show in Finder") { NSWorkspace.shared.open(SteamHeadlessPaths.support) } }
+                    .help(SteamHeadlessPaths.support.path)
+                LabeledContent("Launch log") { Button("Show in Finder") { NSWorkspace.shared.open(AppIdentity.logs) } }
+            } header: { Text("Troubleshooting") }
+            footer: { Text("Verified Wine and DXMT downloads live in Runtimes, separately from your Steam prefix and session files. Games stay in your selected library.") }
+        }
+        .formStyle(.grouped).scrollDisabled(true).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+extension LibraryModel {
+    /// Shows the folder panel and adopts the chosen Steam library. Returns false if the panel was cancelled.
+    @discardableResult func chooseLibraryFolder() throws -> Bool {
         let panel = NSOpenPanel()
-        panel.title = "Choose your Steam library"
-        panel.prompt = "Choose library"
+        panel.title = "Choose Your Steam Library"
+        panel.prompt = "Choose Library"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.directoryURL = model.settings.libraryURL
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try model.settings.createLibrary(at: url)
-            model.refreshLibrary()
-            model.steamSupportReady = false
-        } catch { locationError = error.localizedDescription }
+        panel.directoryURL = settings.libraryURL
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        try settings.createLibrary(at: url)
+        refreshLibrary()
+        steamSupportReady = false
+        return true
     }
 }
