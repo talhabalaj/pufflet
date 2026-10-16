@@ -88,7 +88,10 @@ nonisolated struct SteamRuntime: Sendable {
         env["WINEDEBUG"] = "-all"
         env["SikarugirAppWine11"] = "1"
         env["METAL_HUD"] = "1"
-        env["STEAM_LIBRARY_DOCK_BRIDGE"] = "1"
+        // The bundled legacy bridge hides every Wine Dock entry when enabled.
+        // Let winemac.drv promote GUI processes and handle their native Quit
+        // requests (WM_QUERYENDSESSION / WM_ENDSESSION) independently instead.
+        env["STEAM_LIBRARY_DOCK_BRIDGE"] = "0"
         env["STEAM_LIBRARY_PREFIX"] = prefix
         env["DYLD_INSERT_LIBRARIES"] = dockBridge.path
         return env
