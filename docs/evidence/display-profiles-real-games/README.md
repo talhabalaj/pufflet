@@ -1,4 +1,6 @@
-# Real-game display verification — partial, blocked on system input
+# Real-game display verification — partial
+
+**Continued testing:** [follow-up results](followup/README.md) include all 12 Muck menu/gameplay captures. The historical pass below was published in #22. The [matrix](matrix.json) reflects the latest recorded captures.
 
 2026-10-16, latest main `0803603712fc58d8f4e11fc94f4fd77e1f072717`.
 **This is not completed gameplay acceptance and does not decide #12.**

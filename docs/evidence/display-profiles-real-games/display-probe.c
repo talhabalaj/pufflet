@@ -20,6 +20,17 @@ int main(void) {
     printf("desktop=%dx%d mode=%lux%lu dpi=%d\n", GetSystemMetrics(SM_CXSCREEN),
            GetSystemMetrics(SM_CYSCREEN), mode.dmPelsWidth, mode.dmPelsHeight,
            GetDeviceCaps(GetDC(NULL), LOGPIXELSX));
+    DWORD lastWidth = 0, lastHeight = 0;
+    for (DWORD i = 0; i < 512; ++i) {
+        DEVMODEW available = {0};
+        available.dmSize = sizeof(available);
+        if (!EnumDisplaySettingsW(NULL, i, &available)) break;
+        if (available.dmPelsWidth == lastWidth && available.dmPelsHeight == lastHeight) continue;
+        lastWidth = available.dmPelsWidth;
+        lastHeight = available.dmPelsHeight;
+        printf("available-mode=%lux%lu@%lu\n", available.dmPelsWidth,
+               available.dmPelsHeight, available.dmDisplayFrequency);
+    }
     EnumWindows(window, 0);
     return 0;
 }

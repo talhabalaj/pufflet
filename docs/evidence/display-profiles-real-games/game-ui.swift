@@ -27,8 +27,8 @@ if CommandLine.arguments.count == 1 {
     exit(0)
 }
 let pid = Int32(CommandLine.arguments[1])!
-guard let app = games.first(where: { $0.processIdentifier == pid }), app.activationPolicy == .regular else {
-    fatalError("Refusing input: PID is not a regular app in the exact Dev prefix")
+guard let app = games.first(where: { $0.processIdentifier == pid }) else {
+    fatalError("Refusing input: PID is not in the exact Dev prefix")
 }
 let command = CommandLine.arguments[2]
 if command == "quit" {
@@ -40,6 +40,9 @@ if let session = CGSessionCopyCurrentDictionary() as? [String: Any],
    let secure = session["kCGSSessionSecureInputPID"] as? Int, secure != 0 {
     print("Input blocked by macOS secure input; finish the system prompt manually")
     exit(2)
+}
+guard app.activationPolicy == .regular else {
+    print("Refusing native input to a background-only app"); exit(2)
 }
 app.activate(options: [.activateAllWindows])
 let ax = AXUIElementCreateApplication(pid)
@@ -53,17 +56,20 @@ guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
 switch command {
 case "click":
     let point = CGPoint(x: Double(CommandLine.arguments[3])!, y: Double(CommandLine.arguments[4])!)
+    CGWarpMouseCursorPosition(point)
     for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
-        CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
-        usleep(80000)
+        let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
+        event?.setIntegerValueField(.mouseEventClickState, value: 1)
+        event?.post(tap: .cghidEventTap)
+        usleep(type == .leftMouseDown ? 500000 : 200000)
     }
 case "key":
     let key = CGKeyCode(CommandLine.arguments[3])!
     let flags: CGEventFlags = CommandLine.arguments.count > 4 && CommandLine.arguments[4] == "alt" ? .maskAlternate : []
     for down in [true, false] {
-        let event = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: down)
+        let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: key, keyDown: down)
         event?.flags = flags
-        event?.post(tap: .cghidEventTap)
+        event?.postToPid(pid)
         usleep(80000)
     }
 case "foreground": break

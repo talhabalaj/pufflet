@@ -1,0 +1,10 @@
+pid=92035 policy=2 name=wine
+pid=92324 policy=2 name=wine
+pid=92670 policy=0 name=wine
+pid=98493 policy=2 name=wine
+ window=18478 title=Peggle Extreme!! 1.01 bounds={
+    Height = 982;
+    Width = 1512;
+    X = 0;
+    Y = 0;
+}

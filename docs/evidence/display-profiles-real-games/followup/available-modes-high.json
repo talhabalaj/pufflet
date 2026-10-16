@@ -1,0 +1,49 @@
+{
+  "retina": {
+    "exit": 0,
+    "output": "\nHKEY_CURRENT_USER\\Software\\Wine\\Mac Driver\n    RetinaMode    REG_SZ    y\n\n"
+  },
+  "dpi": {
+    "exit": 0,
+    "output": "\nHKEY_CURRENT_USER\\Control Panel\\Desktop\n    LogPixels    REG_DWORD    0x60\n\n"
+  },
+  "desktop_and_windows": {
+    "exit": 0,
+    "output": "desktop=3024x1964 mode=3024x1964 dpi=96\navailable-mode=960x600@120\navailable-mode=960x600@60\navailable-mode=960x600@59\navailable-mode=960x600@50\navailable-mode=960x600@48\navailable-mode=960x600@47\navailable-mode=1024x640@120\navailable-mode=1024x640@60\navailable-mode=1024x640@59\navailable-mode=1024x640@50\navailable-mode=1024x640@48\navailable-mode=1024x640@47\navailable-mode=1024x665@120\navailable-mode=1024x665@60\navailable-mode=1024x665@59\navailable-mode=1024x665@50\navailable-mode=1024x665@48\navailable-mode=1024x665@47\navailable-mode=1147x716@120\navailable-mode=1147x716@60\navailable-mode=1147x716@59\navailable-mode=1147x716@50\navailable-mode=1147x716@48\navailable-mode=1147x716@47\navailable-mode=1147x745@120\navailable-mode=1147x745@60\navailable-mode=1147x745@59\navailable-mode=1147x745@50\navailable-mode=1147x745@48\navailable-mode=1147x745@47\navailable-mode=1280x800@120\navailable-mode=1280x800@60\navailable-mode=1280x800@59\navailable-mode=1280x800@50\navailable-mode=1280x800@48\navailable-mode=1280x800@47\navailable-mode=1352x845@120\navailable-mode=1352x845@60\navailable-mode=1352x845@59\navailable-mode=1352x845@50\navailable-mode=1352x845@48\navailable-mode=1352x845@47\navailable-mode=1352x878@120\navailable-mode=1352x878@60\navailable-mode=1352x878@59\navailable-mode=1352x878@50\navailable-mode=1352x878@48\navailable-mode=1352x878@47\navailable-mode=1512x945@120\navailable-mode=1512x945@60\navailable-mode=1512x945@59\navailable-mode=1512x945@50\navailable-mode=1512x945@48\navailable-mode=1512x945@47\navailable-mode=1512x982@60\navailable-mode=1512x982@59\navailable-mode=1512x982@50\navailable-mode=1512x982@48\navailable-mode=1512x982@47\navailable-mode=1800x1125@120\navailable-mode=1800x1125@60\navailable-mode=1800x1125@59\navailable-mode=1800x1125@50\navailable-mode=1800x1125@48\navailable-mode=1800x1125@47\navailable-mode=1800x1169@120\navailable-mode=1800x1169@60\navailable-mode=1800x1169@59\navailable-mode=1800x1169@50\navailable-mode=1800x1169@48\navailable-mode=1800x1169@47\navailable-mode=1920x1200@120\navailable-mode=1920x1200@60\navailable-mode=1920x1200@59\navailable-mode=1920x1200@50\navailable-mode=1920x1200@48\navailable-mode=1920x1200@47\navailable-mode=2048x1280@120\navailable-mode=2048x1280@60\navailable-mode=2048x1280@59\navailable-mode=2048x1280@50\navailable-mode=2048x1280@48\navailable-mode=2048x1280@47\navailable-mode=2048x1330@120\navailable-mode=2048x1330@60\navailable-mode=2048x1330@59\navailable-mode=2048x1330@50\navailable-mode=2048x1330@48\navailable-mode=2048x1330@47\navailable-mode=2294x1432@120\navailable-mode=2294x1432@60\navailable-mode=2294x1432@59\navailable-mode=2294x1432@50\navailable-mode=2294x1432@48\navailable-mode=2294x1432@47\navailable-mode=2294x1490@120\navailable-mode=2294x1490@60\navailable-mode=2294x1490@59\navailable-mode=2294x1490@50\navailable-mode=2294x1490@48\navailable-mode=2294x1490@47\navailable-mode=2560x1600@120\navailable-mode=2560x1600@60\navailable-mode=2560x1600@59\navailable-mode=2560x1600@50\navailable-mode=2560x1600@48\navailable-mode=2560x1600@47\navailable-mode=2704x1690@120\navailable-mode=2704x1690@60\navailable-mode=2704x1690@59\navailable-mode=2704x1690@50\navailable-mode=2704x1690@48\navailable-mode=2704x1690@47\navailable-mode=2704x1756@120\navailable-mode=2704x1756@60\navailable-mode=2704x1756@59\navailable-mode=2704x1756@50\navailable-mode=2704x1756@48\navailable-mode=2704x1756@47\navailable-mode=3024x1890@120\navailable-mode=3024x1890@60\navailable-mode=3024x1890@59\navailable-mode=3024x1890@50\navailable-mode=3024x1890@48\navailable-mode=3024x1890@47\navailable-mode=3024x1964@120\navailable-mode=3024x1964@60\navailable-mode=3024x1964@59\n"
+  },
+  "baseline": {
+    "version": 1,
+    "configuration": {
+      "retinaValue": "n",
+      "dpi": 96
+    }
+  },
+  "preferences": {
+    "version": 1,
+    "games": {
+      "1625450": "highResolution"
+    }
+  },
+  "processes": [
+    {
+      "pid": 51722,
+      "ppid": 1,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/MacOS/Pufflet Dev"
+    },
+    {
+      "pid": 53586,
+      "ppid": 1,
+      "command": "~/Library/Application Support/PuffletDev/Runtimes/wine-11.0-dxmt-2/PuffletRuntime.app/Contents/SharedSupport/wine/lib/wine/../../bin/wineserver"
+    },
+    {
+      "pid": 53781,
+      "ppid": 51722,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/wine-process-guard.exe"
+    },
+    {
+      "pid": 53914,
+      "ppid": 51722,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/dockhost.exe"
+    }
+  ]
+}

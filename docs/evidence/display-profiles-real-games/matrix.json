@@ -5,33 +5,43 @@
     "stage": "menu",
     "mode": "fullscreen",
     "classification": "fits but blurry",
-    "screenshot": "screenshots/muck-inherit-restored-menu-fullscreen.png",
-    "metrics": "muck-inherit-restored.json",
-    "notes": "Visual menu classification only; no claim about internal render-buffer size. Full-monitor client; saved Unity fullscreen mode 1."
+    "screenshot": "followup/screenshots/muck-inherit-menu-fullscreen.png",
+    "metrics": "followup/muck-inherit-fullscreen.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer.",
+    "game_resolution": "1512x982@120"
   },
   {
     "game": "Muck",
     "profile": "Inherit",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/muck-inherit-menu-windowed.png",
+    "metrics": "followup/muck-inherit-windowed.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer. Saved desktop-sized client plus native title bar extends the outer window below the screen; smaller-resolution check pending.",
+    "game_resolution": "1512x982@120"
   },
   {
     "game": "Muck",
     "profile": "Inherit",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/muck-inherit-gameplay-fullscreen.png",
+    "metrics": "followup/muck-inherit-fullscreen.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer.",
+    "game_resolution": "1512x982@120"
   },
   {
     "game": "Muck",
     "profile": "Inherit",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/muck-inherit-gameplay-windowed.png",
+    "metrics": "followup/muck-inherit-windowed.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer. Saved desktop-sized client plus native title bar extends the outer window below the screen; smaller-resolution check pending.",
+    "game_resolution": "1512x982@120"
   },
   {
     "game": "Muck",
@@ -39,33 +49,43 @@
     "stage": "menu",
     "mode": "fullscreen",
     "classification": "fits but blurry",
-    "screenshot": "screenshots/muck-standard-menu-fullscreen.png",
-    "metrics": "muck-standard-menu.json",
-    "notes": "Visual menu classification only; no claim about internal render-buffer size. Full-monitor client; saved Unity fullscreen mode 1."
+    "screenshot": "followup/screenshots/muck-standard-menu-fullscreen.png",
+    "metrics": "followup/muck-standard-fullscreen.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer.",
+    "game_resolution": "1512x982@120"
   },
   {
     "game": "Muck",
     "profile": "Standard",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/muck-standard-menu-windowed.png",
+    "metrics": "followup/muck-standard-windowed.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer. Saved desktop-sized client plus native title bar extends the outer window below the screen; smaller-resolution check pending.",
+    "game_resolution": "1512x982@120"
   },
   {
     "game": "Muck",
     "profile": "Standard",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/muck-standard-gameplay-fullscreen.png",
+    "metrics": "followup/muck-standard-fullscreen.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer.",
+    "game_resolution": "1512x982@120"
   },
   {
     "game": "Muck",
     "profile": "Standard",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/muck-standard-gameplay-windowed.png",
+    "metrics": "followup/muck-standard-windowed.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer. Saved desktop-sized client plus native title bar extends the outer window below the screen; smaller-resolution check pending.",
+    "game_resolution": "1512x982@120"
   },
   {
     "game": "Muck",
@@ -73,33 +93,43 @@
     "stage": "menu",
     "mode": "fullscreen",
     "classification": "fits and sharp",
-    "screenshot": "screenshots/muck-high-menu-fullscreen.png",
-    "metrics": "muck-high-menu.json",
-    "notes": "Visual menu classification only; no claim about internal render-buffer size. Full-monitor client; saved Unity fullscreen mode 1."
+    "screenshot": "followup/screenshots/muck-high-menu-fullscreen.png",
+    "metrics": "followup/muck-high-fullscreen.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer.",
+    "game_resolution": "3024x1964@120"
   },
   {
     "game": "Muck",
     "profile": "High resolution",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/muck-high-menu-windowed.png",
+    "metrics": "followup/muck-high-windowed.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer. Saved desktop-sized client plus native title bar extends the outer window below the screen; smaller-resolution check pending.",
+    "game_resolution": "3024x1964@120"
   },
   {
     "game": "Muck",
     "profile": "High resolution",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/muck-high-gameplay-fullscreen.png",
+    "metrics": "followup/muck-high-fullscreen.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer.",
+    "game_resolution": "3024x1964@120"
   },
   {
     "game": "Muck",
     "profile": "High resolution",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/muck-high-gameplay-windowed.png",
+    "metrics": "followup/muck-high-windowed.json",
+    "notes": "Actual menu/gameplay, visually reviewed. Full client fits; classification does not measure internal render buffer. Saved desktop-sized client plus native title bar extends the outer window below the screen; smaller-resolution check pending.",
+    "game_resolution": "3024x1964@120"
   },
   {
     "game": "Peggle Extreme",
