@@ -97,6 +97,9 @@ nonisolated struct SteamRuntime: Sendable {
         guard FileManager.default.isExecutableFile(atPath: installation.wine.path),
               FileManager.default.fileExists(atPath: installation.steamExecutable.path),
               FileManager.default.fileExists(atPath: dockBridge.path) else { throw RuntimeError.missingSetup }
+        if arguments != ["-shutdown"], installation.prefix == SteamHeadlessPaths.prefix {
+            try await prepareDisplayDefaults()
+        }
         let logs = AppIdentity.logs
         try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true,
                                                attributes: [.posixPermissions: 0o700])
@@ -127,6 +130,29 @@ nonisolated struct SteamRuntime: Sendable {
         }
     }
 
+    @concurrent func prepareDisplayDefaults() async throws {
+        let migrated = try await SteamDisplayDefaults.migrate(prefix: installation.prefix) { _ in
+            try await runWindows(["C:\\windows\\system32\\reg.exe", "import", "C:\\pufflet-display-defaults.reg"])
+        }
+        // Query Wine's live registry, rather than assuming the saved defaults still apply.
+        // Keep raw query output out of the log; only allowlisted numeric fields are written.
+        let retina = (try? queryWindowsRegistry("HKCU\\Software\\Wine\\Mac Driver", value: "RetinaMode")) ?? ""
+        let dpi = (try? queryWindowsRegistry("HKCU\\Control Panel\\Desktop", value: "LogPixels")) ?? ""
+        let output = try launchLog()
+        defer { try? output.close() }
+        try output.write(contentsOf: Data(SteamDisplayDefaults.diagnostic(retinaQuery: retina, dpiQuery: dpi, migrated: migrated).utf8))
+    }
+
+    private func queryWindowsRegistry(_ key: String, value: String) throws -> String {
+        let pipe = Pipe()
+        let process = try spawn(["C:\\windows\\system32\\reg.exe", "query", key, "/v", value], standardOutput: pipe.fileHandleForWriting)
+        try pipe.fileHandleForWriting.close()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
+
     func stopPrivatePrefix(expectedPrefix: URL = SteamHeadlessPaths.prefix) async throws {
         guard installation.prefix.standardizedFileURL == expectedPrefix.standardizedFileURL else { throw RuntimeError.missingSetup }
         let server = installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver")
@@ -147,8 +173,7 @@ nonisolated struct SteamRuntime: Sendable {
         try spawn(arguments, extraEnvironment: extraEnvironment)
     }
 
-    private func spawn(_ arguments: [String], extraEnvironment: [String: String] = [:]) throws -> Process {
-        guard FileManager.default.isExecutableFile(atPath: installation.wine.path) else { throw RuntimeError.missingSetup }
+    private func launchLog() throws -> FileHandle {
         let folder = AppIdentity.logs
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let log = folder.appendingPathComponent("wine.log")
@@ -156,14 +181,20 @@ nonisolated struct SteamRuntime: Sendable {
             FileManager.default.createFile(atPath: log.path, contents: nil, attributes: [.posixPermissions: 0o600])
         }
         let output = try FileHandle(forWritingTo: log)
-        defer { try? output.close() }
         try output.seekToEnd()
+        return output
+    }
+
+    private func spawn(_ arguments: [String], extraEnvironment: [String: String] = [:], standardOutput: FileHandle? = nil) throws -> Process {
+        guard FileManager.default.isExecutableFile(atPath: installation.wine.path) else { throw RuntimeError.missingSetup }
+        let output = try launchLog()
+        defer { try? output.close() }
         let process = Process()
         process.executableURL = installation.wine
         process.arguments = arguments
         process.environment = environment().merging(extraEnvironment) { _, value in value }
         process.currentDirectoryURL = installation.prefix
-        process.standardOutput = output; process.standardError = output
+        process.standardOutput = standardOutput ?? output; process.standardError = output
         try process.run()
         return process
     }

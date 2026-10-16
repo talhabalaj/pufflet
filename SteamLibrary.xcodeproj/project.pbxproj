@@ -31,6 +31,7 @@
 		4C34EB3345280F8FD9E808A7 /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD9094685A0DE3CB4D5F705 /* DownloadsView.swift */; };
 		4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 249413E5C7E6FCFED178256F /* LibraryView.swift */; };
 		505CD6A3C06793074E83AD22 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = BB7E489BD62DD00A70A6F77A /* Alamofire */; };
+		57196676C3B2F73A717C7998 /* SteamDisplayDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD11BD9480FD9F474A24B8DA /* SteamDisplayDefaultsTests.swift */; };
 		6307397C6CAC9E5E760B2EE5 /* LicenseListBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8649701E76D99A249838D69C /* LicenseListBox.swift */; };
 		6CA6A4D42CE2E581D1929B7B /* RuntimeDefaults.plist in Resources */ = {isa = PBXBuildFile; fileRef = 915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */; };
 		6FCDF6A39EBBCBCBB1818194 /* SteamLibraryFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E292E91CD5634F58F9D4D1B /* SteamLibraryFetcher.swift */; };
@@ -49,6 +50,7 @@
 		957BD590E0A4E01EFB1E6715 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC651981AD6BA4DEBC13C677 /* AppUpdater.swift */; };
 		9BC3E96C362DCDB795A3F09C /* OwnedLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DC1AB38B97D6B7635148E92 /* OwnedLibraryTests.swift */; };
 		9F02BBE81B90008770C68681 /* RuntimeArtifact.json in Resources */ = {isa = PBXBuildFile; fileRef = 4CCB8480A7FE5DCB9C9A1044 /* RuntimeArtifact.json */; };
+		A207E6562C183B4EEAEBB488 /* SteamDisplayDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB15A191E6DB5DEACD08843A /* SteamDisplayDefaults.swift */; };
 		A44843AA63F6AA20A1BB18D2 /* SteamLibraryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD42491254AE6F53BA202AAF /* SteamLibraryApp.swift */; };
 		B1E83311FBD242C885A99A9D /* SteamLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9A262121DEA5591176E155 /* SteamLibrary.swift */; };
 		B5C457FDE8DAEEBD63D3CA21 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23581EFB5B56953D9A88D959 /* LibraryModel.swift */; };
@@ -137,9 +139,11 @@
 		AEB8053717935458BD2A2C6C /* SteamQRAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamQRAuth.swift; sourceTree = "<group>"; };
 		B4B217986773D5624D182AB6 /* SteamCatalogueMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamCatalogueMessages.swift; sourceTree = "<group>"; };
 		BA4FB61BFC36119763AC3F90 /* Sparkle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Sparkle; path = Packages/Sparkle; sourceTree = SOURCE_ROOT; };
+		BB15A191E6DB5DEACD08843A /* SteamDisplayDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamDisplayDefaults.swift; sourceTree = "<group>"; };
 		BD42491254AE6F53BA202AAF /* SteamLibraryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLibraryApp.swift; sourceTree = "<group>"; };
 		BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLaunchConfigurationTests.swift; sourceTree = "<group>"; };
 		C03A53237E1587ADD890785B /* SteamClientPackages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientPackages.swift; sourceTree = "<group>"; };
+		CD11BD9480FD9F474A24B8DA /* SteamDisplayDefaultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamDisplayDefaultsTests.swift; sourceTree = "<group>"; };
 		D1C2087D5D1BAE94AE9AFA67 /* SteamClientInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamClientInstallerTests.swift; sourceTree = "<group>"; };
 		DFBE61162655733F22565632 /* SteamSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamSession.swift; sourceTree = "<group>"; };
 		E82C3606641ABF67AB87E9F1 /* SteamCredentialAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamCredentialAuth.swift; sourceTree = "<group>"; };
@@ -261,6 +265,7 @@
 				188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */,
 				5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */,
 				D1C2087D5D1BAE94AE9AFA67 /* SteamClientInstallerTests.swift */,
+				CD11BD9480FD9F474A24B8DA /* SteamDisplayDefaultsTests.swift */,
 				BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */,
 				1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */,
 			);
@@ -325,6 +330,7 @@
 				2F710FD3D6E85DB7F3D8106A /* RuntimeOnboardingView.swift */,
 				65E4E882E929A1484E556891 /* RuntimeSetup.swift */,
 				5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */,
+				BB15A191E6DB5DEACD08843A /* SteamDisplayDefaults.swift */,
 				0135D745704F8A7E5F1CF245 /* SteamDownloadQueue.swift */,
 				6BA3F6A6205833434D96E484 /* SteamLaunchConfiguration.swift */,
 				2D9A262121DEA5591176E155 /* SteamLibrary.swift */,
@@ -486,6 +492,7 @@
 				E80E8182086DB195C11BE949 /* SteamArtworkTests.swift in Sources */,
 				8B0A5AFEC38068A162398A09 /* SteamAuthenticationTests.swift in Sources */,
 				C243A7D736CF3A87CFC19DCF /* SteamClientInstallerTests.swift in Sources */,
+				57196676C3B2F73A717C7998 /* SteamDisplayDefaultsTests.swift in Sources */,
 				4B87276E079B2758A15DEA27 /* SteamLaunchConfigurationTests.swift in Sources */,
 				FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */,
 			);
@@ -523,6 +530,7 @@
 				232C7379C243996550925EB5 /* SteamConnection.swift in Sources */,
 				16FFB668386E4C69176C9190 /* SteamCredentialAuth.swift in Sources */,
 				8449300D2074F7A2A4916D56 /* SteamDevice.swift in Sources */,
+				A207E6562C183B4EEAEBB488 /* SteamDisplayDefaults.swift in Sources */,
 				D2257E55D568EF25F5E08081 /* SteamDownloadQueue.swift in Sources */,
 				BC68913C037F774EFAB183A0 /* SteamError.swift in Sources */,
 				17A53A5E7A833F3C75077817 /* SteamHeadlessSession.swift in Sources */,
