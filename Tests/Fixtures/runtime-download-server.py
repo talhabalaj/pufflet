@@ -67,5 +67,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pass
 
 server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-(root / 'ready.json').write_text(json.dumps({'port': server.server_port}))
+ready = root / 'ready.tmp'
+ready.write_text(json.dumps({'port': server.server_port}))
+ready.replace(root / 'ready.json')
 server.serve_forever()
