@@ -11,8 +11,9 @@ for block in re.split(r'(?=pid=)', listing):
         pid = re.match(r'pid=(\d+)', block)[1]
         break
 if pid is None: raise SystemExit('No exact Dev game window')
-# This refuses secure-input sessions and verifies the target is foreground.
-subprocess.run(['/tmp/pufflet-real-game-ui', pid, 'foreground'], check=True)
+# Refuses secure input; requires a visible regular Dev game or the exact user-approved Peggle child.
+gate = 'authorize-wine-input' if title == 'Peggle Extreme!! 1.01' else 'foreground'
+subprocess.run(['/tmp/pufflet-real-game-ui', pid, gate], check=True)
 r = m.run([str(m.wine/'bin/wine'), '/tmp/pufflet-game-input.exe', title, x, y])
 print(r)
 raise SystemExit(r['exit'])

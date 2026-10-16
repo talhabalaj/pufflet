@@ -1,0 +1,47 @@
+{
+  "retina": {
+    "exit": 0,
+    "output": "\nHKEY_CURRENT_USER\\Software\\Wine\\Mac Driver\n    RetinaMode    REG_SZ    n\n\n"
+  },
+  "dpi": {
+    "exit": 0,
+    "output": "\nHKEY_CURRENT_USER\\Control Panel\\Desktop\n    LogPixels    REG_DWORD    0x60\n\n"
+  },
+  "desktop_and_windows": {
+    "exit": 0,
+    "output": "desktop=1512x982 mode=1512x982 dpi=96\navailable-mode=960x600@120\navailable-mode=1024x640@120\navailable-mode=1024x665@120\navailable-mode=1147x716@120\navailable-mode=1147x745@120\navailable-mode=1280x800@120\navailable-mode=1352x845@120\navailable-mode=1352x878@120\navailable-mode=1512x945@120\navailable-mode=1512x982@120\navailable-mode=1800x1125@120\navailable-mode=1800x1169@120\navailable-mode=1920x1200@120\navailable-mode=2048x1280@120\navailable-mode=2048x1330@120\navailable-mode=2294x1432@120\navailable-mode=2294x1490@120\navailable-mode=2560x1600@120\navailable-mode=2704x1690@120\navailable-mode=2704x1756@120\navailable-mode=3024x1890@120\navailable-mode=3024x1964@120\navailable-mode=960x600@120\navailable-mode=1024x640@120\navailable-mode=1024x665@120\navailable-mode=1147x716@120\navailable-mode=1147x745@120\navailable-mode=1280x800@120\navailable-mode=1352x845@120\navailable-mode=1352x878@120\navailable-mode=1512x945@120\navailable-mode=1512x982@120\navailable-mode=1800x1125@120\navailable-mode=1800x1169@120\navailable-mode=1920x1200@120\navailable-mode=2048x1280@120\navailable-mode=2048x1330@120\navailable-mode=2294x1432@120\navailable-mode=2294x1490@120\navailable-mode=2560x1600@120\navailable-mode=2704x1690@120\navailable-mode=2704x1756@120\navailable-mode=3024x1890@120\navailable-mode=3024x1964@120\navailable-mode=960x600@120\navailable-mode=1024x640@120\navailable-mode=1024x665@120\navailable-mode=1147x716@120\navailable-mode=1147x745@120\navailable-mode=1280x800@120\navailable-mode=1352x845@120\navailable-mode=1352x878@120\navailable-mode=1512x945@120\navailable-mode=1512x982@120\navailable-mode=1800x1125@120\navailable-mode=1800x1169@120\navailable-mode=1920x1200@120\navailable-mode=2048x1280@120\navailable-mode=2048x1330@120\navailable-mode=2294x1432@120\navailable-mode=2294x1490@120\navailable-mode=2560x1600@120\navailable-mode=2704x1690@120\navailable-mode=2704x1756@120\navailable-mode=3024x1890@120\navailable-mode=3024x1964@120\nwindow=over the hill client=1352x878 frame=1358x910 dpi=96\n"
+  },
+  "baseline": {
+    "version": 1,
+    "configuration": {
+      "retinaValue": "n",
+      "dpi": 96
+    }
+  },
+  "preferences": {
+    "version": 1,
+    "games": {}
+  },
+  "processes": [
+    {
+      "pid": 18122,
+      "ppid": 1,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/MacOS/Pufflet Dev"
+    },
+    {
+      "pid": 29059,
+      "ppid": 1,
+      "command": "~/Library/Application Support/PuffletDev/Runtimes/wine-11.0-dxmt-2/PuffletRuntime.app/Contents/SharedSupport/wine/lib/wine/../../bin/wineserver"
+    },
+    {
+      "pid": 29090,
+      "ppid": 18122,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/wine-process-guard.exe"
+    },
+    {
+      "pid": 29111,
+      "ppid": 18122,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/dockhost.exe"
+    }
+  ]
+}

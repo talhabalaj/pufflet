@@ -136,192 +136,264 @@
     "profile": "Inherit",
     "stage": "menu",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-inherit-menu-fullscreen.png",
+    "metrics": "followup/peggle-inherit-fullscreen.json",
+    "game_resolution": "Fixed 800x600 artwork; fullscreen scales/pillarboxes to 1512x982",
+    "notes": "Actual PopCap child, not launcher. Full menu/HUD fits. Retained windowed ScreenMode from Standard; own toggle tested both ways. Same compatible n/96 host reused."
   },
   {
     "game": "Peggle Extreme",
     "profile": "Inherit",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-inherit-menu-windowed.png",
+    "metrics": "followup/peggle-inherit-windowed.json",
+    "game_resolution": "800x600",
+    "notes": "Actual PopCap child, not launcher. Full menu/HUD fits. Retained windowed ScreenMode from Standard; own toggle tested both ways. Same compatible n/96 host reused."
   },
   {
     "game": "Peggle Extreme",
     "profile": "Inherit",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-inherit-gameplay-fullscreen.png",
+    "metrics": "followup/peggle-inherit-fullscreen.json",
+    "game_resolution": "Fixed 800x600 artwork; fullscreen scales/pillarboxes to 1512x982",
+    "notes": "Actual PopCap child, not launcher. Full menu/HUD fits. Retained windowed ScreenMode from Standard; own toggle tested both ways. Same compatible n/96 host reused."
   },
   {
     "game": "Peggle Extreme",
     "profile": "Inherit",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-inherit-gameplay-windowed.png",
+    "metrics": "followup/peggle-inherit-windowed.json",
+    "game_resolution": "800x600",
+    "notes": "Actual PopCap child, not launcher. Full menu/HUD fits. Retained windowed ScreenMode from Standard; own toggle tested both ways. Same compatible n/96 host reused."
   },
   {
     "game": "Peggle Extreme",
     "profile": "Standard",
     "stage": "menu",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-standard-menu-fullscreen.png",
+    "metrics": "followup/peggle-standard-fullscreen.json",
+    "game_resolution": "Fixed 800x600 artwork; fullscreen scales/pillarboxes to 1512x982",
+    "notes": "Actual PopCap child, not launcher. Full menu/HUD fits. Own Fullscreen toggle, no numeric resolution selector. n/96 window is physically larger and softer than High."
   },
   {
     "game": "Peggle Extreme",
     "profile": "Standard",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-standard-menu-windowed.png",
+    "metrics": "followup/peggle-standard-windowed.json",
+    "game_resolution": "800x600",
+    "notes": "Actual PopCap child, not launcher. Full menu/HUD fits. Own Fullscreen toggle, no numeric resolution selector. n/96 window is physically larger and softer than High."
   },
   {
     "game": "Peggle Extreme",
     "profile": "Standard",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-standard-gameplay-fullscreen.png",
+    "metrics": "followup/peggle-standard-fullscreen.json",
+    "game_resolution": "Fixed 800x600 artwork; fullscreen scales/pillarboxes to 1512x982",
+    "notes": "Actual PopCap child, not launcher. Full menu/HUD fits. Own Fullscreen toggle, no numeric resolution selector. n/96 window is physically larger and softer than High."
   },
   {
     "game": "Peggle Extreme",
     "profile": "Standard",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-standard-gameplay-windowed.png",
+    "metrics": "followup/peggle-standard-windowed.json",
+    "game_resolution": "800x600",
+    "notes": "Actual PopCap child, not launcher. Full menu/HUD fits. Own Fullscreen toggle, no numeric resolution selector. n/96 window is physically larger and softer than High."
   },
   {
     "game": "Peggle Extreme",
     "profile": "High resolution",
     "stage": "menu",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-high-menu-fullscreen.png",
+    "metrics": "followup/peggle-high-fullscreen.json",
+    "game_resolution": "Fixed 800x600 artwork/client in windowed; fullscreen scales with pillarboxing; no numerical selector",
+    "notes": "Actual game child, not launcher. User explicitly approved scoped input without Dock-policy changes. Windowed native content is 400x300 logical points under High; fullscreen artwork is enlarged and soft, but the full board/menu fits."
   },
   {
     "game": "Peggle Extreme",
     "profile": "High resolution",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/peggle-high-menu-windowed.png",
+    "metrics": "followup/peggle-high-windowed.json",
+    "game_resolution": "Fixed 800x600 artwork/client in windowed; fullscreen scales with pillarboxing; no numerical selector",
+    "notes": "Actual game child, not launcher. User explicitly approved scoped input without Dock-policy changes. Windowed native content is 400x300 logical points under High; fullscreen artwork is enlarged and soft, but the full board/menu fits."
   },
   {
     "game": "Peggle Extreme",
     "profile": "High resolution",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/peggle-high-gameplay-fullscreen.png",
+    "metrics": "followup/peggle-high-fullscreen.json",
+    "game_resolution": "Fixed 800x600 artwork/client in windowed; fullscreen scales with pillarboxing; no numerical selector",
+    "notes": "Actual game child, not launcher. User explicitly approved scoped input without Dock-policy changes. Windowed native content is 400x300 logical points under High; fullscreen artwork is enlarged and soft, but the full board/menu fits."
   },
   {
     "game": "Peggle Extreme",
     "profile": "High resolution",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/peggle-high-gameplay-windowed.png",
+    "metrics": "followup/peggle-high-windowed.json",
+    "game_resolution": "Fixed 800x600 artwork/client in windowed; fullscreen scales with pillarboxing; no numerical selector",
+    "notes": "Actual game child, not launcher. User explicitly approved scoped input without Dock-policy changes. Windowed native content is 400x300 logical points under High; fullscreen artwork is enlarged and soft, but the full board/menu fits."
   },
   {
     "game": "over the hill",
     "profile": "Inherit",
     "stage": "menu",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/overhill-inherit-menu-fullscreen.png",
+    "metrics": "followup/overhill-inherit-fullscreen.json",
+    "game_resolution": "1512x982",
+    "notes": "Actual menu/driving view. Full HUD fits. Low/FSR3 Quality unchanged. Fullscreen gameplay retains 1512x945 with narrow letterboxing in a 1512x982 client. Windowed was reduced through own UI to leave room for the title bar."
   },
   {
     "game": "over the hill",
     "profile": "Inherit",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/overhill-inherit-menu-windowed.png",
+    "metrics": "followup/overhill-inherit-windowed.json",
+    "game_resolution": "1352x878",
+    "notes": "Actual menu/driving view. Full HUD fits. Low/FSR3 Quality unchanged. Fullscreen gameplay retains 1512x945 with narrow letterboxing in a 1512x982 client. Windowed was reduced through own UI to leave room for the title bar."
   },
   {
     "game": "over the hill",
     "profile": "Inherit",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/overhill-inherit-gameplay-fullscreen.png",
+    "metrics": "followup/overhill-inherit-fullscreen.json",
+    "game_resolution": "1512x945",
+    "notes": "Actual menu/driving view. Full HUD fits. Low/FSR3 Quality unchanged. Fullscreen gameplay retains 1512x945 with narrow letterboxing in a 1512x982 client. Windowed was reduced through own UI to leave room for the title bar."
   },
   {
     "game": "over the hill",
     "profile": "Inherit",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/overhill-inherit-gameplay-windowed.png",
+    "metrics": "followup/overhill-inherit-windowed.json",
+    "game_resolution": "1352x878",
+    "notes": "Actual menu/driving view. Full HUD fits. Low/FSR3 Quality unchanged. Fullscreen gameplay retains 1512x945 with narrow letterboxing in a 1512x982 client. Windowed was reduced through own UI to leave room for the title bar."
   },
   {
     "game": "over the hill",
     "profile": "Standard",
     "stage": "menu",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/overhill-standard-menu-fullscreen.png",
+    "metrics": "followup/overhill-standard-fullscreen.json",
+    "game_resolution": "1512x982",
+    "notes": "Actual menu/driving HUD fits. Prior 1512x945 saved size was observed and corrected in own Graphics UI. Windowed reduced to leave title-bar room. Low/FSR3 Quality unchanged; dynamic weather differs between captures."
   },
   {
     "game": "over the hill",
     "profile": "Standard",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/overhill-standard-menu-windowed.png",
+    "metrics": "followup/overhill-standard-windowed.json",
+    "game_resolution": "1352x878",
+    "notes": "Actual menu/driving HUD fits. Prior 1512x945 saved size was observed and corrected in own Graphics UI. Windowed reduced to leave title-bar room. Low/FSR3 Quality unchanged; dynamic weather differs between captures."
   },
   {
     "game": "over the hill",
     "profile": "Standard",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/overhill-standard-gameplay-fullscreen.png",
+    "metrics": "followup/overhill-standard-fullscreen.json",
+    "game_resolution": "1512x982",
+    "notes": "Actual menu/driving HUD fits. Prior 1512x945 saved size was observed and corrected in own Graphics UI. Windowed reduced to leave title-bar room. Low/FSR3 Quality unchanged; dynamic weather differs between captures."
   },
   {
     "game": "over the hill",
     "profile": "Standard",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits but blurry",
+    "screenshot": "followup/screenshots/overhill-standard-gameplay-windowed.png",
+    "metrics": "followup/overhill-standard-windowed.json",
+    "game_resolution": "1352x878",
+    "notes": "Actual menu/driving HUD fits. Prior 1512x945 saved size was observed and corrected in own Graphics UI. Windowed reduced to leave title-bar room. Low/FSR3 Quality unchanged; dynamic weather differs between captures."
   },
   {
     "game": "over the hill",
     "profile": "High resolution",
     "stage": "menu",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/overhill-high-menu-fullscreen.png",
+    "metrics": "followup/overhill-high-fullscreen.json",
+    "game_resolution": "3024x1964",
+    "notes": "Full menu and actual driving HUD fit. Saved windowed 1352x878 retained on launch. Fullscreen initially retained that low size; selected 3024x1964 in own Graphics UI. Low/FSR3 Quality unchanged; sharpness refers to visible UI, not measured internal rendering resolution."
   },
   {
     "game": "over the hill",
     "profile": "High resolution",
     "stage": "menu",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/overhill-high-menu-windowed.png",
+    "metrics": "followup/overhill-high-windowed.json",
+    "game_resolution": "1352x878",
+    "notes": "Full menu and actual driving HUD fit. Saved windowed 1352x878 retained on launch. Fullscreen initially retained that low size; selected 3024x1964 in own Graphics UI. Low/FSR3 Quality unchanged; sharpness refers to visible UI, not measured internal rendering resolution."
   },
   {
     "game": "over the hill",
     "profile": "High resolution",
     "stage": "gameplay",
     "mode": "fullscreen",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/overhill-high-gameplay-fullscreen.png",
+    "metrics": "followup/overhill-high-fullscreen.json",
+    "game_resolution": "3024x1964",
+    "notes": "Full menu and actual driving HUD fit. Saved windowed 1352x878 retained on launch. Fullscreen initially retained that low size; selected 3024x1964 in own Graphics UI. Low/FSR3 Quality unchanged; sharpness refers to visible UI, not measured internal rendering resolution."
   },
   {
     "game": "over the hill",
     "profile": "High resolution",
     "stage": "gameplay",
     "mode": "windowed",
-    "classification": "not tested",
-    "screenshot": null
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/overhill-high-gameplay-windowed.png",
+    "metrics": "followup/overhill-high-windowed.json",
+    "game_resolution": "1352x878",
+    "notes": "Full menu and actual driving HUD fit. Saved windowed 1352x878 retained on launch. Fullscreen initially retained that low size; selected 3024x1964 in own Graphics UI. Low/FSR3 Quality unchanged; sharpness refers to visible UI, not measured internal rendering resolution."
   },
   {
     "game": "Peggle Extreme",

@@ -1,0 +1,10 @@
+{
+  "soft_stop": {
+    "exit": 1,
+    "output": ""
+  },
+  "bounded_wait": {
+    "exit": 0,
+    "output": ""
+  }
+}

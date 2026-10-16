@@ -9,11 +9,13 @@ int main(int n,char**v){
  DWORD pid;GetWindowThreadProcessId(h,&pid);HANDLE p=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,pid);char path[4096];DWORD len=sizeof(path);
  if(!p||!QueryFullProcessImageNameA(p,0,path,&len)){puts("identity unavailable");return 4;}CloseHandle(p);
  const char *relative=strstr(path,"\\steamapps\\common\\");
- if(_strnicmp(path,"C:\\SteamLibraries\\",18) || !relative ||
+ if(_stricmp(path,"C:\\ProgramData\\PopCap Games\\PeggleExtreme\\popcapgame1.exe") && (_strnicmp(path,"C:\\SteamLibraries\\",18) || !relative ||
     (_stricmp(relative,"\\steamapps\\common\\Muck\\Muck.exe") &&
+     _stricmp(relative,"\\steamapps\\common\\Peggle Extreme\\PeggleExtreme.exe") &&
      _stricmp(relative,"\\steamapps\\common\\supercratebox\\supercratebox.exe") &&
-     _stricmp(relative,"\\steamapps\\common\\over the hill\\over the hill.exe"))){puts("not a selected Dev test game");return 5;}
+     _stricmp(relative,"\\steamapps\\common\\over the hill\\over the hill.exe")))){puts("not a selected Dev test game");return 5;}
  SetForegroundWindow(h);Sleep(250);
+ if(!IsWindowVisible(h) || GetForegroundWindow()!=h){puts("exact game window is not visible/foreground in Wine");return 6;}
  if(!strcmp(v[2],"key")) {
   BYTE key=(BYTE)strtoul(v[3],NULL,0);
   keybd_event(key,0,0,0);Sleep(250);keybd_event(key,0,KEYEVENTF_KEYUP,0);Sleep(250);

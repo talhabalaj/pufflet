@@ -1,0 +1,10 @@
+[
+  {
+    "argument": "-k",
+    "exit": 1
+  },
+  {
+    "argument": "-w",
+    "exit": 0
+  }
+]

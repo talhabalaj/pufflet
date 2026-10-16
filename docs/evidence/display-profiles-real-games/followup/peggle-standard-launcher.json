@@ -1,0 +1,34 @@
+{
+  "retina": {
+    "exit": 0,
+    "output": "\nHKEY_CURRENT_USER\\Software\\Wine\\Mac Driver\n    RetinaMode    REG_SZ    n\n\n"
+  },
+  "dpi": {
+    "exit": 0,
+    "output": "\nHKEY_CURRENT_USER\\Control Panel\\Desktop\n    LogPixels    REG_DWORD    0x60\n\n"
+  },
+  "desktop_and_windows": {
+    "exit": 0,
+    "output": ""
+  },
+  "baseline": {
+    "version": 1,
+    "configuration": {
+      "retinaValue": "n",
+      "dpi": 96
+    }
+  },
+  "preferences": {
+    "games": {
+      "3483": "standard"
+    },
+    "version": 1
+  },
+  "processes": [
+    {
+      "pid": 16240,
+      "ppid": 1,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/MacOS/Pufflet Dev"
+    }
+  ]
+}

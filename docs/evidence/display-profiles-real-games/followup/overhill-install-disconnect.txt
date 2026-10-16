@@ -1,0 +1,7 @@
+Download interrupted near 4.04 GB staged; no Over the Hill game was launched.
+Dev Wine prefix was stopped after the disconnect. UI Retry retained files and starts a fresh host.
+Selected Dev host log lines (no credentials or account identifiers):
+GetQueuedCompletionStatusEx() failed: 998
+GetQueuedCompletionStatusEx() failed: 998
+[steam-host] ml1830 session-auth-test-result=64
+GetQueuedCompletionStatusEx() failed: 998
