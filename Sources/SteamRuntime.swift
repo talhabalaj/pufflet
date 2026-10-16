@@ -172,6 +172,43 @@ nonisolated struct SteamRuntime: Sendable {
         try output.write(contentsOf: Data(SteamDisplayDefaults.diagnostic(retinaQuery: retina, dpiQuery: dpi, migrated: migrated).utf8))
     }
 
+    // Called only by the managed owner after it has acquired the prefix.
+    @concurrent func applyDisplayConfiguration(_ configuration: SteamDisplayConfiguration) async throws {
+        let original = try identity()
+        try await stopPrivatePrefix(expectedPrefix: installation.prefix)
+        guard try identity() == original else { throw RuntimeError.missingSetup }
+        try Task.checkCancellation()
+        let file = installation.prefix.appendingPathComponent("drive_c/pufflet-display-profile.reg")
+        // hex(1) encodes a REG_SZ without interpreting legacy quotes, slashes,
+        // spaces or newlines as registry syntax. A missing value stays absent.
+        let retina = configuration.retinaValue.map { value in
+            (Array(value.utf16) + [0]).flatMap { [UInt8($0 & 255), UInt8($0 >> 8)] }
+                .map { String(format: "%02x", $0) }.joined(separator: ",")
+        }
+        let text = """
+        Windows Registry Editor Version 5.00
+
+        [HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]
+        "RetinaMode"=\(retina.map { "hex(1):" + $0 } ?? "-")
+        [HKEY_CURRENT_USER\\Control Panel\\Desktop]
+        "LogPixels"=\(configuration.dpi.map { String(format: "dword:%08x", $0) } ?? "-")
+
+        """
+        var bytes = Data([0xff, 0xfe]); bytes.append(text.data(using: .utf16LittleEndian)!)
+        try bytes.write(to: file, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: file) }
+        try await runWindows(["C:\\windows\\system32\\reg.exe", "import", "C:\\pufflet-display-profile.reg"])
+        try await stopPrivatePrefix(expectedPrefix: installation.prefix)
+        guard try identity() == original else { throw RuntimeError.missingSetup }
+        let persisted = try await displayConfiguration()
+        // End the verification session too: the authentic host must initialize
+        // its display driver from the final saved configuration.
+        try await stopPrivatePrefix(expectedPrefix: installation.prefix)
+        guard try identity() == original, persisted == configuration else {
+            throw RuntimeError.launchFailed("The display setting did not survive restart. The game was not launched; retry when Steam has stopped.")
+        }
+    }
+
     @concurrent func displayConfiguration() async throws -> SteamDisplayConfiguration {
         try SteamDisplayConfiguration(
             retinaQuery: queryWindowsRegistry("HKCU\\Software\\Wine\\Mac Driver", value: "RetinaMode"),
@@ -190,7 +227,12 @@ nonisolated struct SteamRuntime: Sendable {
         guard process.terminationStatus == 0 else {
             throw RuntimeError.launchFailed("Windows display settings could not be read. Restart Steam support and retry.")
         }
-        return String(decoding: data, as: UTF8.self)
+        let text = String(decoding: data, as: UTF8.self)
+        let type = value == "LogPixels" ? "REG_DWORD" : "REG_SZ"
+        guard SteamDisplayDefaults.value(named: value, type: type, in: text) != nil else {
+            throw RuntimeError.launchFailed("Windows has an unsupported display registry value. Keep the existing settings and inspect the prefix before choosing an override.")
+        }
+        return text
     }
 
     func stopPrivatePrefix(expectedPrefix: URL, gracePeriod: Duration = .seconds(2), stopTimeout: Duration = .seconds(5)) async throws {

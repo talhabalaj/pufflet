@@ -1,12 +1,16 @@
 import Foundation
 
-nonisolated struct SteamDisplayConfiguration: Equatable, Sendable {
-    let retina: Bool?
+nonisolated struct SteamDisplayConfiguration: Equatable, Codable, Sendable {
+    let retinaValue: String?
+    var retina: Bool? { retinaValue?.lowercased().first.map { "yt1".contains($0) } }
     let dpi: UInt32?
 
+    init(retinaValue: String?, dpi: UInt32?) {
+        self.retinaValue = retinaValue; self.dpi = dpi
+    }
+
     init(retinaQuery: String, dpiQuery: String) {
-        retina = SteamDisplayDefaults.value(named: "RetinaMode", type: "REG_SZ", in: retinaQuery)
-            .flatMap { $0.lowercased().first }.map { "yt1".contains($0) }
+        retinaValue = SteamDisplayDefaults.value(named: "RetinaMode", type: "REG_SZ", in: retinaQuery)
         dpi = SteamDisplayDefaults.value(named: "LogPixels", type: "REG_DWORD", in: dpiQuery).flatMap {
             $0.hasPrefix("0x") ? UInt32($0.dropFirst(2), radix: 16) : UInt32($0)
         }
@@ -62,9 +66,14 @@ nonisolated enum SteamDisplayDefaults {
 
     static func value(named name: String, type: String, in query: String) -> String? {
         for line in query.split(whereSeparator: \.isNewline) {
-            let fields = line.split(whereSeparator: \.isWhitespace)
-            if fields.count == 3, fields[0].caseInsensitiveCompare(name) == .orderedSame, fields[1] == type {
-                return String(fields[2])
+            let fields = line.split(maxSplits: 2, whereSeparator: \.isWhitespace)
+            if fields.count >= 2, fields[0].caseInsensitiveCompare(name) == .orderedSame, fields[1] == type {
+                guard let end = line.range(of: type)?.upperBound else { return nil }
+                let payload = String(line[end...])
+                // reg.exe separates columns with four spaces. Preserve the
+                // value's own whitespace rather than changing legacy intent.
+                if type == "REG_SZ", payload.hasPrefix("    ") { return String(payload.dropFirst(4)) }
+                return fields.count == 3 ? String(fields[2]).trimmingCharacters(in: .whitespaces) : (type == "REG_SZ" ? "" : nil)
             }
         }
         return nil

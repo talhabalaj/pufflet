@@ -27,6 +27,9 @@ private actor PreparedClient: SteamClientPreparing {
     private(set) var preparedWithD3DMetal = false
     private(set) var queriedWithD3DMetal = false
     private var configuration = SteamDisplayConfiguration(retinaQuery: "RetinaMode REG_SZ n", dpiQuery: "LogPixels REG_DWORD 0x60")
+    private(set) var applied: [SteamDisplayConfiguration] = []
+    private var failApply = false
+    private var ignoreApply = false
     private var holdQueries = false
     private var heldQuery: CheckedContinuation<SteamDisplayConfiguration, Never>?
 
@@ -41,6 +44,13 @@ private actor PreparedClient: SteamClientPreparing {
         if holdQueries { return await withCheckedContinuation { heldQuery = $0 } }
         return configuration
     }
+    func applyDisplayConfiguration(_ value: SteamDisplayConfiguration, runtime: SteamRuntime) async throws {
+        applied.append(value)
+        if failApply { throw SteamDisplayProfiles.Failure.invalidSettings }
+        if !ignoreApply { configuration = value }
+    }
+    func ignoreDisplayWrites(_ ignore: Bool) { ignoreApply = ignore }
+    func failDisplayWrites(_ fail: Bool) { failApply = fail }
     func changeDisplay(retina: Bool = true) {
         configuration = SteamDisplayConfiguration(retinaQuery: "RetinaMode REG_SZ " + (retina ? "y" : "n"), dpiQuery: "LogPixels REG_DWORD 0x60")
     }
@@ -128,6 +138,9 @@ private actor PreparedClient: SteamClientPreparing {
         for name in ["wine", "wineserver"] { try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: wine.appendingPathComponent(name).path) }
         let host = root.appendingPathComponent("host.py")
         try Data((script ?? Self.script).utf8).write(to: host)
+        let gameFolder = root.appendingPathComponent("steamapps/common/Fixture")
+        try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
+        try Data([0]).write(to: gameFolder.appendingPathComponent("game.exe"))
         let paths = SteamClientPaths(support: root)
         try FileManager.default.createDirectory(at: paths.prefix, withIntermediateDirectories: true)
         let runtime = SteamRuntime(installation: SteamInstallation(prefix: paths.prefix, runtime: root.appendingPathComponent("runtime")), dockBridge: root.appendingPathComponent("unused"), logDirectory: root.appendingPathComponent("Logs"))
@@ -357,6 +370,137 @@ private actor PreparedClient: SteamClientPreparing {
         }
         #expect(facade.isActive)
         #expect(await installer.calls == 1)
+        try await host.shutdown()
+    }
+
+    private func game(_ id: String, root: URL) -> SteamGame {
+        SteamGame(id: id, name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: root.appendingPathComponent("steamapps/common/Fixture"))
+    }
+
+    @Test func profileAndRendererSwitchPreservesSelectedExecutableAndSetupIsolation() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root), installer = PreparedClient()
+        let host = SteamSessionHost(paths: paths, hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        try SteamDisplayProfiles(paths: paths).set(.highResolution, for: "1")
+        var metal = runtime
+        metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
+        let selected = game("1", root: root), executable = selected.folder.appendingPathComponent("game.exe")
+        try await host.startGame(selected, option: 0, executable: executable, destination: root, library: [], credentials: credentials, runtime: metal)
+        #expect(await installer.calls == 2)
+        #expect(await installer.applied == [.init(retinaValue: "y", dpi: 96)])
+        #expect(await !installer.preparedWithD3DMetal)
+        #expect(await !installer.queriedWithD3DMetal)
+        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8) == executable.resolvingSymlinksInPath().path)
+        try await host.shutdown()
+        #expect(!FileManager.default.fileExists(atPath: runtime.dockAllowRecord.path))
+        #expect(await !host.isActive)
+    }
+
+    @Test func profileSwitchRestartsIdleHostAndInheritRestoresFrozenBaseline() async throws {
+        let script = Self.script.replacingOccurrences(of: "if action == 'launch': emit(req, app, 'launch-game-running', 1)", with: "if action == 'launch': emit(req, app, 'launch-host-result', 0)")
+        let (root, runtime, url) = try fixture(script); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root), installer = PreparedClient()
+        let profiles = SteamDisplayProfiles(paths: paths)
+        let host = SteamSessionHost(paths: paths, hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        try profiles.set(.highResolution, for: "1")
+        try await host.startGame(game("1", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials, runtime: runtime)
+        #expect(await installer.calls == 2)
+        #expect(await installer.applied == [.init(retinaValue: "y", dpi: 96)])
+        // Another title with no override means original off/96, not Game 1's on/96.
+        try await Task.sleep(for: .milliseconds(100))
+        try await host.startGame(game("2", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials, runtime: runtime)
+        #expect(await installer.calls == 3)
+        #expect(await installer.applied.last == .init(retinaValue: "n", dpi: 96))
+        try await host.shutdown()
+    }
+
+    @Test func differentProfileCannotInterruptSubmittedOrPausedDownloads() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root), installer = PreparedClient()
+        let host = SteamSessionHost(paths: paths, hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        try await host.install(appID: 1)
+        try SteamDisplayProfiles(paths: paths).set(.highResolution, for: "2")
+        for paused in [false, true] {
+            if paused { try await host.control("pause", appID: 1) }
+            await #expect(throws: (any Error).self) {
+                try await host.startGame(game("2", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials, runtime: runtime)
+            }
+            #expect(await installer.calls == 1)
+            #expect(await installer.applied.isEmpty)
+        }
+        // Matching Standard can share the download session.
+        try SteamDisplayProfiles(paths: paths).set(.standard, for: "2")
+        try await host.startGame(game("2", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials, runtime: runtime)
+        #expect(await installer.calls == 1)
+        try await host.shutdown()
+    }
+
+    @Test func failedProfileWriteDoesNotStartHostAndRetryKeepsBaseline() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root), installer = PreparedClient()
+        let profiles = SteamDisplayProfiles(paths: paths)
+        try profiles.set(.highResolution, for: "1")
+        let host = SteamSessionHost(paths: paths, hostURL: url, installer: installer)
+        await installer.failDisplayWrites(true)
+        await #expect(throws: (any Error).self) {
+            try await host.startGame(game("1", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials(), runtime: runtime)
+        }
+        #expect(await !host.isActive)
+        #expect(!FileManager.default.fileExists(atPath: paths.requests.path))
+        #expect(try profiles.target(for: .inherit, observed: .init(retinaValue: "y", dpi: 192)) == .init(retinaValue: "n", dpi: 96))
+        await installer.failDisplayWrites(false)
+        await installer.ignoreDisplayWrites(true)
+        await #expect(throws: (any Error).self) {
+            try await host.startGame(game("1", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials(), runtime: runtime)
+        }
+        #expect(await !host.isActive)
+        #expect(!FileManager.default.fileExists(atPath: paths.requests.path))
+        await installer.ignoreDisplayWrites(false)
+        try await host.startGame(game("1", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials(), runtime: runtime)
+        try await host.shutdown()
+    }
+
+    @Test func runtimeReplacementDuringFinalVerificationStopPreventsLaunch() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root), installer = PreparedClient()
+        try SteamDisplayProfiles(paths: paths).set(.highResolution, for: "1")
+        let receipt = runtime.installation.runtimeApplication.deletingLastPathComponent().appendingPathComponent("receipt.json")
+        let server = runtime.installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver")
+        try Data("#!/bin/sh\nprintf replacement > '\(receipt.path)'\nexit 0\n".utf8).write(to: server)
+        let host = SteamSessionHost(paths: paths, hostURL: url, installer: installer)
+        await #expect(throws: (any Error).self) {
+            try await host.startGame(game("1", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials(), runtime: runtime)
+        }
+        #expect(await !host.isActive)
+        #expect(!FileManager.default.fileExists(atPath: paths.requests.path))
+    }
+
+    @Test func profileOperationBlocksConcurrentInstallPlayAndShutdown() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root), installer = PreparedClient()
+        let host = SteamSessionHost(paths: paths, hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        await installer.holdConfigurationQueries(true)
+        let play = Task { try await host.startGame(game("1", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials, runtime: runtime) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while await !installer.hasHeldQuery, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(await installer.hasHeldQuery)
+        await #expect(throws: (any Error).self) { try await host.install(appID: 2) }
+        await #expect(throws: (any Error).self) { try await host.shutdown() }
+        await #expect(throws: (any Error).self) {
+            try await host.startGame(game("2", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials, runtime: runtime)
+        }
+        play.cancel()
+        await installer.holdConfigurationQueries(false)
+        await installer.releaseConfigurationQuery()
+        await #expect(throws: (any Error).self) { try await play.value }
         try await host.shutdown()
     }
 

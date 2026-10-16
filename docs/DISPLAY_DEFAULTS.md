@@ -1,8 +1,67 @@
 # Standard display defaults
 
-This first change ships Standard defaults only, as agreed during implementation.
-The per-game Display picker and Sharp (Retina) option are deferred until the Wine
-engine can implement them correctly. No game setting is offered that Wine ignores.
+Per-game display preferences are available in a game's Get Info inspector.
+They use the existing managed prefix with serialized, verified session changes;
+per-game prefix isolation remains a separate project.
+
+## Per-game profiles
+
+- **Inherit** uses the prefix's original saved display values, captured once before
+  the first explicit override. It never means the last game's selected profile.
+- **Standard** uses Retina off and 96 DPI.
+- **High resolution** uses Retina on and 96 DPI. This can increase rendering cost.
+- Two advanced compatibility choices expose either Retina mode at 192 DPI.
+  Older non-DPI-aware games may become enlarged; these are not recommended presets.
+
+Selecting a choice saves intent for the next Play without changing the active
+session. Preferences are keyed by Steam App ID in
+`Display/preferences-v1.json` under the managed support directory. Selecting a
+choice before first setup does not create a prefix. The frozen baseline lives at
+`prefix/.pufflet-display-baseline-v1.json`, following that prefix's backup or
+replacement. Custom Retina strings, non-preset DPI, and absent keys are preserved.
+Inherit without a baseline leaves the existing configuration unchanged.
+
+A game may reuse a session only with a matching saved configuration and full
+runtime/account/library/prefix identity. A different profile can restart an idle
+host; another game, submitted install/update/repair, or paused Valve job prevents
+the switch. Selecting Inherit after an override follows the same safe switch.
+Queue-only download intentions wait during Play preparation and keep their state.
+An ownership gate spans preference resolution, configuration, host startup and
+launch submission; direct concurrent requests are rejected too.
+
+Switching stops the owned prefix, imports the two display keys, stops the
+configuration session, cold-reads both values, and ends the verification session
+before authentic host startup. A failed write/readback or uncertain stop leaves
+the game unlaunched. Saved intent and the baseline allow retry after interruption;
+corrupt files are not silently reset or recaptured. No game config or save is reset.
+
+Explicit overrides are unsupported by desktop Steam and the legacy launcher;
+those paths reject the request. Choose Inherit to use them. Desktop/external
+prefixes retain their own display configuration, rather than receiving managed
+per-game settings. Resolution, fullscreen mode, render scale and UI scale still
+belong to the game. If a saved resolution no longer fits after changing profiles,
+select the matching resolution inside the game.
+
+This layer is not a verified fix for Over the Hill. Real-game crop, sharpness,
+Steam login/launch, saves, cloud and download acceptance remain open. Isolated
+prefixes and save migration remain gated by issue #12.
+
+Validation of the profile layer is recorded in
+[the test report](evidence/display-profiles-20261016/README.md), including a native
+picker capture. The standalone production-code check can be reproduced with:
+
+```sh
+# After a normal Debug build, point this at its Build/Products/Debug directory.
+sh scripts/ci/build-display-profile-check.sh /absolute/path/Build/Products/Debug \
+  /tmp/pufflet-display-profile-check
+/tmp/pufflet-display-profile-check /absolute/path/PuffletRuntime.app /absolute/path/libSteamLibraryDock.dylib
+```
+
+It prints the newly created disposable prefix, retains it for a final process
+ownership audit, and uses no Steam account. After the soft stop, confirm no Wine
+clients remain for that exact prefix (including via their open directories),
+then remove its disposable root. Never use a process-name kill or remove a prefix
+before its processes are gone. Runtime binaries are read-only inputs.
 
 ## Lifecycle correction after the investigation
 
@@ -24,8 +83,8 @@ Ready/starting host reuse now checks canonical prefix, library, account, runtime
 path plus artifact/launcher content identity, and queried display configuration.
 Standalone setup shares the session actor's ownership gate; it cannot configure
 a live host or one with submitted/paused work. Managed setup/readiness/sign-out
-cleanup use the injected data paths. The display picker and isolated per-game
-prefix migration remain future work in [the architecture design](PER_GAME_DISPLAY_ARCHITECTURE.md).
+cleanup use the injected data paths. Isolated per-game
+prefix migration remains future work in [the architecture design](PER_GAME_DISPLAY_ARCHITECTURE.md).
 
 The offline [persistence probe](../scripts/ci/wine-registry-persistence.py) used a
 new temporary prefix with the shipped Wine 11.0 (Sikarugir) runtime binaries

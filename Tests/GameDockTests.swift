@@ -8,6 +8,27 @@ import Testing
 /// Opt-in desktop/Wine check. Uses a fresh temporary prefix, synthetic EXE,
 /// and no Steam account, library, or PuffletDev data. See docs/GAME_DOCK.md.
 @Suite(.serialized) @MainActor struct GameDockTests {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_GUARD_PROBE"] != nil))
+    func transientImageQueryRetriesTheRetainedProcess() async throws {
+        let env = ProcessInfo.processInfo.environment
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-guard-probe-" + UUID().uuidString)
+        let bridge = try #require(Bundle.main.url(forResource: "libSteamLibraryDock", withExtension: "dylib"))
+        let runtime = SteamRuntime(installation: .init(prefix: root.appendingPathComponent("prefix"), runtime: URL(filePath: try #require(env["PUFFLET_DOCK_RUNTIME"]))),
+            dockBridge: bridge, logDirectory: root.appendingPathComponent("Logs"))
+        try FileManager.default.createDirectory(at: runtime.installation.prefix, withIntermediateDirectories: true)
+        do {
+            try await runtime.runWindows([try #require(env["PUFFLET_GUARD_PROBE"])])
+            let log = try String(contentsOf: root.appendingPathComponent("Logs/wine.log"), encoding: .utf8)
+            #expect(log.contains("PASS: unknown image retried on retained handle; known game/non-game cached."))
+            try await runtime.stopPrivatePrefix(expectedPrefix: runtime.installation.prefix)
+            #expect(WineProcessIdentity.clients(prefix: runtime.installation.prefix).isEmpty)
+            try FileManager.default.removeItem(at: root)
+        } catch {
+            try? await runtime.stopPrivatePrefix(expectedPrefix: runtime.installation.prefix)
+            throw error
+        }
+    }
+
     @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_DOCK_FIXTURE"] != nil), arguments: ["game", "game-exit"])
     func gameExitReapsChildrenAndPreservesOtherPrefixWork(mode: String) async throws {
         let env = ProcessInfo.processInfo.environment

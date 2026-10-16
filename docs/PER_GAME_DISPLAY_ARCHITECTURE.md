@@ -1,8 +1,8 @@
 # Per-game display and Wine session architecture
 
-Status: design for review, before implementation. Reviewed with Opus 5.5 in two
-rounds; final direction approved with the implementation gates below. No runtime
-behavior is changed by this document.
+Status: approved design, under staged implementation. Reviewed with Opus 5.5 in
+two rounds. The lifecycle and shared-prefix display-profile layers implement the
+first steps; authenticated real-game acceptance and prefix isolation remain open.
 
 Tracking: [Proton comparison and acceptance gates, issue #12](https://github.com/talhabalaj/pufflet/issues/12).
 Evidence: [display investigation](DISPLAY_DEFAULTS.md).

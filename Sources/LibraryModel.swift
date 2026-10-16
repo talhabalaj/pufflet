@@ -39,10 +39,10 @@ import os
     var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
     var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
     var canPlay: Bool {
-        phase == .idle && !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled ? !headless.hasLaunchWork : !hasDownloadWork && !headless.isActive)
+        phase == .idle && downloadTask == nil && !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled ? !headless.hasLaunchWork : !hasDownloadWork && !headless.isActive)
     }
     var canInstall: Bool {
-        !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled || phase == .idle && (!headless.isActive || activeDownloadID != nil))
+        phase == .idle && !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled || phase == .idle && (!headless.isActive || activeDownloadID != nil))
     }
     var entries: [LibraryGame] { LibraryGame.merge(installed: games, owned: ownedLibrary.games) }
     var showsAccount = false
@@ -52,6 +52,7 @@ import os
     var phase = LaunchPhase.idle
     var message: String?
     var errorMessage: String?
+    private var displayRevision = 0
     var repairGameID: String?
     var search = ""
     private var launchDeadline: ContinuousClock.Instant?
@@ -161,6 +162,17 @@ import os
     func isLaunching(_ game: SteamGame) -> Bool { phase == .launching(game.id) }
     func isPlaying(_ game: SteamGame) -> Bool { headless.playingAppID == game.id || snapshot.process(for: game) != nil }
 
+    func displayPreference(for appID: String) -> SteamDisplayPreference {
+        _ = displayRevision
+        return (try? SteamDisplayProfiles(paths: paths).preference(for: appID)) ?? .inherit
+    }
+    func setDisplayPreference(_ preference: SteamDisplayPreference, for appID: String) {
+        do {
+            try SteamDisplayProfiles(paths: paths).set(preference, for: appID)
+            displayRevision += 1
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     func play(_ game: SteamGame) async {
         guard phase == .idle else { return }
         errorMessage = nil; repairGameID = nil
@@ -174,6 +186,8 @@ import os
         }
         guard canPlay, !downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }), requireRuntime() else { return }
         do {
+            guard playingGame == nil else { throw SteamDisplayProfiles.Failure.busy }
+            if let storageError = downloads.storageError { throw SteamError.authenticationFailed(storageError) }
             guard let credentials = try SteamKeychain().load(), credentials.isUsable() else {
                 showsAccount = true
                 return
@@ -209,6 +223,7 @@ import os
             launchDeadline = nil
             message = "Preparing Steam support…"
             try await headless.start(game: game, library: games, credentials: credentials, runtime: gameRuntime, metadataCaches: caches)
+            if headless.persistentEnabled { phase = .idle; startNextDownload() }
         }
         catch {
             phase = .idle
@@ -217,6 +232,7 @@ import os
             errorMessage = error.localizedDescription
             if case SteamLaunchConfiguration.ConfigurationError.missingExecutable = error { repairGameID = game.id }
             logger.error("Game launch failed: \(error.localizedDescription)")
+            startNextDownload()
         }
     }
 
@@ -240,7 +256,10 @@ import os
         phase = .launching(game.id)
         message = "Starting desktop Steam…"
         launchDeadline = ContinuousClock.now.advanced(by: .seconds(90))
-        do { await suspendCatalogue(); try await runtime.send(["-silent", "-applaunch", game.id]) }
+        do {
+            try SteamDisplayProfiles(paths: paths).requireFallbackSupport(for: game.id)
+            await suspendCatalogue(); try await runtime.send(["-silent", "-applaunch", game.id])
+        }
         catch { phase = .idle; launchDeadline = nil; errorMessage = error.localizedDescription }
     }
 
@@ -348,7 +367,8 @@ import os
     }
 
     func startNextDownload() {
-        guard phase != .preparingSupport, downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy,
+        if case .launching = phase { return }
+        guard phase != .preparingSupport, downloads.storageError == nil, downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy,
               headless.persistentEnabled || (activeDownloadID == nil && !headless.isActive && phase == .idle),
               let job = downloads.next else { return }
         activeDownloadID = job.id

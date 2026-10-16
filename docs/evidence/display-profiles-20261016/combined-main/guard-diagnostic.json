@@ -1,0 +1,12 @@
+{
+  "diagnosticOnly": true,
+  "initialLiveQueryFailure": [
+    "pid=344 ok=0 error=6 size=32768 image=",
+    "pid=352 ok=1 error=0 size=134 image=<isolated-root>\\steamapps\\common\\Fixture\\game.exe",
+    "pid=360 ok=1 error=0 size=149 image=<isolated-root>\\steamapps\\common\\Fixture\\UnityCrashHandler64.exe"
+  ],
+  "runnerRepeatBothModesSeconds": 40.769,
+  "instrumentedGuardBothModesSeconds": 39.282,
+  "rootPolicyChanged": false,
+  "initialTimeoutCompleteCause": "unconfirmed"
+}

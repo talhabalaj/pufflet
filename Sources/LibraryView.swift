@@ -311,6 +311,25 @@ private struct GameTile: View {
     }
 }
 
+struct GameDisplaySettings: View {
+    @Binding var selection: SteamDisplayPreference
+
+    var body: some View {
+        Section {
+            Picker("Display", selection: $selection) {
+                Text("Inherit").tag(SteamDisplayPreference.inherit)
+                Text("Standard").tag(SteamDisplayPreference.standard)
+                Text("High resolution").tag(SteamDisplayPreference.highResolution)
+                Section("Advanced compatibility") {
+                    Text("Standard · 192 DPI").tag(SteamDisplayPreference.standard192)
+                    Text("High resolution · 192 DPI").tag(SteamDisplayPreference.highResolution192)
+                }
+            }
+        } header: { Text("Display") }
+        footer: { Text("Applies on the next Play. Inherit uses the original settings. A different profile restarts Steam when games and downloads have finished. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.") }
+    }
+}
+
 struct GameInspector: View {
     @Bindable var model: LibraryModel
     @State private var artwork: NSImage?
@@ -357,6 +376,9 @@ struct GameInspector: View {
                         }
                     }
                 }
+                GameDisplaySettings(selection: Binding(
+                    get: { model.displayPreference(for: game.id) },
+                    set: { model.setDisplayPreference($0, for: game.id) }))
                 if let installed = game.installation {
                     Section("Graphics") {
                         Picker("Graphics backend", selection: Binding(get: { model.graphics.backend(for: game.id) },

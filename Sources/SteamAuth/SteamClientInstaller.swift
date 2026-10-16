@@ -32,9 +32,14 @@ nonisolated final class SteamClientRedirects: NSObject, URLSessionTaskDelegate {
 protocol SteamClientPreparing: Actor {
     func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL?, progress: @Sendable (String) async -> Void) async throws -> [String: String]
     func displayConfiguration(runtime: SteamRuntime) async throws -> SteamDisplayConfiguration
+    func applyDisplayConfiguration(_ configuration: SteamDisplayConfiguration, runtime: SteamRuntime) async throws
 }
 
 extension SteamClientPreparing {
+    func applyDisplayConfiguration(_ configuration: SteamDisplayConfiguration, runtime: SteamRuntime) async throws {
+        try await runtime.applyDisplayConfiguration(configuration)
+    }
+
     func displayConfiguration(runtime: SteamRuntime) async throws -> SteamDisplayConfiguration {
         try await runtime.displayConfiguration()
     }

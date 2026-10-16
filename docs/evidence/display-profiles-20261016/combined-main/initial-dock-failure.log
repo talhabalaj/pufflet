@@ -1,0 +1,15 @@
+Runner resources: <isolated-runner>
+Dock bridge: <isolated-runner>/libSteamLibraryDock.dylib
+􀟈 Test run started.
+􀄵 Testing Library Version: 2084
+􀄵 Target Platform: arm64e-apple-macos14.0
+􀟈 Suite GameDockTests started.
+􀟈 Test gameExitReapsChildrenAndPreservesOtherPrefixWork(mode:) started.
+􀟈 Test case passing 1 argument mode → "game" to gameExitReapsChildrenAndPreservesOtherPrefixWork(mode:) started.
+􀢄 Test gameExitReapsChildrenAndPreservesOtherPrefixWork(mode:) recorded an issue with 1 argument mode → "game" at GameDockTests.swift:11:6: Caught error: .launchFailed("Dock fixture timed out.")
+􀟈 Test case passing 1 argument mode → "game-exit" to gameExitReapsChildrenAndPreservesOtherPrefixWork(mode:) started.
+􀢄 Test gameExitReapsChildrenAndPreservesOtherPrefixWork(mode:) with 2 test cases failed after 167.750 seconds with 1 issue.
+􀢄 Suite GameDockTests failed after 167.751 seconds with 1 issue.
+􀄵 /// Opt-in desktop/Wine check. Uses a fresh temporary prefix, synthetic EXE,
+􀄵 /// and no Steam account, library, or PuffletDev data. See docs/GAME_DOCK.md.
+􀢄 Test run with 1 test in 1 suite failed after 167.751 seconds with 1 issue.
