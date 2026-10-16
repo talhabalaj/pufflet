@@ -59,6 +59,12 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
         jobs.removeAll { $0.id == id && $0.state == .queued }; save()
     }
 
+    var hasFinished: Bool { jobs.contains { [.completed, .failed, .stopped, .interrupted].contains($0.state) } }
+
+    func clearFinished() {
+        jobs.removeAll { [.completed, .failed, .stopped, .interrupted].contains($0.state) }; save()
+    }
+
     func stopWaiting() {
         for i in jobs.indices where jobs[i].state == .queued { jobs[i].state = .stopped }
         save()
