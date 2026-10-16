@@ -61,7 +61,7 @@ async function verifyDownload(response, manifest) {
   if (hash.digest('hex') !== manifest.sha256 || bytes !== manifest.bytes) throw new Error('Public archive hash or size does not match the verified release.');
 }
 
-export async function publishRelease(outputDirectory, { fetch: fetchRelease = globalThis.fetch, store = githubReleaseStore(), publicKey = process.env.SPARKLE_PUBLIC_KEY } = {}) {
+export async function publishRelease(outputDirectory, { fetch: fetchRelease = globalThis.fetch, store = githubReleaseStore(), publicKey = process.env.SPARKLE_PUBLIC_KEY, settleDelayMs = 5000, settleAttempts = 12 } = {}) {
   const output = resolve(outputDirectory);
   const manifest = JSON.parse(readFileSync(join(output, 'manifest.json'), 'utf8'));
   const metadata = JSON.parse(readFileSync(join(output, 'metadata.json'), 'utf8'));
@@ -113,9 +113,15 @@ export async function publishRelease(outputDirectory, { fetch: fetchRelease = gl
   }
   requireForwardRelease(manifest, await currentManifest());
   await store.promote();
-  if (!isDeepStrictEqual(await currentManifest(), manifest)) throw new Error('Published manifest differs from the verified release.');
-  const published = await read('appcast.xml');
-  if (!published.ok || !Buffer.from(await published.arrayBuffer()).equals(feed)) throw new Error('Published appcast differs from the signed feed.');
+  // GitHub's latest-release redirect can serve the previous release for a few seconds after promotion.
+  for (let attempt = 1; ; attempt++) {
+    const manifestMatches = isDeepStrictEqual(await currentManifest(), manifest);
+    const published = manifestMatches && await read('appcast.xml');
+    const feedMatches = manifestMatches && published.ok && Buffer.from(await published.arrayBuffer()).equals(feed);
+    if (feedMatches) break;
+    if (attempt >= settleAttempts) throw new Error(manifestMatches ? 'Published appcast differs from the signed feed.' : 'Published manifest differs from the verified release.');
+    await new Promise(done => setTimeout(done, settleDelayMs));
+  }
   const downloadKey = `downloads/${manifest.file}`;
   const publication = { build: manifest.build, sha256: manifest.sha256, download: `${releaseOrigin}/${downloadKey}`, feed: `${releaseOrigin}/appcast.xml`, verifiedAt: new Date().toISOString() };
   writeFileSync(join(output, 'publication.json'), JSON.stringify(publication, null, 2) + '\n');
