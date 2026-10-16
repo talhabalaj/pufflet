@@ -4,15 +4,23 @@
 #include <wchar.h>
 
 #define MAX_TRACKED 4096
-struct tracked { DWORD pid, parent; HANDLE handle, root; BOOL game; ULONGLONG created; };
+struct tracked { DWORD pid, parent; HANDLE handle, root; BOOL game, classified; ULONGLONG created; };
 static struct tracked tracked[MAX_TRACKED];
 
-static BOOL game_image(HANDLE process)
+static BOOL game_image(HANDLE process, BOOL *classified)
 {
     WCHAR path[32768]; DWORD size = 32768;
     if (!QueryFullProcessImageNameW(process, 0, path, &size)) return FALSE;
+    *classified = TRUE;
     CharLowerBuffW(path, size);
     return wcsstr(path, L"\\steamapps\\common\\") && !wcsstr(path, L"crashhandler") && !wcsstr(path, L"unins");
+}
+static void classify(struct tracked *process)
+{
+    /* A failed query is unknown, not a permanent non-game decision. Keep
+       retrying the same retained live handle; successful decisions are cached. */
+    if (!process->classified && WaitForSingleObject(process->handle, 0) == WAIT_TIMEOUT)
+        process->game = game_image(process->handle, &process->classified);
 }
 static struct tracked *find(DWORD pid)
 {
@@ -44,6 +52,8 @@ int wmain(int argc, WCHAR **argv)
         return WaitForSingleObject(event, 10000) == WAIT_OBJECT_0 && ready_file(argv[1]) ? 0 : 4;
     BOOL announced = FALSE;
     for (;;) {
+        for (unsigned i = 0; i < MAX_TRACKED; ++i)
+            if (tracked[i].handle) classify(&tracked[i]);
         HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         PROCESSENTRY32W item = {.dwSize = sizeof(item)};
         if (snapshot != INVALID_HANDLE_VALUE) {
@@ -55,7 +65,8 @@ int wmain(int argc, WCHAR **argv)
                 if (!GetProcessTimes(process, &created, &exited, &kernel, &user)) { CloseHandle(process); continue; }
                 ULONGLONG birth = ((ULONGLONG)created.dwHighDateTime << 32) | created.dwLowDateTime;
                 for (unsigned i = 0; i < MAX_TRACKED; ++i) if (!tracked[i].handle) {
-                    tracked[i] = (struct tracked){item.th32ProcessID, item.th32ParentProcessID, process, NULL, game_image(process), birth};
+                    tracked[i] = (struct tracked){item.th32ProcessID, item.th32ParentProcessID, process, NULL, FALSE, FALSE, birth};
+                    classify(&tracked[i]);
                     process = NULL; break;
                 }
                 if (process) CloseHandle(process);
