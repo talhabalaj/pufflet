@@ -24,6 +24,9 @@ targets:
   SteamLibrary:
     type: application
     platform: macOS
+    # Keep distribution product metadata aligned with the Release wrapper.
+    # PRODUCT_NAME alone does not set XcodeGen's product reference.
+    productName: Pufflet
     sources:
       - path: Sources
       - path: Resources
