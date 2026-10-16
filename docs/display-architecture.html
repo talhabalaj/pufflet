@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pufflet display architecture</title>
+<style>
+:root { color-scheme:light dark; --foreground:light-dark(#17212b,#e5e9ef); --muted-foreground:light-dark(#556171,#a7b3c3); --border:light-dark(#d7dde5,#36404e); --card:light-dark(#f2f5f8,#18212d); --primary:light-dark(#235cc0,#94bcff); --primary-foreground:light-dark(#fff,#0d254c); --warning-surface:light-dark(#fff3d4,#362b12); --warning-foreground:light-dark(#6c4b00,#f2d087); --radius:12px; --font-sans:system-ui,sans-serif; --font-size-base:14px; }
+html,body { background:transparent; color:var(--foreground); font-family:var(--font-sans); margin:0; }
+#pufflet-architecture { font-size:var(--font-size-base); }
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+h1,h2,p { margin:0 0 12px; font-size:inherit; font-weight:400; }
+h1,h2,strong { font-weight:500; }
+button,select,input { font:inherit; }
+.controls { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0 18px; }
+.controls button { background:transparent; color:var(--foreground); border:1px solid var(--border); border-radius:var(--radius); padding:9px 12px; }
+.controls button[aria-selected="true"] { background:var(--primary); color:var(--primary-foreground); border-color:transparent; }
+.muted,small { color:var(--muted-foreground); }
+small { display:block; margin-top:5px; font-size:inherit; }
+.shared { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:12px 0; }
+.shared div { padding-left:12px; border-left:2px solid var(--border); }
+.flow { display:flex; flex-direction:column; align-items:stretch; gap:0; margin:18px 0; }
+.node { border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+.node.active { border-color:var(--primary); }
+.arrow { color:var(--muted-foreground); align-self:center; padding:4px; }
+.environments { display:grid; grid-template-columns:1fr; gap:12px; }
+.environments.two { grid-template-columns:1fr 1fr; }
+.inactive { opacity:.7; border-style:dashed; }
+.result { margin:12px 0 18px; padding-left:12px; border-left:3px solid var(--primary); }
+.result.blocked { border-color:var(--warning-foreground); color:var(--warning-foreground); }
+.scenario { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding-top:8px; }
+.scenario select { padding:8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--card); color:var(--foreground); max-width:100%; }
+.scenario label { display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+.steps { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 8px; }
+.steps span { padding:5px 0; }
+.steps span:not(:last-child)::after { content:' →'; color:var(--muted-foreground); }
+details { margin-top:18px; }
+summary { color:var(--muted-foreground); }
+details p { margin-top:12px; }
+a { color:var(--primary); }
+@media(max-width:480px) { .shared,.environments.two { grid-template-columns:1fr; } .scenario { align-items:stretch; flex-direction:column; } }
+</style>
+</head>
+<body>
+<main id="pufflet-architecture">
+<h1>Per-game choices. One active Steam / Wine session.</h1>
+<p class="muted">Compare today, the first release, and the later isolation target.</p>
+<div class="controls" role="tablist" aria-label="Architecture stage">
+<button type="button" id="stage-today" role="tab" aria-selected="false" aria-controls="architecture-view" data-stage="today">Today</button>
+<button type="button" id="stage-first" role="tab" aria-selected="true" aria-controls="architecture-view" data-stage="first">First release</button>
+<button type="button" id="stage-later" role="tab" aria-selected="false" aria-controls="architecture-view" data-stage="later">Later: isolated prefixes</button>
+</div>
+<section id="architecture-view" role="tabpanel" aria-labelledby="stage-first">
+<div class="shared" aria-label="Shared resources in every stage">
+<div><strong>Shared runtime</strong><small>Wine + DXMT binaries</small></div>
+<div><strong>Shared installed games</strong><small>One copy of the game files; one writer</small></div>
+</div>
+<div class="flow" aria-label="Proposed architecture">
+<div class="node" id="preferences"><strong>Per-game preferences</strong><small>Game A: Standard, off / 96 · Game B: High resolution, on / 96</small></div>
+<div class="arrow" aria-hidden="true">↓</div>
+<div class="node" id="owner"><strong>Session owner</strong><small>Resolve profile → reuse safely, wait, or restart</small></div>
+<div class="arrow" aria-hidden="true">↓</div>
+<div class="environments" id="environment-list">
+<div class="node active" id="environment-a"><strong id="environment-a-name">Shared Windows environment</strong><small id="environment-a-state">Registry · dependencies · saves for all existing games</small><small id="host-a">Authentic Steam host + selected game</small></div>
+<div class="node inactive" id="environment-b" hidden><strong>Game B’s Windows environment</strong><small>Separate registry, dependencies and saves</small><small>Inactive until the previous session stops</small></div>
+</div>
+</div>
+<p id="stage-note">Saves stay where they are. Only the two display settings change between sessions.</p>
+<h2>Example launch</h2>
+<p class="muted">Illustration only. The current example session is Game A at Standard, off / 96.</p>
+<div class="scenario">
+<label>Play <select id="game"><option value="a">Game A — Standard</option><option value="b">Game B — High resolution</option></select></label>
+<label><input id="busy" type="checkbox"> Steam download / paused job active</label>
+</div>
+<div class="result" id="outcome" aria-live="polite"></div>
+<div class="steps" id="switch-steps" aria-label="Safe switch sequence" hidden>
+<span>Stop host</span><span>Confirm Wine stopped</span><span id="configure-step">Save + cold-read settings</span><span>Fresh sign-in handoff</span><span>Launch game</span>
+</div>
+<details>
+<summary>What must be proven before release?</summary>
+<p><strong>First:</strong> settings survive Wine shutdown, session identity matches, all launch paths obey the same ownership gate, and active work cannot race a change. No game or download is killed to switch profiles.</p>
+<p><strong>Before isolation:</strong> use two disposable prefixes to prove Steam initialization, DRM/CEG, saves, cloud conflicts, dependencies, content reuse, and rollback. Runtime and content stay shared; mutable Windows state stays separate.</p>
+<p>Existing games keep their current environment until explicit migration. Cloud is not a backup. A rollback must preserve newer saves. Download transfer is a separate later gate.</p>
+<p>These are example profiles, not verified fixes for Over the Hill. Saved settings do not prove crop-free or sharp rendering.</p>
+</details>
+<p class="muted" style="margin-top:18px">Opus-reviewed design · <a href="https://github.com/talhabalaj/pufflet/issues/12">Proton research / issue #12</a> · No application settings change here.</p>
+</section>
+</main>
+<script>
+(() => {
+const root = document.getElementById('pufflet-architecture');
+const get = id => root.querySelector('#' + id);
+let stage = 'first';
+const text = (id, value) => { get(id).textContent = value; };
+const initial = window.openai?.widgetState?.modelContent;
+if (initial && ['today','first','later'].includes(initial.stage)) stage = initial.stage;
+if (initial?.game === 'b') get('game').value = 'b';
+get('busy').checked = initial?.busy === true;
+function draw() {
+const second = get('game').value === 'b', busy = get('busy').checked;
+root.querySelectorAll('[data-stage]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.stage === stage)));
+get('architecture-view').setAttribute('aria-labelledby','stage-' + stage);
+get('environment-b').hidden = stage !== 'later';
+get('environment-list').className = 'environments' + (stage === 'later' ? ' two' : '');
+get('outcome').className = 'result';
+get('switch-steps').hidden = true;
+if (stage === 'today') {
+get('preferences').innerHTML = '<strong>One prefix-wide display configuration</strong><small>No per-game display override</small>';
+get('owner').innerHTML = '<strong>Existing launch path</strong><small>Game inherits the shared prefix’s current settings</small>';
+text('environment-a-name','Shared Windows environment');
+text('environment-a-state','Registry · dependencies · saves for all games');
+text('host-a','Persistent Steam host + selected game');
+text('stage-note','Changing shared display settings affects later launches from the same environment.');
+text('outcome', second ? 'Game B still gets the shared configuration. Its individual High resolution preference does not exist yet.' : 'Game A uses the shared configuration.');
+} else {
+get('preferences').innerHTML = '<strong>Per-game preferences</strong><small>Game A: Standard, off / 96 · Game B: High resolution, on / 96</small>';
+get('owner').innerHTML = '<strong>One session owner</strong><small>Compare account + library + prefix + runtime + active profile</small>';
+text('environment-a-name', stage === 'later' ? 'Game A’s Windows environment' : 'Shared Windows environment');
+text('environment-a-state', stage === 'later' ? 'Separate registry, dependencies and saves' : 'Registry · dependencies · saves stay in place');
+text('host-a', stage === 'later' ? 'Current active Steam host + Game A' : 'Current active Steam host at Standard, off / 96');
+text('stage-note', stage === 'later' ? 'Each game keeps its own Windows state. Only one environment’s Steam host is online at a time.' : 'Per-game preferences; shared Windows state. A profile change needs a full session stop/start.');
+if (!second) text('outcome','Compatible session: reuse it for Game A. Existing download and launch restrictions still apply.');
+else if (busy) {
+get('outcome').className = 'result blocked';
+text('outcome','Wait: Steam work still owns the current session. Keep Game B’s preference saved; do not change settings or start a second host.');
+} else {
+text('outcome',stage === 'later' ? 'Switch A → B: stop A’s session, select B’s verified environment, then start B’s host and game together.' : 'Switch Standard → High resolution: stop the shared session, persist and cold-read on / 96, then start Game B. Saves are not moved.');
+text('configure-step',stage === 'later' ? 'Select + verify B’s prefix' : 'Save + cold-read settings');
+get('switch-steps').hidden = false;
+}
+}
+const visibleNames = ['preferences','owner','environment-a-name','stage-note','outcome'];
+console.assert(visibleNames.every(id => get(id)), 'Required architecture elements exist');
+}
+function changed() {
+draw();
+const saved = {stage,game:get('game').value,busy:get('busy').checked};
+window.openai?.setWidgetState?.({modelContent:saved,privateContent:null})?.catch(() => {});
+}
+root.querySelectorAll('[data-stage]').forEach(button => button.addEventListener('click', () => { stage = button.dataset.stage; changed(); }));
+get('game').addEventListener('change',changed);
+get('busy').addEventListener('change',changed);
+window.addEventListener('openai:set_globals', event => {
+const saved = event.detail?.globals?.widgetState?.modelContent;
+if (!saved || !['today','first','later'].includes(saved.stage)) return;
+stage = saved.stage; get('game').value = saved.game === 'b' ? 'b' : 'a'; get('busy').checked = saved.busy === true; draw();
+});
+draw();
+})();
+</script>
+</body>
+</html>
