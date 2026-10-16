@@ -118,21 +118,19 @@ actor SteamSessionHost {
         guard !stopping else { throw Failure.stopped("Steam is still shutting down. Try again shortly.") }
         if !starting, process != nil, !ready { try await shutdown() }
         let root = destination.resolvingSymlinksInPath()
-        if ready, graphicsForLaunch, self.runtime?.d3dMetal != runtime.d3dMetal {
-            // A running Steam client owns the environment inherited by games.
-            // Never reuse a host with another game's renderer, or interrupt work.
-            guard ongoing.isEmpty, pending.isEmpty else {
-                throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
-            }
-            try await shutdown(notify: false)
-        }
         if ready {
             try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
-            return
+            if graphicsForLaunch, self.runtime?.d3dMetal != runtime.d3dMetal {
+                // Validate account/library/prefix before stopping an idle host.
+                guard ongoing.isEmpty, pending.isEmpty, installRequests.isEmpty else {
+                    throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
+                }
+                try await shutdown(notify: false)
+            } else { return }
         }
         if starting {
             try await waitForStart()
-            try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
+            try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID, graphicsForLaunch: graphicsForLaunch)
             return
         }
         runtime.clearDockExecutable()
@@ -149,7 +147,7 @@ actor SteamSessionHost {
             ownsPreparedPrefix = true
             guard generation == current, !stopping else { throw CancellationError() }
             try Task.checkCancellation()
-            let configuration = try await installer.displayConfiguration(runtime: runtime)
+            let configuration = try await installer.displayConfiguration(runtime: setupRuntime)
             guard generation == current, !stopping else { throw CancellationError() }
             guard try runtime.identity() == identity else { throw SteamClientPackages.Failure.activeSession }
             displayConfiguration = configuration
@@ -228,15 +226,18 @@ actor SteamSessionHost {
         }
     }
 
-    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL, accountID: UInt64?) async throws {
+    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL, accountID: UInt64?, graphicsForLaunch: Bool = false) async throws {
         guard ready, !stopping, runtimeIdentity == identity,
               self.destination?.standardizedFileURL == destination.standardizedFileURL,
               self.accountID == accountID else { throw SteamClientPackages.Failure.activeSession }
         let current = generation
-        let configuration = try await installer.displayConfiguration(runtime: runtime)
+        var setupRuntime = runtime
+        setupRuntime.d3dMetal = nil
+        let configuration = try await installer.displayConfiguration(runtime: setupRuntime)
         guard generation == current, ready, !stopping,
               runtimeIdentity == identity, try runtime.identity() == identity,
-              displayConfiguration == configuration else { throw SteamClientPackages.Failure.activeSession }
+              displayConfiguration == configuration,
+              !graphicsForLaunch || self.runtime?.d3dMetal == runtime.d3dMetal else { throw SteamClientPackages.Failure.activeSession }
     }
 
     func recoverPreviousSession(runtime: SteamRuntime) async throws {

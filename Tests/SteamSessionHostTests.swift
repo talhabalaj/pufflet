@@ -24,10 +24,11 @@ struct SteamSessionProtocolTests {
 
 private actor PreparedClient: SteamClientPreparing {
     private(set) var calls = 0
+    private(set) var preparedWithD3DMetal = false
+    private(set) var queriedWithD3DMetal = false
     private var configuration = SteamDisplayConfiguration(retinaQuery: "RetinaMode REG_SZ n", dpiQuery: "LogPixels REG_DWORD 0x60")
     private var holdQueries = false
     private var heldQuery: CheckedContinuation<SteamDisplayConfiguration, Never>?
-    private(set) var preparedWithD3DMetal = false
 
     func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL?, progress: @Sendable (String) async -> Void) async throws -> [String: String] {
         calls += 1
@@ -36,6 +37,7 @@ private actor PreparedClient: SteamClientPreparing {
         return [:]
     }
     func displayConfiguration(runtime: SteamRuntime) async -> SteamDisplayConfiguration {
+        queriedWithD3DMetal = queriedWithD3DMetal || runtime.d3dMetal != nil
         if holdQueries { return await withCheckedContinuation { heldQuery = $0 } }
         return configuration
     }
@@ -69,6 +71,7 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
         #expect(await installer.calls == 2)
         #expect(await !installer.preparedWithD3DMetal)
+        #expect(await !installer.queriedWithD3DMetal)
         // A download can reuse the host without changing a running game's graphics.
         try await host.start(appID: 3, destination: root, library: [], credentials: credentials, runtime: runtime)
         #expect(await installer.calls == 2)
@@ -91,6 +94,25 @@ private actor PreparedClient: SteamClientPreparing {
         metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
         await #expect(throws: SteamSessionHost.Failure.self) {
             try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
+        }
+        try await host.control("pause", appID: 1)
+        await #expect(throws: SteamSessionHost.Failure.self) {
+            try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
+        }
+        #expect(await installer.calls == 1)
+        #expect(await host.isActive)
+        try await host.shutdown()
+    }
+
+    @Test func rendererChangeCannotStopAnotherAccountsHost() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials(account: 1), runtime: runtime)
+        var metal = runtime
+        metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
+        await #expect(throws: (any Error).self) {
+            try await host.start(appID: 2, destination: root, library: [], credentials: credentials(account: 2), runtime: metal, graphicsForLaunch: true)
         }
         #expect(await installer.calls == 1)
         #expect(await host.isActive)

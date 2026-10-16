@@ -48,6 +48,13 @@ TEST_RUNNER_PUFFLET_OFFLINE_RUNTIME=/absolute/path/PuffletRuntime.app \
   CODE_SIGNING_ALLOWED=NO
 ```
 
+The lifecycle change was reconciled with main’s D3DMetal renderer integration
+without rewriting its published ancestry. [Pre-merge acceptance evidence](evidence/display-defaults-20261016/main-integration/README.md)
+records 106 passing Swift tests, real Wine new/existing-prefix cold readbacks,
+D3D12 GPU readback, native setup screenshots and the exact-prefix cleanup audit.
+Xcode test-host launch itself remains blocked; test execution used the built
+production library through a standalone Swift Testing runner.
+
 This does not fix or establish the cause of the reported Over the Hill zoom.
 Its visual regression remains open.
 
