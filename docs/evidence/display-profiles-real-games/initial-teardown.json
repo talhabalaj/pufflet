@@ -1,0 +1,7 @@
+{
+  "soft_stop": 1,
+  "server_wait": 0,
+  "before": [],
+  "leftover_sigterm": [],
+  "after": []
+}

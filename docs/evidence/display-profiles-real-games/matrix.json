@@ -1,0 +1,326 @@
+[
+  {
+    "game": "Muck",
+    "profile": "Inherit",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "fits but blurry",
+    "screenshot": "screenshots/muck-inherit-restored-menu-fullscreen.png",
+    "metrics": "muck-inherit-restored.json",
+    "notes": "Visual menu classification only; no claim about internal render-buffer size. Full-monitor client; saved Unity fullscreen mode 1."
+  },
+  {
+    "game": "Muck",
+    "profile": "Inherit",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Muck",
+    "profile": "Inherit",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Muck",
+    "profile": "Inherit",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Muck",
+    "profile": "Standard",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "fits but blurry",
+    "screenshot": "screenshots/muck-standard-menu-fullscreen.png",
+    "metrics": "muck-standard-menu.json",
+    "notes": "Visual menu classification only; no claim about internal render-buffer size. Full-monitor client; saved Unity fullscreen mode 1."
+  },
+  {
+    "game": "Muck",
+    "profile": "Standard",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Muck",
+    "profile": "Standard",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Muck",
+    "profile": "Standard",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Muck",
+    "profile": "High resolution",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "fits and sharp",
+    "screenshot": "screenshots/muck-high-menu-fullscreen.png",
+    "metrics": "muck-high-menu.json",
+    "notes": "Visual menu classification only; no claim about internal render-buffer size. Full-monitor client; saved Unity fullscreen mode 1."
+  },
+  {
+    "game": "Muck",
+    "profile": "High resolution",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Muck",
+    "profile": "High resolution",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Muck",
+    "profile": "High resolution",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Inherit",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Inherit",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Inherit",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Inherit",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Standard",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Standard",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Standard",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Standard",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "High resolution",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "High resolution",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "High resolution",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "High resolution",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "Inherit",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "Inherit",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "Inherit",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "Inherit",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "Standard",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "Standard",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "Standard",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "Standard",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "High resolution",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "High resolution",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "High resolution",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "over the hill",
+    "profile": "High resolution",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Inherit",
+    "stage": "launcher (before game menu)",
+    "mode": "windowed",
+    "classification": "fits but blurry",
+    "screenshot": "screenshots/peggle-inherit-launcher-windowed.png",
+    "metrics": "peggle-inherit-menu.json",
+    "notes": "640x480 launcher client, not game-menu/gameplay acceptance."
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "Standard",
+    "stage": "launcher (before game menu)",
+    "mode": "windowed",
+    "classification": "fits but blurry",
+    "screenshot": "screenshots/peggle-standard-launcher-windowed.png",
+    "metrics": "peggle-standard-launcher.json",
+    "notes": "640x480 launcher client, not game-menu/gameplay acceptance."
+  },
+  {
+    "game": "Peggle Extreme",
+    "profile": "High resolution",
+    "stage": "launcher (before game menu)",
+    "mode": "windowed",
+    "classification": "fits and sharp",
+    "screenshot": "screenshots/peggle-high-launcher-windowed.png",
+    "metrics": "peggle-high-launcher.json",
+    "notes": "640x480 launcher client, not game-menu/gameplay acceptance."
+  }
+]

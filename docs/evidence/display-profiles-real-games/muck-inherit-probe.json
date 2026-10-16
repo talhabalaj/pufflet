@@ -1,0 +1,47 @@
+{
+  "retina": {
+    "exit": 0,
+    "output": "\nHKEY_CURRENT_USER\\Software\\Wine\\Mac Driver\n    RetinaMode    REG_SZ    n\n\n"
+  },
+  "dpi": {
+    "exit": 0,
+    "output": "\nHKEY_CURRENT_USER\\Control Panel\\Desktop\n    LogPixels    REG_DWORD    0x60\n\n"
+  },
+  "desktop": {
+    "exit": 0,
+    "output": "metrics=1512x982 mode=1512x982 dpi=96\n"
+  },
+  "windows": {
+    "exit": 0,
+    "output": "unaware-view title=Muck client=1512x982 screen=1512x982\nwindow-awareness=2\ntitle=Muck window=1512x982 client=1512x982 dpi=96 awareness=0\n"
+  },
+  "baseline": null,
+  "preferences": {
+    "games": {
+      "1625450": "highResolution"
+    },
+    "version": 1
+  },
+  "processes": [
+    {
+      "pid": 37226,
+      "ppid": 1,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/MacOS/Pufflet Dev"
+    },
+    {
+      "pid": 38695,
+      "ppid": 1,
+      "command": "~/Library/Application Support/PuffletDev/Runtimes/wine-11.0-dxmt-2/PuffletRuntime.app/Contents/SharedSupport/wine/lib/wine/../../bin/wineserver"
+    },
+    {
+      "pid": 38855,
+      "ppid": 37226,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/wine-process-guard.exe"
+    },
+    {
+      "pid": 38856,
+      "ppid": 37226,
+      "command": "/private/tmp/pufflet-real-games-build/Build/Products/Debug/Pufflet Dev.app/Contents/Resources/dockhost.exe"
+    }
+  ]
+}
