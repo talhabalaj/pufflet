@@ -126,6 +126,18 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         cleanupHandoff()
     }
 
+    func recoverPreviousSession(runtime: SteamRuntime) async throws {
+        guard !isActive, !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
+        isActive = true
+        do {
+            try await sessionHost.recoverPreviousSession(runtime: runtime)
+            isActive = false
+        } catch {
+            isActive = await sessionHost.isActive
+            throw error
+        }
+    }
+
     func prepare(runtime: SteamRuntime, library: [SteamGame], destination: URL? = nil) async throws {
         guard !isActive, !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
         preparing = true
@@ -177,6 +189,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
                 "MADEIRA_STEAM_HOST_APPID": appID, "MADEIRA_DOCK_INSTALL_LIBRARY": SteamClientInstaller.windowsLibraryRoot(for: destination),
                 "MADEIRA_STEAM_HOST_CLIENT_DIR": "C:\\Program Files (x86)\\Steam", "MADEIRA_STEAM_HOST_LOG": "C:\\steam-library-host.txt",
                 "MADEIRA_DOCK_AUTH_FILE": Self.windowsHandoffPath(paths.handoff)]
+            try await runtime.prepareProcessGuard()
             let launched = try runtime.startWindows([host.path, "--install", appID], extraEnvironment: env)
             process = launched
             launched.terminationHandler = { [weak self] ended in
@@ -243,6 +256,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
                        "MADEIRA_STEAM_HOST_EXPECTED_INSTALL": folder,
                        "MADEIRA_STEAM_HOST_LOG": "C:\\steam-library-host.txt",
                        "MADEIRA_DOCK_AUTH_FILE": Self.windowsHandoffPath(paths.handoff)]
+            try await runtime.prepareProcessGuard()
             let launched = try runtime.startWindows([host.path], extraEnvironment: env)
             process = launched
             launched.terminationHandler = { [weak self] ended in
@@ -331,7 +345,8 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
         stopping = true
         defer { stopping = false }
-        if persistentEnabled { try await sessionHost.shutdown() }
+        let sessionActive = await sessionHost.isActive
+        if persistentEnabled || sessionActive { try await sessionHost.shutdown() }
         else if installing { try await stopInstall(runtime: runtime) }
         else if isActive {
             try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)

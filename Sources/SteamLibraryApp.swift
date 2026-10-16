@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let model, model.headless.isActive || model.hasDownloadWork else { return .terminateNow }
+        guard let model else { return .terminateNow }
         if model.hasDownloadWork {
             let alert = NSAlert()
             alert.messageText = "A game download is in progress"

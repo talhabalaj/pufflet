@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 import SwiftUI
 import Testing
@@ -7,17 +8,22 @@ import Testing
 /// Opt-in desktop/Wine check. Uses a fresh temporary prefix, synthetic EXE,
 /// and no Steam account, library, or PuffletDev data. See docs/GAME_DOCK.md.
 @Suite(.serialized) @MainActor struct GameDockTests {
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_DOCK_FIXTURE"] != nil))
-    func nativeQuitEndsOnlyTheGameAndDeliversWindowsShutdownMessages() async throws {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_DOCK_FIXTURE"] != nil), arguments: ["game", "game-exit"])
+    func gameExitReapsChildrenAndPreservesOtherPrefixWork(mode: String) async throws {
         let env = ProcessInfo.processInfo.environment
         let runtimeApp = URL(filePath: try #require(env["PUFFLET_DOCK_RUNTIME"]))
-        let fixture = URL(filePath: try #require(env["PUFFLET_DOCK_FIXTURE"]))
+        let source = URL(filePath: try #require(env["PUFFLET_DOCK_FIXTURE"]))
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-dock-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let bridge = try #require(Bundle.main.url(forResource: "libSteamLibraryDock", withExtension: "dylib"))
         let runtime = SteamRuntime(installation: SteamInstallation(prefix: root.appendingPathComponent("prefix"), runtime: runtimeApp),
                                    dockBridge: bridge, logDirectory: root.appendingPathComponent("Logs"))
         try FileManager.default.createDirectory(at: runtime.installation.prefix, withIntermediateDirectories: true)
+        let folder = root.appendingPathComponent("steamapps/common/Fixture")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let fixture = folder.appendingPathComponent("game.exe")
+        try FileManager.default.copyItem(at: source, to: fixture)
+        try FileManager.default.copyItem(at: source, to: folder.appendingPathComponent("UnityCrashHandler64.exe"))
         var children: [Process] = []
         do {
             // Bootstrap separately so the process returned below is the GUI
@@ -26,24 +32,34 @@ import Testing
             children.append(bootstrap)
             try await wait { !bootstrap.isRunning }
             #expect(bootstrap.terminationStatus == 0)
+            try await runtime.prepareProcessGuard()
             let companionMarker = root.appendingPathComponent("companion")
             let companion = try runtime.startWindows([fixture.path, "companion", SteamHeadlessSession.windowsHandoffPath(companionMarker)], extraEnvironment: [:])
             children.append(companion)
             try await wait { FileManager.default.fileExists(atPath: companionMarker.path + ".ready") }
             let marker = root.appendingPathComponent("game")
-            let game = try runtime.startWindows([fixture.path, "game", SteamHeadlessSession.windowsHandoffPath(marker)], extraEnvironment: [:])
+            let game = try runtime.startWindows([fixture.path, mode, SteamHeadlessSession.windowsHandoffPath(marker)], extraEnvironment: [:])
             children.append(game)
             try await wait { FileManager.default.fileExists(atPath: marker.path + ".ready") }
             try await wait { NSRunningApplication(processIdentifier: game.processIdentifier)?.activationPolicy == .regular }
+            try await wait { FileManager.default.fileExists(atPath: marker.path + ".child.ready") }
+            try await Task.sleep(for: .milliseconds(500))
+            let helper = try #require(WineProcessIdentity.clients(prefix: runtime.installation.prefix).first { $0.image.contains("UnityCrashHandler64.exe") })
+            #expect(NSRunningApplication(processIdentifier: helper.pid)?.activationPolicy != .regular)
+            #expect(pufflet_process_is_background(helper.pid) == 1)
             let application = try #require(NSRunningApplication(processIdentifier: game.processIdentifier))
             // The same native quit Apple event used by Dock > Quit. Wine must
             // retain its delegate so it can ask the Windows app to shut down.
-            #expect(application.terminate())
+            if mode == "game" { #expect(application.terminate()) }
             try await wait { !game.isRunning }
-            #expect(FileManager.default.fileExists(atPath: marker.path + ".query"))
-            #expect(FileManager.default.fileExists(atPath: marker.path + ".end"))
+            if mode == "game" {
+                #expect(FileManager.default.fileExists(atPath: marker.path + ".query"))
+                #expect(FileManager.default.fileExists(atPath: marker.path + ".end"))
+            }
+            try await wait { !helper.isCurrent }
             #expect(companion.isRunning)
             try await runtime.stopPrivatePrefix(expectedPrefix: runtime.installation.prefix)
+            #expect(WineProcessIdentity.clients(prefix: runtime.installation.prefix).isEmpty)
             try FileManager.default.removeItem(at: root)
         } catch {
             try? await runtime.stopPrivatePrefix(expectedPrefix: runtime.installation.prefix)
@@ -146,6 +162,7 @@ import Testing
             print("Dock verification: scratch session stopped")
         } catch {
             try? await host.shutdown(runtime: runtime)
+            try? await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
             throw error
         }
     }

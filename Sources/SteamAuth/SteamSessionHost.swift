@@ -151,6 +151,8 @@ actor SteamSessionHost {
                 "MADEIRA_STEAM_HOST_CLIENT_DIR": SteamClientPackages.windowsRoot, "MADEIRA_STEAM_HOST_LOG": "C:\\steam-library-host.txt",
                 "MADEIRA_DOCK_AUTH_FILE": SteamHeadlessSession.windowsHandoffPath(paths.handoff),
                 "MADEIRA_DOCK_REQUEST_DIR": SteamHeadlessSession.windowsHandoffPath(paths.requests)]
+            if hostURL.pathExtension.lowercased() == "exe" { try await runtime.prepareProcessGuard() }
+            guard generation == current, !stopping else { throw CancellationError() }
             let child = try runtime.startSessionHost([hostURL.path, "--serve"], environment: env, input: stdin, output: stdout)
             input = stdin; output = stdout; process = child; nextRequest = 0; decoder = .init()
             // The child inherited its own handles. Closing the parent's copies
@@ -223,6 +225,19 @@ actor SteamSessionHost {
         guard generation == current, ready, !stopping,
               runtimeIdentity == identity, try runtime.identity() == identity,
               displayConfiguration == configuration else { throw SteamClientPackages.Failure.activeSession }
+    }
+
+    func recoverPreviousSession(runtime: SteamRuntime) async throws {
+        guard !isActive, runtime.installation.prefix.standardizedFileURL == paths.prefix.standardizedFileURL else {
+            throw SteamClientPackages.Failure.activeSession
+        }
+        preparingSupport = true
+        defer { preparingSupport = false }
+        guard !WineProcessIdentity.clients(prefix: paths.prefix).isEmpty else { return }
+        self.runtime = runtime; ownsPreparedPrefix = true
+        // Retain ownership on failure just like #16's pre-host setup teardown.
+        try await runtime.recoverPreviousSession()
+        self.runtime = nil; ownsPreparedPrefix = false
     }
 
     // Standalone setup and online startup share the same owner. A separate

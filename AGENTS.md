@@ -33,3 +33,14 @@ account that can only be online in one place.
   live tests that touch `PuffletDev` or Steam still need a turn.
 - Never touch the production app's data (`~/Library/Application Support/Pufflet`)
   or the user's real Steam library unless the user asks.
+
+## Wine test teardown
+
+Every test or probe that starts Wine in a temporary prefix must run that
+runtime's `wineserver -k`, followed by a bounded `wineserver -w`, with the
+**same explicit WINEPREFIX**, on success, failure, timeout and cancellation.
+Use `SteamRuntime.stopPrivatePrefix(expectedPrefix:)` in Swift tests; it also
+reaps exact-prefix clients that outlive server exit. Never remove the prefix
+before teardown or use process-name kills. Never use `-k9` for teardown: it loses registry
+writes. Terminate only retained, identity-checked leftover clients after the
+server has exited. A test failure must not leave background Wine apps behind.

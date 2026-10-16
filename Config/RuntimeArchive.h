@@ -1,6 +1,23 @@
 #ifndef PUFFLET_RUNTIME_ARCHIVE_H
 #define PUFFLET_RUNTIME_ARCHIVE_H
 #include <sys/types.h>
+#include <libproc.h>
+#include <ApplicationServices/ApplicationServices.h>
+
+// Swift cannot call the public Process Manager APIs directly. Keep the small
+// process-type assertion here for native integration tests.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+static inline int pufflet_process_is_background(pid_t pid) {
+    ProcessSerialNumber serial;
+    if (GetProcessForPID(pid, &serial) != noErr) return 0;
+    CFDictionaryRef info = ProcessInformationCopyDictionary(&serial, kProcessDictionaryIncludeAllInformationMask);
+    if (!info) return 0;
+    int result = CFDictionaryGetValue(info, CFSTR("LSBackgroundOnly")) == kCFBooleanTrue;
+    CFRelease(info);
+    return result;
+}
+#pragma clang diagnostic pop
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>

@@ -199,6 +199,16 @@ private actor PreparedClient: SteamClientPreparing {
         #expect(await !actor.isActive)
     }
 
+    @Test func startupRecoveryCannotReapAnActiveSession() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
+        await #expect(throws: (any Error).self) { try await host.recoverPreviousSession(runtime: runtime) }
+        #expect(await host.isActive)
+        try await host.install(appID: 2)
+        try await host.shutdown()
+    }
+
     @Test func liveSessionCannotBeReusedForAnotherAccount() async throws {
         let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
         let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
