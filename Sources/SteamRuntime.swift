@@ -199,6 +199,7 @@ nonisolated struct SteamRuntime: Sendable {
         if let status = try await serverCommand("-w", timeout: gracePeriod) {
             guard status == 0 else { throw RuntimeError.launchFailed("Windows session shutdown could not be verified. Keep Pufflet open and retry.") }
             try await reapStoppedPrefix()
+            clearDockExecutable()
             return
         }
         // Never SIGKILL wineserver on the normal path: it discards dirty hives.
@@ -208,6 +209,7 @@ nonisolated struct SteamRuntime: Sendable {
             throw RuntimeError.launchFailed("Windows is still shutting down. Its saved state is uncertain; keep Pufflet open and retry.")
         }
         try await reapStoppedPrefix()
+        clearDockExecutable()
     }
 
     /// Called only after -w has verified server exit; no live session may be
@@ -284,6 +286,25 @@ nonisolated struct SteamRuntime: Sendable {
         try output.seekToEnd()
         return output
     }
+
+    var dockAllowRecord: URL { installation.prefix.appendingPathComponent(".pufflet-dock-allow") }
+
+    func allowDockExecutable(_ executable: URL, for game: SteamGame) throws {
+        let image = executable.resolvingSymlinksInPath().standardizedFileURL
+        let folder = game.folder.resolvingSymlinksInPath().standardizedFileURL
+        guard image.path.hasPrefix(folder.path + "/"), image.pathExtension.lowercased() == "exe",
+              !image.path.contains("\n"), image.path.utf8.count < PATH_MAX,
+              try image.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
+            throw SteamClientPackages.Failure.conflict
+        }
+        let temporary = installation.prefix.appendingPathComponent(".dock-allow-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        guard FileManager.default.createFile(atPath: temporary.path, contents: Data(image.path.utf8),
+                                             attributes: [.posixPermissions: 0o600]),
+              rename(temporary.path, dockAllowRecord.path) == 0 else { throw RuntimeError.missingSetup }
+    }
+
+    func clearDockExecutable() { try? FileManager.default.removeItem(at: dockAllowRecord) }
 
     @concurrent func prepareProcessGuard() async throws {
         guard let guardURL = Bundle.main.url(forResource: "wine-process-guard", withExtension: "exe") else { throw RuntimeError.missingSetup }

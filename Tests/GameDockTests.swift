@@ -24,6 +24,8 @@ import Testing
         let fixture = folder.appendingPathComponent("game.exe")
         try FileManager.default.copyItem(at: source, to: fixture)
         try FileManager.default.copyItem(at: source, to: folder.appendingPathComponent("UnityCrashHandler64.exe"))
+        let sibling = folder.appendingPathComponent("unknown-helper.exe")
+        try FileManager.default.copyItem(at: source, to: sibling)
         var children: [Process] = []
         do {
             // Bootstrap separately so the process returned below is the GUI
@@ -37,6 +39,14 @@ import Testing
             let companion = try runtime.startWindows([fixture.path, "companion", SteamHeadlessSession.windowsHandoffPath(companionMarker)], extraEnvironment: [:])
             children.append(companion)
             try await wait { FileManager.default.fileExists(atPath: companionMarker.path + ".ready") }
+            let selected = SteamGame(id: "1", name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: folder)
+            try runtime.allowDockExecutable(fixture, for: selected)
+            let siblingMarker = root.appendingPathComponent("sibling")
+            let siblingProcess = try runtime.startWindows([sibling.path, "helper", SteamHeadlessSession.windowsHandoffPath(siblingMarker)], extraEnvironment: [:])
+            children.append(siblingProcess)
+            try await wait { FileManager.default.fileExists(atPath: siblingMarker.path + ".ready") }
+            #expect(NSRunningApplication(processIdentifier: siblingProcess.processIdentifier)?.activationPolicy != .regular)
+            #expect(pufflet_process_is_background(siblingProcess.processIdentifier) == 1)
             let marker = root.appendingPathComponent("game")
             let game = try runtime.startWindows([fixture.path, mode, SteamHeadlessSession.windowsHandoffPath(marker)], extraEnvironment: [:])
             children.append(game)
@@ -58,8 +68,10 @@ import Testing
             }
             try await wait { !helper.isCurrent }
             #expect(companion.isRunning)
+            #expect(siblingProcess.isRunning)
             try await runtime.stopPrivatePrefix(expectedPrefix: runtime.installation.prefix)
             #expect(WineProcessIdentity.clients(prefix: runtime.installation.prefix).isEmpty)
+            #expect(!FileManager.default.fileExists(atPath: runtime.dockAllowRecord.path))
             try FileManager.default.removeItem(at: root)
         } catch {
             try? await runtime.stopPrivatePrefix(expectedPrefix: runtime.installation.prefix)

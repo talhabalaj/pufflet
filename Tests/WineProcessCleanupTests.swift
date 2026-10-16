@@ -3,6 +3,29 @@ import Testing
 @testable import SteamLibrary
 
 @MainActor struct WineProcessCleanupTests {
+    @Test func dockAllowRecordIsPrivateAndBoundToTheSelectedGame() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-dock-allow-" + UUID().uuidString)
+        let folder = root.appendingPathComponent("steamapps/common/Fixture")
+        let prefix = root.appendingPathComponent("prefix")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let image = folder.appendingPathComponent("game.exe"), outside = root.appendingPathComponent("outside.exe")
+        try Data([0]).write(to: image); try Data([0]).write(to: outside)
+        let game = SteamGame(id: "1", name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: folder)
+        let runtime = SteamRuntime(installation: SteamInstallation(prefix: prefix, runtime: root.appendingPathComponent("unused")), dockBridge: root.appendingPathComponent("unused"))
+        try runtime.allowDockExecutable(image, for: game)
+        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8) == image.resolvingSymlinksInPath().path)
+        let attributes = try FileManager.default.attributesOfItem(atPath: runtime.dockAllowRecord.path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        #expect(throws: (any Error).self) { try runtime.allowDockExecutable(outside, for: game) }
+        let escape = folder.appendingPathComponent("escape.exe")
+        try FileManager.default.createSymbolicLink(at: escape, withDestinationURL: outside)
+        #expect(throws: (any Error).self) { try runtime.allowDockExecutable(escape, for: game) }
+        runtime.clearDockExecutable()
+        #expect(!FileManager.default.fileExists(atPath: runtime.dockAllowRecord.path))
+    }
+
     @Test func stoppedServerReapsOnlyExactPrefixClientsAndRejectsReusedIdentity() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-reaper-" + UUID().uuidString).resolvingSymlinksInPath()
         let bin = root.appendingPathComponent("runtime/Contents/SharedSupport/wine/bin")

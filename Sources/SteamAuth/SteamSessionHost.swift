@@ -135,6 +135,7 @@ actor SteamSessionHost {
             try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
             return
         }
+        runtime.clearDockExecutable()
         starting = true; expectedExit = false; failureMessage = nil
         self.destination = root; self.runtime = runtime; accountID = credentials.steamID
         runtimeIdentity = identity
@@ -244,7 +245,10 @@ actor SteamSessionHost {
         }
         preparingSupport = true
         defer { preparingSupport = false }
-        guard !WineProcessIdentity.clients(prefix: paths.prefix).isEmpty else { return }
+        guard !WineProcessIdentity.clients(prefix: paths.prefix).isEmpty else {
+            runtime.clearDockExecutable()
+            return
+        }
         self.runtime = runtime; ownsPreparedPrefix = true
         // Retain ownership on failure just like #16's pre-host setup teardown.
         try await runtime.recoverPreviousSession()
@@ -300,13 +304,20 @@ actor SteamSessionHost {
             }
         }
     }
-    func launch(game: SteamGame, option: UInt32) async throws {
+    func launch(game: SteamGame, option: UInt32, executable: URL) async throws {
         guard let app = UInt32(game.id), app > 0, app <= Int32.max else { throw SteamError.invalidMessage }
         let root = game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath()
         guard root.standardizedFileURL.path == destination?.standardizedFileURL.path, !game.installDirectory.contains("\\"), !game.installDirectory.contains("/"),
               !game.installDirectory.contains("\n"), ![".", "..", ""].contains(game.installDirectory) else { throw SteamClientPackages.Failure.conflict }
-        let expected = SteamClientInstaller.windowsLibraryRoot(for: root) + "\\steamapps\\common\\" + game.installDirectory
         let request = try allocateRequest()
+        guard let runtime else { throw Failure.stopped("Steam support is not ready. Try again.") }
+        let current = generation
+        var accepted = false
+        // Updated before LaunchApp; already-running helpers cache a denied
+        // decision and cannot gain a Dock icon when a later game is selected.
+        try runtime.allowDockExecutable(executable, for: game)
+        defer { if !accepted, generation == current { runtime.clearDockExecutable() } }
+        let expected = SteamClientInstaller.windowsLibraryRoot(for: root) + "\\steamapps\\common\\" + game.installDirectory
         let file = paths.requests.appendingPathComponent("\(request).launch")
         let bytes = Data("MDOCKL01\n\(app)\n\(option)\n0\n\(expected)\n".utf8)
         // Swift's existing path has no CEG metadata source; it has always left
@@ -314,8 +325,9 @@ actor SteamSessionHost {
         guard bytes.count < 32768 else { throw SteamError.invalidMessage }
         try bytes.write(to: file, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
-        defer { try? FileManager.default.removeItem(at: file) }
+        defer { if generation == current { try? FileManager.default.removeItem(at: file) } }
         try await command("launch \(app) \(option)", app: Int(app), request: request)
+        accepted = true
     }
 
     private func allocateRequest() throws -> Int {
@@ -364,6 +376,7 @@ actor SteamSessionHost {
                 else { waiter.continuation.resume(throwing: Failure.stopped(SteamHostReport().failure(for: event.value))) }
             }
             continuation.yield(.report(event))
+            if event.key == "launch-host-result" { runtime?.clearDockExecutable() }
             if event.key == "install-result" || event.key == "launch-host-result" ||
                 event.key == "command-result" && (event.value != 0 || !ongoing.contains(event.requestID)) {
                 issued.removeValue(forKey: event.requestID); ongoing.remove(event.requestID); installRequests.remove(event.requestID)

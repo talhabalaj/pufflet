@@ -8,17 +8,20 @@ shutdown path or change the five-minute persistent-host idle timer.
 
 PR #11 disabled the old bridge globally so games could regain independent Dock
 entries and Wine's native Quit handler. It also allowed helpers to promote.
-Separately, Wine registers even prohibited/UI-element processes with
-LaunchServices: they can remain in the Dock's grouped “running in background”
-list. Making an application accessory/prohibited is not the same as marking it
-background-only. Wine double-forks clients, so PPID 1 does not prove staleness.
+Separately, making an application accessory/prohibited is not the same as
+marking it background-only in LaunchServices. Whether that accounts for every
+entry in the user's observed Dock menu remains a visual verification gap. Wine double-forks clients, so PPID 1 does not prove staleness.
 A confirmed server exit can still leave clients blocked in native code.
 
 ## Implementation
 
-- The injected bridge permits regular activation only for an EXE in
-  `steamapps/common`, excluding crash handlers, uninstallers and the named Wine,
-  Steam-service and host helpers. Helpers use the public self-only
+- The injected bridge permits regular activation only for the exact executable
+  selected from Steam launch metadata. A sibling EXE in the same game directory
+  is denied. An owner-private prefix record updates the allowance before each
+  persistent-host launch; `STEAM_LIBRARY_DOCK_ALLOW` supports a direct exact-path
+  override. Wine drive aliases are resolved and matched by device/inode. Known
+  crash handlers, uninstallers, Wine, Steam-service and host helpers are always
+  denied, even if explicitly selected. Helpers use the public self-only
   `TransformProcessType(...BackgroundApplication)` API and cannot promote.
   Games keep Wine's delegate, icon and native Windows Quit handshake.
   Renderer choice is not involved. Runtime bundle/product identity is unchanged.
@@ -66,18 +69,40 @@ fixed app through computer use cleaned **245** old Dev-prefix clients to **0**:
 71 winedevice, and 1 start process. No other prefix was cleaned. The app was
 then quit through computer use. The production prefix/library was not changed.
 
-Literal before/after Dock-menu screenshots remain unavailable: the computer-use
-Dock binding repeatedly returns `Computer Use server error -10005:
-timeoutReached`, including after Dev cleanup. Finder/app inspection works.
-These results establish process flags and lifetimes, not a visually verified
-Dock-menu appearance or literal Dock-menu click. No screenshot has been
-fabricated or substituted. Real-account gameplay was not needed or exercised.
+The label is macOS Dock UI copy: its installed English resources contain
+`RUNNING_IN_BACKGROUND = "Running in Background"` in
+`Dock.app/Contents/Resources/en.lproj/Localizable.strings`, and
+`STOP_RUNNING_IN_BACKGROUND = "Stop Running in Background"` in
+`DockMenus.strings`. It is not a Windows process name or Wine-supplied string.
+The running-app inventory identified Wine instances as `wine`; their Windows
+images were identified separately from process metadata.
 
-The final integrated Debug build/test run against main's renderer changes
-passed **107 tests in 21 suites**, with both offline Wine exit cases enabled.
-The native helper/game/prefix-mismatch policy matrix and both existing Node
-runtime-build integration tests passed. Shell/Python syntax and diff checks
-passed. No new authenticated Steam operation was performed.
+Literal Dock-menu screenshot confirmation remains unavailable: the computer-use
+Dock binding repeatedly returns `Computer Use server error -10005:
+timeoutReached`. The agent-device fallback can capture the desktop, but its
+desktop surface cannot click and its app-scoped Dock open times out. Thus a
+plain desktop capture does not confirm which menu entry the label decorates.
+These results establish process flags/lifetimes and the localized label source,
+not a visually verified Dock menu or literal Dock-menu click. Real-account
+gameplay was not needed or exercised.
+
+The initial lifetime implementation passed **107 tests in 21 suites** against
+main's renderer changes. The stricter exact-image follow-up ran **108 tests**:
+both real-Wine exit cases and the private-allow-record regression passed; one
+synthetic host failed because it compared `/var` and `/private/var` paths as
+strings. Its assertion now compares file identity. A final post-correction
+rerun is **not verified**: Xcode stalled before executing tests, including with
+fresh derived data and test-without-building. Stalled commands and this thread's
+stale host were stopped; no other thread's Wine processes were signaled.
+
+All 22 native policy cases pass, including an unknown sibling helper, C:/Z:
+aliases, explicit helper denial, private-record checks and wrong-prefix refusal.
+The previous directory heuristic fails the sibling-helper case (regular);
+the exact-image bridge passes it (background-only). Both Node runtime-build
+integration tests pass. The freshly built entire app and injected dylib pass
+strict/deep signature verification; the dylib contains x86_64 and arm64 slices.
+No downloaded runtime or pin changed. No authenticated Steam operation was
+performed.
 
 ## Rebuild and reproduce
 
@@ -96,5 +121,7 @@ the installed Dev runtime. No account is used by this fixture.
 The supervisor samples at 50 ms and tracks at most 4096 processes/64 ancestry
 levels. A child whose entire ancestor lifetime falls between snapshots cannot
 be proven to belong to that root; it is left for the prefix shutdown reaper.
+A launch EXE that hands off the actual window to another EXE will require an
+explicitly validated additional allowance; directory-wide promotion is not used.
 Detached launchers, unusual game layouts and games that refuse native Quit need
 separate acceptance evidence. The existing global Steam snapshot is unchanged.
