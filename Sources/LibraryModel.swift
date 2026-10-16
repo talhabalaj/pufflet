@@ -11,8 +11,9 @@ import os
     }
 
     let settings: LibrarySettings
+    private let paths: SteamClientPaths
     var installation: SteamInstallation {
-        SteamInstallation(prefix: settings.sourcePrefix, libraryRoot: settings.libraryURL, runtime: runtimeSetup.application)
+        SteamInstallation(prefix: settings.sourcePrefix ?? paths.prefix, libraryRoot: settings.libraryURL, runtime: runtimeSetup.application)
     }
     let runtimeSetup = RuntimeSetup()
     var showsSetup = false
@@ -31,6 +32,13 @@ import os
     private var downloadTask: Task<Void, Never>?
     var hasDownloadWork: Bool { downloads.hasPendingWork || activeDownloadID != nil || isStoppingDownload }
     var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
+    var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
+    var canPlay: Bool {
+        phase == .idle && !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled ? !headless.hasLaunchWork : !hasDownloadWork && !headless.isActive)
+    }
+    var canInstall: Bool {
+        !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled || phase == .idle && (!headless.isActive || activeDownloadID != nil))
+    }
     var entries: [LibraryGame] { LibraryGame.merge(installed: games, owned: ownedLibrary.games) }
     var showsAccount = false
     var games: [SteamGame] = []
@@ -39,6 +47,7 @@ import os
     var phase = LaunchPhase.idle
     var message: String?
     var errorMessage: String?
+    var repairGameID: String?
     var search = ""
     private var launchDeadline: ContinuousClock.Instant?
     private var nativeLaunch = false
@@ -56,12 +65,14 @@ import os
                         .appendingPathComponent("libSteamLibraryDock.dylib"))
     }
     var nativeRuntime: SteamRuntime {
-        SteamRuntime(installation: SteamInstallation(bundle: installation.application, prefix: SteamHeadlessPaths.prefix, runtime: runtimeSetup.application),
-                     dockBridge: runtime.dockBridge)
+        SteamRuntime(installation: SteamInstallation(bundle: installation.application, prefix: paths.prefix, runtime: runtimeSetup.application),
+                     dockBridge: runtime.dockBridge,
+                     logDirectory: paths.support.standardizedFileURL == AppIdentity.support.standardizedFileURL ? nil : paths.support.appendingPathComponent("Logs"))
     }
 
     init(settings: LibrarySettings = LibrarySettings(), headless: SteamHeadlessSession = SteamHeadlessSession(),
-         ownedLibrary: SteamOwnedLibrary = SteamOwnedLibrary(), downloads: SteamDownloadQueue = SteamDownloadQueue()) {
+         ownedLibrary: SteamOwnedLibrary = SteamOwnedLibrary(), downloads: SteamDownloadQueue = SteamDownloadQueue(), paths: SteamClientPaths = .standard) {
+        self.paths = paths
         self.settings = settings; self.headless = headless; self.ownedLibrary = ownedLibrary; self.downloads = downloads
         refreshLibrary()
     }
@@ -107,8 +118,14 @@ import os
             })
             snapshot = RuntimeSnapshot(processes: observed.processes.filter { owned.contains($0.pid) })
             headless.poll()
-            if activeDownloadID != nil, downloadTask == nil, !headless.isActive, !isStoppingDownload { finishDownload() }
-            if nativeLaunch {
+            if headless.persistentEnabled {
+                finishPersistentDownloads()
+                if let error = headless.takeError() { errorMessage = error }
+                if case let .launching(id) = phase, headless.report.fields["launch-client-error"] == 28 { repairGameID = id }
+                if nativeLaunch, !headless.hasLaunchWork { phase = .idle; nativeLaunch = false }
+                if nativeLaunch, headless.playingAppID != nil { phase = .idle }
+            } else if activeDownloadID != nil, downloadTask == nil, !headless.isActive, !isStoppingDownload { finishDownload() }
+            if nativeLaunch, !headless.persistentEnabled {
                 message = headless.status
                 if let error = headless.takeError() { errorMessage = error }
                 if !headless.isActive { phase = .idle; nativeLaunch = false }
@@ -128,11 +145,11 @@ import os
     }
 
     func isLaunching(_ game: SteamGame) -> Bool { phase == .launching(game.id) }
-    func isPlaying(_ game: SteamGame) -> Bool { snapshot.process(for: game) != nil }
+    func isPlaying(_ game: SteamGame) -> Bool { headless.playingAppID == game.id || snapshot.process(for: game) != nil }
 
     func play(_ game: SteamGame) async {
-        guard phase == .idle, !hasDownloadWork else { return }
-        errorMessage = nil
+        guard phase == .idle else { return }
+        errorMessage = nil; repairGameID = nil
         if let process = snapshot.process(for: game),
            let application = NSRunningApplication(processIdentifier: process.pid),
            application.bundleURL?.path.contains("/wine/") == true {
@@ -141,7 +158,7 @@ import os
             }
             return
         }
-        guard !headless.isActive, requireRuntime() else { return }
+        guard canPlay, !downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }), requireRuntime() else { return }
         do {
             guard let credentials = try SteamKeychain().load(), credentials.isUsable() else {
                 showsAccount = true
@@ -173,6 +190,7 @@ import os
             nativeLaunch = false
             launchDeadline = nil
             errorMessage = error.localizedDescription
+            if case SteamLaunchConfiguration.ConfigurationError.missingExecutable = error { repairGameID = game.id }
             logger.error("Game launch failed: \(error.localizedDescription)")
         }
     }
@@ -187,7 +205,7 @@ import os
     }
 
     func prepareSteamSupport() async {
-        guard phase == .idle, !headless.isActive, !hasDownloadWork, requireRuntime() else { return }
+        guard phase == .idle, !headless.isActive, requireRuntime() else { return }
         phase = .preparingSupport
         defer { phase = .idle }
         errorMessage = nil
@@ -238,9 +256,10 @@ import os
             do {
                 let credentials = try SteamKeychain().load()
                 ownedLibrary.activate(credentials)
-                downloads.activate(account: credentials?.isUsable() == true ? credentials?.steamID : nil)
+                downloads.activate(account: credentials?.isUsable() == true ? credentials?.steamID : nil, resumePending: headless.persistentEnabled)
                 guard !Task.isCancelled, await SteamRuntime.snapshot().steam == nil else { return }
                 await ownedLibrary.refresh()
+                if headless.persistentEnabled { startNextDownload() }
             } catch { errorMessage = error.localizedDescription }
         }
     }
@@ -259,15 +278,26 @@ import os
     }
 
     func install(_ entry: LibraryGame) {
-        guard phase == .idle, !isStoppingDownload, !headless.isActive || activeDownloadID != nil, entry.installation == nil, let owned = entry.owned, let destination = settings.libraryURL else { return }
+        guard canInstall, entry.installation == nil, let owned = entry.owned, let destination = settings.libraryURL else { return }
         guard account.accountName != nil else { showsAccount = true; return }
         guard requireRuntime() else { return }
         downloads.enqueue(owned, destination: destination)
         startNextDownload()
     }
 
+    func repair(_ entry: LibraryGame) {
+        guard headless.persistentEnabled, canInstall, !isPlaying(entry),
+              let destination = settings.libraryURL, let game = entry.installation else { return }
+        guard account.accountName != nil else { showsAccount = true; return }
+        guard requireRuntime() else { return }
+        downloads.enqueue(.init(id: game.id, name: game.name, estimatedBytes: game.bytes), destination: destination)
+        repairGameID = nil
+        startNextDownload()
+        showsDownloads = true
+    }
+
     func retryDownload(_ job: GameDownload) {
-        guard phase == .idle, !isStoppingDownload, !headless.isActive || activeDownloadID != nil else { return }
+        guard canInstall else { return }
         guard let owned = ownedLibrary.games.first(where: { $0.id == job.id }), job.destination.resolvingSymlinksInPath().path == settings.libraryURL?.resolvingSymlinksInPath().path else {
             errorMessage = "Refresh your Steam library and choose the original download folder before retrying."
             return
@@ -277,9 +307,10 @@ import os
         startNextDownload()
     }
 
-    private func startNextDownload() {
-        guard activeDownloadID == nil, downloadTask == nil, !headless.isActive, phase == .idle, !isStoppingDownload,
-              runtimeSetup.isReady, let job = downloads.next else { return }
+    func startNextDownload() {
+        guard downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy,
+              headless.persistentEnabled || (activeDownloadID == nil && !headless.isActive && phase == .idle),
+              let job = downloads.next else { return }
         activeDownloadID = job.id
         downloads.update(job.id, state: .preparing)
         downloadTask = Task {
@@ -291,14 +322,60 @@ import os
                 try await headless.install(appID: job.id, destination: job.destination, library: games, credentials: credentials, runtime: nativeRuntime)
                 downloads.update(job.id, state: .installing)
             } catch {
-                if !isStoppingDownload {
+                if !isStoppingDownload, downloads.jobs.first(where: { $0.id == job.id })?.state != .stopped {
                     downloads.update(job.id, state: .failed, error: error.localizedDescription)
                     downloads.stopWaiting()
                     activeDownloadID = nil
                 }
             }
             downloadTask = nil
+            if headless.persistentEnabled {
+                activeDownloadID = downloads.jobs.first { [.preparing, .installing, .paused].contains($0.state) }?.id
+                startNextDownload()
+            }
         }
+    }
+
+    private func finishPersistentDownloads() {
+        let results = headless.takeInstallResults()
+        if !results.isEmpty { refreshLibrary() }
+        for (id, failure) in results {
+            guard let job = downloads.jobs.first(where: { $0.id == id }), [.preparing, .installing, .paused].contains(job.state) else { continue }
+            let installed = games.contains { $0.id == id && $0.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath() == job.destination.resolvingSymlinksInPath() }
+            if failure == nil && installed {
+                downloads.update(id, state: .completed)
+                message = "Installed \(job.name)"
+            } else {
+                downloads.update(id, state: .failed, error: failure ?? "Steam did not confirm a complete installation. Retry to continue existing files.")
+            }
+        }
+        activeDownloadID = downloads.jobs.first { [.preparing, .installing, .paused].contains($0.state) }?.id
+    }
+
+    func controlDownload(_ action: String, job: GameDownload) async {
+        if action == "cancel", job.state == .preparing {
+            downloadTask?.cancel()
+            downloads.update(job.id, state: .stopped)
+            return
+        }
+        do {
+            try await headless.controlDownload(action, id: job.id)
+            downloads.update(job.id, state: action == "pause" ? .paused : action == "resume" ? .installing : .stopped)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    func shutdownSession() async throws {
+        isStoppingDownload = true
+        defer { isStoppingDownload = false }
+        let pending = downloadTask
+        pending?.cancel()
+        try await headless.shutdown(runtime: nativeRuntime)
+        await pending?.value
+        _ = headless.takeInstallResults()
+        for job in downloads.jobs where [.preparing, .installing].contains(job.state) {
+            downloads.update(job.id, state: .queued)
+        }
+        activeDownloadID = nil
     }
 
     private func finishDownload() {
@@ -317,6 +394,16 @@ import os
     }
 
     func stopDownloads() async {
+        if headless.persistentEnabled {
+            guard !isStoppingDownload else { return }
+            isStoppingDownload = true
+            defer { isStoppingDownload = false }
+            downloads.stopWaiting()
+            for job in downloads.jobs where [.preparing, .installing, .paused].contains(job.state) {
+                await controlDownload("cancel", job: job)
+            }
+            return
+        }
         guard !isStoppingDownload else { return }
         isStoppingDownload = true
         downloads.stopWaiting()
@@ -334,7 +421,9 @@ import os
     }
 
     func downloadStatus(for id: String) -> String? {
-        downloads.jobs.first { $0.id == id }.map { $0.state.title }
+        downloads.jobs.first { $0.id == id }.map { job in
+            job.state == .completed && !games.contains { $0.id == id } ? "Files missing" : job.state.title
+        }
     }
 
     func returnToGame() -> Bool {

@@ -44,7 +44,7 @@ struct RuntimeOnboardingView: View {
                     Button(model.runtimeSetup.progress?.phase == .downloading ? "Pause download" : "Cancel installation") { model.runtimeSetup.cancel() }
                 } else if !model.runtimeSetup.isReady {
                     Button(model.runtimeSetup.savedBytes > 0 ? "Resume download" : model.runtimeSetup.errorMessage == nil && !model.runtimeSetup.isPaused ? "Download Windows support" : "Retry download") { model.runtimeSetup.start() }
-                        .disabled(model.settings.libraryURL == nil || !model.runtimeSetup.hasChecked)
+                        .disabled(model.settings.libraryURL == nil || !model.runtimeSetup.hasChecked || model.headless.isActive)
                 }
             }
             Divider()
@@ -72,8 +72,8 @@ struct RuntimeOnboardingView: View {
         }
         .padding(30).frame(width: 580)
         .fixedSize(horizontal: false, vertical: true)
-        .sheet(isPresented: $showsAccount, onDismiss: { model.account.refresh() }) { SteamAccountView(account: model.account) }
-        .interactiveDismissDisabled(model.runtimeSetup.isBusy || model.headless.isActive)
+        .sheet(isPresented: $showsAccount, onDismiss: { model.account.refresh() }) { SteamAccountView(account: model.account, sessionActive: !model.canManageAccount) }
+        .interactiveDismissDisabled(model.runtimeSetup.isBusy)
     }
 
     private func row<Content: View>(_ number: String, title: String, ready: Bool, @ViewBuilder content: () -> Content) -> some View {

@@ -97,6 +97,16 @@ struct LibrarySettingsView: View {
                         .foregroundStyle(.secondary).multilineTextAlignment(.trailing)
                 }
                 Button("Show app data") { NSWorkspace.shared.open(SteamHeadlessPaths.support) }
+                if model.headless.isActive {
+                    Button("End Steam session…") {
+                        Task {
+                            do { try await model.shutdownSession() }
+                            catch { locationError = error.localizedDescription }
+                        }
+                    }.disabled(model.headless.hasLaunchWork || model.isStoppingDownload)
+                    Text(model.headless.hasLaunchWork ? "Close the game before ending its Steam session." : "Ending the session keeps partial downloads for the next launch.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             } header: { Text("Steam support") }
             footer: { Text("Verified Wine and DXMT downloads live in Runtimes, separately from your Steam prefix and session files. Games stay in your selected library.") }
             Section("Windows support") {

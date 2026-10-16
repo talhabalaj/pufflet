@@ -3,6 +3,50 @@ import Testing
 @testable import SteamLibrary
 
 struct SteamDisplayDefaultsTests {
+    @Test func runtimeQueriesAndSessionPipesKeepLogsIsolated() async throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("pufflet-display-runtime-" + UUID().uuidString)
+        defer { try? fm.removeItem(at: root) }
+        let installation = SteamInstallation(prefix: root.appendingPathComponent("Prefix"), runtime: root.appendingPathComponent("Runtime"))
+        try fm.createDirectory(at: installation.prefix.appendingPathComponent("drive_c"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: installation.wine.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let script = #"""
+        #!/bin/sh
+        case "$2" in
+          import) exit 0 ;;
+          query)
+            case "$5" in
+              RetinaMode) echo 'RetinaMode REG_SZ n' ;;
+              LogPixels) echo 'LogPixels REG_DWORD 0x60' ;;
+              *) exit 1 ;;
+            esac ;;
+          *) echo 'session-stderr' >&2; exec /bin/cat ;;
+        esac
+
+        """#
+        try Data(script.utf8).write(to: installation.wine)
+        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: installation.wine.path)
+        let logs = root.appendingPathComponent("Logs")
+        let runtime = SteamRuntime(installation: installation, dockBridge: root.appendingPathComponent("unused"), logDirectory: logs)
+        try await runtime.prepareDisplayDefaults()
+        let input = Pipe(), output = Pipe()
+        let child = try runtime.startSessionHost(["fixture", "--serve"], environment: [:], input: input, output: output)
+        try input.fileHandleForReading.close()
+        try output.fileHandleForWriting.close()
+        try input.fileHandleForWriting.write(contentsOf: Data("session-stdout\n".utf8))
+        try input.fileHandleForWriting.close()
+        let response = output.fileHandleForReading.readDataToEndOfFile()
+        child.waitUntilExit()
+        #expect(child.terminationStatus == 0)
+        #expect(String(decoding: response, as: UTF8.self) == "session-stdout\n")
+        let log = try String(contentsOf: logs.appendingPathComponent("wine.log"), encoding: .utf8)
+        #expect(log.contains("display-mode=0\n"))
+        #expect(log.contains("display-dpi=96\n"))
+        #expect(log.contains("session-stderr\n"))
+        #expect(!log.contains("REG_SZ"))
+        #expect(!log.contains("session-stdout"))
+    }
+
     @Test func migratesOnceAndPreservesOtherPrefixData() async throws {
         let fm = FileManager.default
         let prefix = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)

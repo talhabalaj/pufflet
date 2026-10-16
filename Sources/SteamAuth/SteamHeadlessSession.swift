@@ -61,6 +61,10 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
 
     func failure(for code: Int) -> String {
         switch code {
+        case 66: "Steam returned an invalid control command. Restart Steam support and try again."
+        case 67: "Steam is already working on this game, or a game is already starting."
+        case 69: "Steam could not verify this installation. Retry Repair installation or use desktop Steam to verify its files."
+        case 68: "Steam could not change this download. Retry after refreshing its status."
         case 60: "The install request was invalid. Refresh your library and try again."
         case 61: "Steam could not use the download folder. Reconnect its drive and check Settings."
         case 62: "Steam refused this installation (code \(fields["install-request-result"] ?? code)). Check your license and available disk space."
@@ -94,6 +98,15 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     private(set) var isActive = false
     private(set) var status = ""
     private(set) var errorMessage: String?
+    let persistentEnabled: Bool
+    private let sessionHost: SteamSessionHost
+    private var sessionEvents: Task<Void, Never>?
+    private(set) var launchingAppID: String?
+    private(set) var playingAppID: String?
+    private(set) var installReports: [String: SteamHostReport] = [:]
+    private var installResults: [String: String?] = [:]
+    private var submittedInstalls = Set<String>()
+    var hasLaunchWork: Bool { launchingAppID != nil || playingAppID != nil }
     private var process: Process?
     private var installing = false
     private var stopping = false
@@ -103,7 +116,10 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     private let paths: SteamClientPaths
     private let hostURL: URL?
 
-    init(paths: SteamClientPaths = .standard, hostURL: URL? = Bundle.main.url(forResource: "dockhost", withExtension: "exe")) {
+    init(paths: SteamClientPaths = .standard, hostURL: URL? = Bundle.main.url(forResource: "dockhost", withExtension: "exe"),
+         persistentEnabled: Bool = ProcessInfo.processInfo.environment["PUFFLET_PERSISTENT_SESSION"] != "0", sessionHost: SteamSessionHost? = nil) {
+        self.persistentEnabled = persistentEnabled
+        self.sessionHost = sessionHost ?? SteamSessionHost(paths: paths, hostURL: hostURL)
         self.paths = paths; self.hostURL = hostURL
         installer = SteamClientInstaller(paths: paths)
         cleanupHandoff()
@@ -120,6 +136,18 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func install(appID: String, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
+        if persistentEnabled {
+            guard let number = UInt32(appID), number > 0, number <= Int32.max else { throw SteamError.invalidMessage }
+            observeSession()
+            isActive = true; errorMessage = nil; submittedInstalls.insert(appID)
+            installReports[appID] = SteamHostReport()
+            do {
+                try await sessionHost.start(appID: number, destination: destination, library: library, credentials: credentials, runtime: runtime)
+                try Task.checkCancellation()
+                try await sessionHost.install(appID: number)
+            } catch { submittedInstalls.remove(appID); isActive = await sessionHost.isActive; throw error }
+            return
+        }
         guard !isActive, let number = UInt32(appID), number > 0, number <= Int32.max else { throw SteamError.invalidMessage }
         isActive = true; installing = true; stopping = false; lastInstallSucceeded = false
         errorMessage = nil; report = SteamHostReport(); status = "Preparing Steam support…"
@@ -165,6 +193,19 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func start(game: SteamGame, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime, metadataCaches: [URL]) async throws {
+        if persistentEnabled {
+            guard !hasLaunchWork, let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
+            observeSession()
+            isActive = true; launchingAppID = game.id; errorMessage = nil
+            report = SteamHostReport(); status = "Preparing Steam support…"
+            do {
+                let option = try await SteamLaunchConfiguration.option(for: game, caches: metadataCaches)
+                let root = game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                try await sessionHost.start(appID: appID, destination: root, library: library, credentials: credentials, runtime: runtime)
+                try await sessionHost.launch(game: game, option: option)
+            } catch { launchingAppID = nil; isActive = await sessionHost.isActive; throw error }
+            return
+        }
         guard !isActive, let appID = UInt32(game.id), appID > 0, appID < UInt32.max else {
             throw SteamError.authenticationFailed("A game is already starting or its Steam App ID is invalid.")
         }
@@ -202,10 +243,81 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func poll() {
+        guard !persistentEnabled else { return }
         guard isActive, let process else { return }
         if !process.isRunning { didExit(Int(process.terminationStatus)); return }
         report = SteamHostReport.read(from: paths.report)
         status = stopping ? "Stopping the download…" : installing ? report.installStatus : report.status
+    }
+
+    private func observeSession() {
+        guard sessionEvents == nil else { return }
+        let events = sessionHost.events
+        sessionEvents = Task { [weak self] in
+            for await event in events {
+                guard !Task.isCancelled else { break }
+                self?.receive(event)
+            }
+        }
+    }
+
+    private func receive(_ event: SteamSessionHost.Event) {
+        switch event {
+        case let .preparing(text): status = text
+        case .running: isActive = true; status = "Steam is ready"
+        case let .stopped(error):
+            isActive = false; launchingAppID = nil; playingAppID = nil
+            status = error == nil ? "Ready to play" : "Steam needs attention"
+            if let error { errorMessage = error }
+            if let error { for id in submittedInstalls { installResults[id] = .some(error) } }
+            submittedInstalls = []
+        case let .attention(error):
+            isActive = true; launchingAppID = nil; playingAppID = nil
+            status = "Steam needs attention"; errorMessage = error
+            for id in submittedInstalls { installResults[id] = .some(error) }
+            submittedInstalls = []
+        case let .report(event):
+            let id = String(event.appID)
+            if event.key.hasPrefix("install-"), submittedInstalls.contains(id) {
+                var install = installReports[id] ?? SteamHostReport()
+                install.fields[event.key] = event.value
+                installReports[id] = install
+                if event.key == "install-result" {
+                    installResults[id] = .some(event.value == 0 && install.installComplete ? nil : install.failure(for: event.value == 0 ? 65 : event.value))
+                    submittedInstalls.remove(id)
+                }
+            }
+            if id == launchingAppID || id == playingAppID {
+                report.fields[event.key] = event.value
+                status = report.status
+                if event.key == "launch-game-running", event.value == 1 { playingAppID = id; launchingAppID = nil }
+                if event.key == "launch-host-result" {
+                    launchingAppID = nil; playingAppID = nil
+                    if event.value != 0 { errorMessage = report.failure(for: event.value) }
+                    status = "Steam is ready"
+                }
+            }
+        }
+    }
+
+    func takeInstallResults() -> [String: String?] {
+        defer { installResults = [:] }
+        return installResults
+    }
+
+    func controlDownload(_ action: String, id: String) async throws {
+        guard persistentEnabled, let app = UInt32(id) else { throw SteamError.invalidMessage }
+        try await sessionHost.control(action, appID: app)
+        if action == "cancel" { submittedInstalls.remove(id) }
+    }
+
+    func shutdown(runtime: SteamRuntime) async throws {
+        if persistentEnabled { try await sessionHost.shutdown() }
+        else if installing { try await stopInstall(runtime: runtime) }
+        else if isActive {
+            try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
+            if let process, process.isRunning { process.terminate() }
+        }
     }
 
     func takeError() -> String? { defer { errorMessage = nil }; return errorMessage }
@@ -239,6 +351,10 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     private func writeHandoff(_ credentials: SteamCredentials, appID: UInt32) throws {
+        try Self.writeHandoff(credentials, appID: appID, paths: paths)
+    }
+
+    nonisolated static func writeHandoff(_ credentials: SteamCredentials, appID: UInt32, paths: SteamClientPaths) throws {
         let fm = FileManager.default
         var folder = paths.handoff.deletingLastPathComponent()
         try fm.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -251,7 +367,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         guard descriptor >= 0 else { throw SteamError.authenticationFailed("The private Steam session transfer could not be created.") }
         let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         do { try file.write(contentsOf: data); try file.close() }
-        catch { try? file.close(); cleanupHandoff(); throw error }
+        catch { try? file.close(); try? fm.removeItem(at: paths.handoff); throw error }
     }
 
     private func cleanupHandoff() { try? FileManager.default.removeItem(at: paths.handoff) }

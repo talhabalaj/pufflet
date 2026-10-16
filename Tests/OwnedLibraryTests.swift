@@ -51,7 +51,7 @@ import Testing
         #expect(LibraryGame.merge(installed: [installed], owned: []).map(\.id) == ["10"])
     }
 
-    @Test func queueIsAccountScopedAndRestartsRequireExplicitRetry() throws {
+    @Test func queueIsAccountScopedAndRestartsResumePendingWork() throws {
         let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
         let queue = SteamDownloadQueue(root: root)
         queue.activate(account: 1)
@@ -61,8 +61,11 @@ import Testing
         #expect(queue.jobs.count == 1)
         queue.update("10", state: .installing)
         let restored = SteamDownloadQueue(root: root); restored.activate(account: 1)
-        #expect(restored.jobs.first?.state == .interrupted)
-        #expect(!restored.hasPendingWork)
+        #expect(restored.jobs.first?.state == .queued)
+        #expect(restored.hasPendingWork)
+        let fallback = SteamDownloadQueue(root: root); fallback.activate(account: 1, resumePending: false)
+        #expect(fallback.jobs.first?.state == .interrupted)
+        #expect(!fallback.hasPendingWork)
         restored.activate(account: 2)
         #expect(restored.jobs.isEmpty)
         restored.activate(account: 1)
@@ -274,7 +277,7 @@ import Testing
         let defaults = try #require(UserDefaults(suiteName: suite)); defer { defaults.removePersistentDomain(forName: suite) }
         let settings = LibrarySettings(defaults: defaults, support: root, home: root)
         let queue = SteamDownloadQueue(root: root.appendingPathComponent("Queue")); queue.activate(account: 1)
-        let model = LibraryModel(settings: settings, headless: SteamHeadlessSession(paths: .init(support: root.appendingPathComponent("Support")), hostURL: nil), ownedLibrary: library, downloads: queue)
+        let model = LibraryModel(settings: settings, headless: SteamHeadlessSession(paths: .init(support: root.appendingPathComponent("Support")), hostURL: nil), ownedLibrary: library, downloads: queue, paths: .init(support: root.appendingPathComponent("Support")))
         model.games = [.init(id: "20", name: "Installed Fixture", installDirectory: "Fixture", bytes: 10, folder: root.appendingPathComponent("steamapps/common/Fixture"))]
         #expect(Set(model.filteredGames.map(\.id)) == ["10", "20"])
         model.filter = .installed
@@ -284,8 +287,12 @@ import Testing
         model.search = "Installed"
         #expect(model.filteredGames.map(\.id) == ["20"])
         #expect(model.canChangeLibrary)
+        #expect(model.installation.prefix == root.appendingPathComponent("Support/prefix"))
+        #expect(model.nativeRuntime.installation.prefix == root.appendingPathComponent("Support/prefix"))
         queue.enqueue(.init(id: "10", name: "Fixture", estimatedBytes: nil), destination: root)
         #expect(model.hasDownloadWork)
+        #expect(model.canPlay)
+        #expect(model.canInstall)
         #expect(!model.canChangeLibrary)
         queue.stopWaiting()
         model.phase = .openingSteam
