@@ -20,9 +20,21 @@ The selected launcher has macOS activation policy 0 (regular), but the visible r
 
 Automatic review rejected extending the input helper to the background-only child as an unapproved input bypass. Explicit approval for that exact child is pending. The requested change has not been compiled or executed. System prompts remain excluded.
 
+## Super Crate Box fallback
+
+Peggle's background-only child could not be controlled with the approved regular-app helper. Super Crate Box was installed through Pufflet as the small older-title fallback (29.4 MB on disk). It runs as a regular game process and reuses the compatible n/96 Steam session.
+
+Inherit reaches the [menu](screenshots/supercratebox-inherit-menu-fullscreen.png) and [actual tutorial gameplay](screenshots/supercratebox-inherit-gameplay-fullscreen.png). Both fit and preserve sharp intended pixel-art edges. Own [Options](screenshots/supercratebox-inherit-options-fullscreen.png) show Full Screen, Scale ×4; no numerical resolution selector was observed. [Readback](supercratebox-inherit-initial.json) is n/96 and 1512×982 desktop/client.
+
+Switching its own Full Screen mode removes the visible window while the process stays regular/alive. This reproduced twice; normal native Quit succeeds and subsequent Play returns fullscreen. [Native state](supercratebox-mode-switch-native.txt), [Wine visible-window readback](supercratebox-mode-switch-no-window.json). Filed as [#25](https://github.com/talhabalaj/pufflet/issues/25). No windowed zoom/sharpness pass is claimed. Standard/High comparisons remain pending.
+
+Configuration filenames: installed `supercratebox/options.ini` contains engine texture/sync settings, with no saved resolution; game data is in Dev `AppData/Local/SuperCrateBox_YoYo/crates110.sav` (binary; not copied into evidence). First launch prompted for a name; no stale saved resolution was observed. Own mode changes did not persist across the normal Quit/relaunch observed here.
+
+The scoped Windows input helper supports only the exact Muck, over the hill and supercratebox executable suffixes within a Dev SteamLibraries mapping. Its native gate still requires the exact Dev prefix, a regular foreground app, and no secure input. It does not permit Peggle's background-only child.
+
 ## Over the Hill
 
-Retry resumed through Pufflet after a clean Dev shutdown. Installation is in progress. No new Over the Hill crash or rendering result is claimed yet.
+Retry resumed through Pufflet after a clean Dev shutdown. Installation is in progress. No new Over the Hill crash or rendering result is claimed yet. The permitted production-log marker search found previous game launches but no clearly attributable DXMT crash excerpt; no historical crash is inferred from ordinary process-exit lines.
 
 ## Boundaries
 

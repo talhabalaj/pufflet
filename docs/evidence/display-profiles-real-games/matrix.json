@@ -352,5 +352,111 @@
     "screenshot": "screenshots/peggle-high-launcher-windowed.png",
     "metrics": "peggle-high-launcher.json",
     "notes": "640x480 launcher client, not game-menu/gameplay acceptance."
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "Inherit",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/supercratebox-inherit-menu-fullscreen.png",
+    "metrics": "followup/supercratebox-inherit-initial.json",
+    "game_resolution": "Full Screen, Scale x4; no numerical resolution selector observed",
+    "notes": "Pixel-art rendering fits. Actual tutorial gameplay; sharp here describes intended pixel edges, not higher-resolution artwork."
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "Inherit",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null,
+    "notes": "Blocked: game own Full Screen mode switch removes the visible window, reproduced twice; issue #25. Not a zoom classification.",
+    "metrics": "followup/supercratebox-mode-switch-no-window.json"
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "Inherit",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "fits and sharp",
+    "screenshot": "followup/screenshots/supercratebox-inherit-gameplay-fullscreen.png",
+    "metrics": "followup/supercratebox-inherit-initial.json",
+    "game_resolution": "Full Screen, Scale x4; no numerical resolution selector observed",
+    "notes": "Pixel-art rendering fits. Actual tutorial gameplay; sharp here describes intended pixel edges, not higher-resolution artwork."
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "Inherit",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null,
+    "notes": "Blocked: game own Full Screen mode switch removes the visible window, reproduced twice; issue #25. Not a zoom classification.",
+    "metrics": "followup/supercratebox-mode-switch-no-window.json"
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "Standard",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "Standard",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "Standard",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "Standard",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "High resolution",
+    "stage": "menu",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "High resolution",
+    "stage": "menu",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "High resolution",
+    "stage": "gameplay",
+    "mode": "fullscreen",
+    "classification": "not tested",
+    "screenshot": null
+  },
+  {
+    "game": "Super Crate Box",
+    "profile": "High resolution",
+    "stage": "gameplay",
+    "mode": "windowed",
+    "classification": "not tested",
+    "screenshot": null
   }
 ]
