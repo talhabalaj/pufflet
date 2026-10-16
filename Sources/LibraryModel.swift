@@ -21,7 +21,7 @@ import os
     var showsSetup = false
     var steamSupportReady = false
     let artworkStore = SteamArtworkStore()
-    let account = SteamAccount()
+    let account: SteamAccount
     let headless: SteamHeadlessSession
     let ownedLibrary: SteamOwnedLibrary
     let downloads: SteamDownloadQueue
@@ -79,6 +79,7 @@ import os
          ownedLibrary: SteamOwnedLibrary = SteamOwnedLibrary(), downloads: SteamDownloadQueue = SteamDownloadQueue(), paths: SteamClientPaths = .standard,
          graphics: GraphicsSupport = GraphicsSupport()) {
         self.paths = paths
+        account = SteamAccount(paths: paths)
         self.settings = settings; self.headless = headless; self.ownedLibrary = ownedLibrary; self.downloads = downloads
         self.graphics = graphics
         refreshLibrary()
@@ -90,7 +91,7 @@ import os
         account.refresh()
         graphics.refresh()
         await runtimeSetup.check()
-        steamSupportReady = await SteamClientInstaller.isPrepared()
+        steamSupportReady = await SteamClientInstaller.isPrepared(paths: paths)
         showsSetup = settings.libraryURL == nil || !runtimeSetup.isReady || (!graphics.skipped && graphics.installation == nil)
         accountChanged()
     }
@@ -238,9 +239,9 @@ import os
     }
 
     func prepareSteamSupport() async {
-        guard phase == .idle, !headless.isActive, requireRuntime() else { return }
+        guard phase == .idle, !headless.isActive, !hasDownloadWork, downloadTask == nil, requireRuntime() else { return }
         phase = .preparingSupport
-        defer { phase = .idle }
+        defer { phase = .idle; startNextDownload() }
         errorMessage = nil
         do {
             await suspendCatalogue()
@@ -341,7 +342,7 @@ import os
     }
 
     func startNextDownload() {
-        guard downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy,
+        guard phase != .preparingSupport, downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy,
               headless.persistentEnabled || (activeDownloadID == nil && !headless.isActive && phase == .idle),
               let job = downloads.next else { return }
         activeDownloadID = job.id

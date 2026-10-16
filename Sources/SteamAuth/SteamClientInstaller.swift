@@ -31,6 +31,13 @@ nonisolated final class SteamClientRedirects: NSObject, URLSessionTaskDelegate {
 
 protocol SteamClientPreparing: Actor {
     func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL?, progress: @Sendable (String) async -> Void) async throws -> [String: String]
+    func displayConfiguration(runtime: SteamRuntime) async throws -> SteamDisplayConfiguration
+}
+
+extension SteamClientPreparing {
+    func displayConfiguration(runtime: SteamRuntime) async throws -> SteamDisplayConfiguration {
+        try await runtime.displayConfiguration()
+    }
 }
 
 actor SteamClientInstaller: SteamClientPreparing {
@@ -45,8 +52,30 @@ actor SteamClientInstaller: SteamClientPreparing {
         let fm = FileManager.default
         let prefix = runtime.installation.prefix
         guard prefix == paths.prefix else { throw SteamClientPackages.Failure.conflict }
+        let isNewPrefix = !fm.fileExists(atPath: prefix.path)
         try fm.createDirectory(at: prefix, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         guard prefix.resolvingSymlinksInPath() == prefix.standardizedFileURL else { throw SteamClientPackages.Failure.conflict }
+        let provisioning = prefix.appendingPathComponent(".pufflet-initial-display-v2")
+        if isNewPrefix { try Data("off96\n".utf8).write(to: provisioning, options: .atomic) }
+        // Refuse an orphan/external running session; setup must never kill a
+        // game to obtain mutation ownership. All subsequent Wine is ours.
+        try await runtime.requireStoppedPrefix(expectedPrefix: paths.prefix)
+        try Task.checkCancellation()
+        do {
+            return try await prepareStopped(runtime: runtime, games: games, destination: destination, provisioning: provisioning, progress: progress)
+        } catch {
+            // This invocation acquired a stopped prefix before starting any
+            // configuration processes. Do not leave those alive on failure.
+            try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
+            throw error
+        }
+    }
+
+    private func prepareStopped(runtime: SteamRuntime, games: [SteamGame], destination: URL?, provisioning: URL,
+                                progress: @Sendable (String) async -> Void) async throws -> [String: String] {
+        let fm = FileManager.default
+        let prefix = runtime.installation.prefix
+        let initializingDisplay = (try? String(contentsOf: provisioning, encoding: .utf8)) == "off96\n"
         let client = runtime.installation.steam
         if !Self.verified(client) {
             await progress("Downloading Steam components…")
@@ -99,13 +128,17 @@ actor SteamClientInstaller: SteamClientPreparing {
         try encoded.write(to: registry, options: .atomic)
         defer { try? fm.removeItem(at: registry) }
         try await runtime.runWindows(["C:\\windows\\system32\\reg.exe", "import", "C:\\steam-library-setup.reg"])
-        try await runtime.prepareDisplayDefaults()
+        try Task.checkCancellation()
+        try await runtime.prepareDisplayDefaults(isNewPrefix: initializingDisplay)
+        if fm.fileExists(atPath: prefix.appendingPathComponent(".pufflet-display-verified-v2").path) {
+            try? fm.removeItem(at: provisioning)
+        }
         return mapping
     }
 
-    @concurrent static func isPrepared() async -> Bool {
-        verified(SteamHeadlessPaths.steam) && FileManager.default.fileExists(atPath:
-            SteamHeadlessPaths.prefix.appendingPathComponent("drive_c/windows/system32/cmd.exe").path)
+    @concurrent static func isPrepared(paths: SteamClientPaths) async -> Bool {
+        verified(paths.steam) && FileManager.default.fileExists(atPath:
+            paths.prefix.appendingPathComponent("drive_c/windows/system32/cmd.exe").path)
     }
 
     nonisolated private static func verified(_ root: URL) -> Bool {

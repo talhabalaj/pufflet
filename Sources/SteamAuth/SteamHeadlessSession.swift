@@ -110,6 +110,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     private var process: Process?
     private var installing = false
     private var stopping = false
+    private var preparing = false
     private(set) var report = SteamHostReport()
     private(set) var lastInstallSucceeded = false
     private let installer: SteamClientInstaller
@@ -126,16 +127,30 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func prepare(runtime: SteamRuntime, library: [SteamGame], destination: URL? = nil) async throws {
-        guard !isActive else { return }
+        guard !isActive, !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
+        preparing = true
         isActive = true; status = "Preparing Steam support…"
-        defer { isActive = false }
-        _ = try await installer.prepare(runtime: runtime, games: library, destination: destination) { [weak self] text in
-            await self?.setStatus(text)
+        defer { preparing = false }
+        do {
+            if persistentEnabled {
+                try await sessionHost.prepareSupport(runtime: runtime, library: library, destination: destination)
+            } else {
+                _ = try await installer.prepare(runtime: runtime, games: library, destination: destination) { [weak self] text in
+                    await self?.setStatus(text)
+                }
+            }
+            isActive = false
+            status = "Steam support is ready"
+        } catch {
+            // A rejected setup request must not make an existing host appear
+            // idle and unlock account/library mutation in the UI.
+            isActive = persistentEnabled ? await sessionHost.isActive : false
+            throw error
         }
-        status = "Steam support is ready"
     }
 
     func install(appID: String, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
+        guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
         if persistentEnabled {
             guard let number = UInt32(appID), number > 0, number <= Int32.max else { throw SteamError.invalidMessage }
             observeSession()
@@ -193,6 +208,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func start(game: SteamGame, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime, metadataCaches: [URL]) async throws {
+        guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
         if persistentEnabled {
             guard !hasLaunchWork, let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
             observeSession()
@@ -314,6 +330,9 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func shutdown(runtime: SteamRuntime) async throws {
+        guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
+        stopping = true
+        defer { stopping = false }
         if persistentEnabled { try await sessionHost.shutdown() }
         else if installing { try await stopInstall(runtime: runtime) }
         else if isActive {
@@ -373,5 +392,5 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     private func cleanupHandoff() { try? FileManager.default.removeItem(at: paths.handoff) }
-    static func cleanupHandoff() { try? FileManager.default.removeItem(at: SteamHeadlessPaths.handoff) }
+    static func cleanupHandoff(paths: SteamClientPaths) { try? FileManager.default.removeItem(at: paths.handoff) }
 }

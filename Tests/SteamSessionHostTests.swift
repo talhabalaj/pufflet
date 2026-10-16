@@ -25,12 +25,27 @@ struct SteamSessionProtocolTests {
 private actor PreparedClient: SteamClientPreparing {
     private(set) var calls = 0
     private(set) var preparedWithD3DMetal = false
+    private(set) var queriedWithD3DMetal = false
+    private var configuration = SteamDisplayConfiguration(retinaQuery: "RetinaMode REG_SZ n", dpiQuery: "LogPixels REG_DWORD 0x60")
+    private var holdQueries = false
+    private var heldQuery: CheckedContinuation<SteamDisplayConfiguration, Never>?
     func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL?, progress: @Sendable (String) async -> Void) async throws -> [String: String] {
         calls += 1
         preparedWithD3DMetal = preparedWithD3DMetal || runtime.d3dMetal != nil
         try await Task.sleep(for: .milliseconds(30))
         return [:]
     }
+    func displayConfiguration(runtime: SteamRuntime) async -> SteamDisplayConfiguration {
+        queriedWithD3DMetal = queriedWithD3DMetal || runtime.d3dMetal != nil
+        if holdQueries { return await withCheckedContinuation { heldQuery = $0 } }
+        return configuration
+    }
+    func changeDisplay(retina: Bool = true) {
+        configuration = SteamDisplayConfiguration(retinaQuery: "RetinaMode REG_SZ " + (retina ? "y" : "n"), dpiQuery: "LogPixels REG_DWORD 0x60")
+    }
+    func holdConfigurationQueries(_ hold: Bool) { holdQueries = hold }
+    var hasHeldQuery: Bool { heldQuery != nil }
+    func releaseConfigurationQuery() { heldQuery?.resume(returning: configuration); heldQuery = nil }
 }
 
 @MainActor struct SteamSessionHostTests {
@@ -55,6 +70,7 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
         #expect(await installer.calls == 2)
         #expect(await !installer.preparedWithD3DMetal)
+        #expect(await !installer.queriedWithD3DMetal)
         // A download can reuse the host without changing a running game's graphics.
         try await host.start(appID: 3, destination: root, library: [], credentials: credentials, runtime: runtime)
         #expect(await installer.calls == 2)
@@ -77,6 +93,25 @@ private actor PreparedClient: SteamClientPreparing {
         metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
         await #expect(throws: SteamSessionHost.Failure.self) {
             try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
+        }
+        try await host.control("pause", appID: 1)
+        await #expect(throws: SteamSessionHost.Failure.self) {
+            try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
+        }
+        #expect(await installer.calls == 1)
+        #expect(await host.isActive)
+        try await host.shutdown()
+    }
+
+    @Test func rendererChangeCannotStopAnotherAccountsHost() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials(account: 1), runtime: runtime)
+        var metal = runtime
+        metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
+        await #expect(throws: (any Error).self) {
+            try await host.start(appID: 2, destination: root, library: [], credentials: credentials(account: 2), runtime: metal, graphicsForLaunch: true)
         }
         #expect(await installer.calls == 1)
         #expect(await host.isActive)
@@ -103,6 +138,23 @@ private actor PreparedClient: SteamClientPreparing {
         let claims = try JSONSerialization.data(withJSONObject: ["sub": String(id), "exp": Date().timeIntervalSince1970 + 3600])
         let encoded = claims.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
         return SteamCredentials(accountName: "fixture", refreshToken: "fixture.\(encoded).fixture", accessToken: "")
+    }
+    @Test func failedPreHostCleanupRetainsOwnershipUntilShutdownCanBeVerified() async throws {
+        let (root, runtime, _) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let server = root.appendingPathComponent("runtime/Contents/SharedSupport/wine/bin/wineserver")
+        try Data("#!/bin/sh\nexit 1\n".utf8).write(to: server)
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: nil, installer: PreparedClient())
+        let credentials = try credentials()
+        await #expect(throws: (any Error).self) {
+            try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        }
+        #expect(await host.isActive)
+        await #expect(throws: (any Error).self) {
+            try await host.prepareSupport(runtime: runtime, library: [], destination: root)
+        }
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: server)
+        try await host.shutdown()
+        #expect(await !host.isActive)
     }
     @Test func coalescesStartupAndLaunchesInTheDownloadingProcess() async throws {
         let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
@@ -229,6 +281,67 @@ private actor PreparedClient: SteamClientPreparing {
             try await host.start(appID: 1, destination: root, library: [], credentials: other, runtime: runtime)
         }
         #expect(await host.isActive)
+        try await host.shutdown()
+    }
+
+    @Test func readyHostRejectsChangedDisplayAndSamePathRuntimeReplacement() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        await installer.changeDisplay()
+        await #expect(throws: (any Error).self) {
+            try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: runtime)
+        }
+        #expect(await installer.calls == 1)
+        await installer.changeDisplay(retina: false)
+        // Same directory, new artifact receipt: path equality is insufficient.
+        try Data("replacement artifact".utf8).write(to: runtime.installation.runtimeApplication.deletingLastPathComponent().appendingPathComponent("receipt.json"))
+        await #expect(throws: (any Error).self) {
+            try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: runtime)
+        }
+        #expect(await host.isActive)
+        try await host.shutdown()
+    }
+
+    @Test func delayedReuseReadbackCannotValidateAReplacementSession() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        await installer.holdConfigurationQueries(true)
+        let reuse = Task { try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: runtime) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while await !installer.hasHeldQuery, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(await installer.hasHeldQuery)
+        try await host.shutdown()
+        await installer.holdConfigurationQueries(false)
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        await installer.releaseConfigurationQuery()
+        await #expect(throws: (any Error).self) { try await reuse.value }
+        #expect(await installer.calls == 2)
+        #expect(await host.isActive)
+        try await host.shutdown()
+    }
+
+    @Test func standalonePreparationIsRefusedDuringSubmittedSteamWork() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
+        try await host.install(appID: 1)
+        try await host.control("pause", appID: 1)
+        await #expect(throws: (any Error).self) {
+            try await host.prepareSupport(runtime: runtime, library: [], destination: root)
+        }
+        let facade = SteamHeadlessSession(paths: .init(support: root), hostURL: url, sessionHost: host)
+        await #expect(throws: (any Error).self) {
+            try await facade.prepare(runtime: runtime, library: [], destination: root)
+        }
+        #expect(facade.isActive)
+        #expect(await installer.calls == 1)
         try await host.shutdown()
     }
 

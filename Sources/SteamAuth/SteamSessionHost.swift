@@ -93,6 +93,10 @@ actor SteamSessionHost {
     private var accountID: UInt64?
     private var destination: URL?
     private var runtime: SteamRuntime?
+    private var runtimeIdentity: SteamRuntime.Identity?
+    private var displayConfiguration: SteamDisplayConfiguration?
+    private var preparingSupport = false
+    private var ownsPreparedPrefix = false
 
     init(paths: SteamClientPaths = .standard, hostURL: URL? = Bundle.main.url(forResource: "dockhost", withExtension: "exe"),
          installer: (any SteamClientPreparing)? = nil) {
@@ -105,30 +109,33 @@ actor SteamSessionHost {
 
     func start(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime,
                graphicsForLaunch: Bool = false) async throws {
-        guard !stopping else { throw Failure.stopped("Steam is shutting down. Try again when it has stopped.") }
+        guard !stopping, !preparingSupport else { throw Failure.stopped("Steam is being prepared or stopped. Try again shortly.") }
+        let identity = try runtime.identity()
+        guard identity.prefix == paths.prefix.standardizedFileURL,
+              paths.prefix.standardizedFileURL == paths.prefix.resolvingSymlinksInPath().standardizedFileURL else { throw SteamClientPackages.Failure.conflict }
+        if process == nil, ownsPreparedPrefix, !starting { try await shutdown() }
         if let process, !process.isRunning { await exited(code: Int(process.terminationStatus), generation: generation) }
         guard !stopping else { throw Failure.stopped("Steam is still shutting down. Try again shortly.") }
         if !starting, process != nil, !ready { try await shutdown() }
         let root = destination.resolvingSymlinksInPath()
-        if ready, graphicsForLaunch, self.runtime?.d3dMetal != runtime.d3dMetal {
-            // A running Steam client owns the environment inherited by games.
-            // Never reuse a host with another game's renderer, or interrupt work.
-            guard ongoing.isEmpty, pending.isEmpty else {
-                throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
-            }
-            try await shutdown(notify: false)
-        }
         if ready {
-            guard self.destination?.standardizedFileURL.path == root.standardizedFileURL.path, accountID == credentials.steamID else { throw SteamClientPackages.Failure.activeSession }
-            return
+            try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
+            if graphicsForLaunch, self.runtime?.d3dMetal != runtime.d3dMetal {
+                // Validate account/library/prefix before stopping an idle host.
+                guard ongoing.isEmpty, pending.isEmpty, installRequests.isEmpty else {
+                    throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
+                }
+                try await shutdown(notify: false)
+            } else { return }
         }
         if starting {
             try await waitForStart()
-            guard self.destination?.standardizedFileURL.path == root.standardizedFileURL.path, accountID == credentials.steamID else { throw SteamClientPackages.Failure.activeSession }
+            try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID, graphicsForLaunch: graphicsForLaunch)
             return
         }
         starting = true; expectedExit = false; failureMessage = nil
         self.destination = root; self.runtime = runtime; accountID = credentials.steamID
+        runtimeIdentity = identity
         let current = UUID(); generation = current
         do {
             var setupRuntime = runtime
@@ -136,7 +143,13 @@ actor SteamSessionHost {
             _ = try await installer.prepare(runtime: setupRuntime, games: library, destination: root) { [weak self] text in
                 await self?.progress(text, generation: current)
             }
+            ownsPreparedPrefix = true
             guard generation == current, !stopping else { throw CancellationError() }
+            try Task.checkCancellation()
+            let configuration = try await installer.displayConfiguration(runtime: setupRuntime)
+            guard generation == current, !stopping else { throw CancellationError() }
+            guard try runtime.identity() == identity else { throw SteamClientPackages.Failure.activeSession }
+            displayConfiguration = configuration
             guard let hostURL else { throw SteamRuntime.RuntimeError.missingSetup }
             try prepareRequests()
             try? FileManager.default.removeItem(at: paths.report)
@@ -197,14 +210,47 @@ actor SteamSessionHost {
         } catch {
             if generation == current {
                 failWaiters(error)
-                if process != nil {
+                if process != nil || ownsPreparedPrefix {
                     // A concurrent shutdown owns teardown. Its suspended
                     // start waiter must not discard the process or prefix.
-                    if !stopping { try? await shutdown() }
+                    if !stopping {
+                        do { try await shutdown() }
+                        catch { starting = false } // Retain ownership for a cleanup retry.
+                    }
                 } else if !stopping { reset(error: error.localizedDescription) }
             }
             throw error
         }
+    }
+
+    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL, accountID: UInt64?, graphicsForLaunch: Bool = false) async throws {
+        guard ready, !stopping, runtimeIdentity == identity,
+              self.destination?.standardizedFileURL == destination.standardizedFileURL,
+              self.accountID == accountID else { throw SteamClientPackages.Failure.activeSession }
+        let current = generation
+        var setupRuntime = runtime
+        setupRuntime.d3dMetal = nil
+        let configuration = try await installer.displayConfiguration(runtime: setupRuntime)
+        guard generation == current, ready, !stopping,
+              runtimeIdentity == identity, try runtime.identity() == identity,
+              displayConfiguration == configuration,
+              !graphicsForLaunch || self.runtime?.d3dMetal == runtime.d3dMetal else { throw SteamClientPackages.Failure.activeSession }
+    }
+
+    // Standalone setup and online startup share the same owner. A separate
+    // installer actor would not prevent one from mutating the other's prefix.
+    func prepareSupport(runtime: SteamRuntime, library: [SteamGame], destination: URL?) async throws {
+        guard !isActive else { throw SteamClientPackages.Failure.activeSession }
+        preparingSupport = true
+        let current = generation
+        defer { preparingSupport = false }
+        _ = try await installer.prepare(runtime: runtime, games: library, destination: destination) { [weak self] text in
+            await self?.progress(text, generation: current)
+        }
+        guard generation == current else { throw CancellationError() }
+        self.runtime = runtime; ownsPreparedPrefix = true
+        try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
+        self.runtime = nil; ownsPreparedPrefix = false
     }
 
     private func waitForStart() async throws {
@@ -228,7 +274,7 @@ actor SteamSessionHost {
         try? await shutdown()
     }
 
-    var isActive: Bool { starting || process != nil || stopping }
+    var isActive: Bool { starting || process != nil || stopping || preparingSupport || ownsPreparedPrefix }
 
     func install(appID: UInt32) async throws { try await command("install \(appID)", app: Int(appID)) }
     func control(_ action: String, appID: UInt32) async throws {
@@ -331,7 +377,9 @@ actor SteamSessionHost {
     }
 
     func shutdown(notify: Bool = true) async throws {
-        guard !stopping else { throw Failure.stopped("Steam is still shutting down. Keep Pufflet open and try again.") }
+        guard !stopping, !preparingSupport, !(starting && process == nil && !ownsPreparedPrefix) else {
+            throw Failure.stopped("Steam is preparing or shutting down. Keep Pufflet open and try again.")
+        }
         stopping = true; expectedExit = true; ready = false
         do {
         failWaiters(CancellationError())
@@ -353,6 +401,8 @@ actor SteamSessionHost {
                 while process.isRunning && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(100)) }
             }
             guard !process.isRunning else { stopping = false; throw Failure.stopped("Steam has not stopped yet. Keep Pufflet open and retry.") }
+        } else if ownsPreparedPrefix, let runtime {
+            try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
         }
         reset(error: failureMessage, notify: notify)
         } catch {
@@ -373,6 +423,8 @@ actor SteamSessionHost {
         try? input?.fileHandleForWriting.close(); output?.fileHandleForReading.readabilityHandler = nil
         try? output?.fileHandleForReading.close()
         issued = [:]; ongoing = []; installRequests = []; accountID = nil
+        runtimeIdentity = nil; displayConfiguration = nil; runtime = nil; destination = nil
+        ownsPreparedPrefix = false
         input = nil; output = nil; ready = false; starting = false; stopping = false
         try? FileManager.default.removeItem(at: paths.handoff)
         try? FileManager.default.removeItem(at: paths.requests)
