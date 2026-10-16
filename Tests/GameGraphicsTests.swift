@@ -154,6 +154,8 @@ struct GameGraphicsTests {
             let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)))
             let size = host.fittingSize
             let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            // Swift owns this fixture window through the deferred close.
+            window.isReleasedWhenClosed = false
             window.title = "Pufflet — Graphics setup"; window.contentView = host
             window.center(); window.makeKeyAndOrderFront(nil)
             defer { window.close() }

@@ -30,8 +30,8 @@ struct SteamDisplayDefaultsTests {
         #expect(try String(contentsOf: commands, encoding: .utf8) == "-w\n-k\n-w\n")
     }
 
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_OFFLINE_RUNTIME"] != nil))
-    func actualRuntimeColdReadbackPersistsNewDefaults() async throws {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_OFFLINE_RUNTIME"] != nil), arguments: [true, false])
+    func actualRuntimeColdReadbackPreservesNewAndLegacyDisplayIntent(_ newPrefix: Bool) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-offline-lifecycle-" + UUID().uuidString)
         let app = URL(filePath: try #require(ProcessInfo.processInfo.environment["PUFFLET_OFFLINE_RUNTIME"]))
         let bridge = try #require(Bundle.main.url(forResource: "libSteamLibraryDock", withExtension: "dylib"))
@@ -39,14 +39,20 @@ struct SteamDisplayDefaultsTests {
         try FileManager.default.createDirectory(at: runtime.installation.prefix, withIntermediateDirectories: true)
         do {
             try await runtime.runWindows(["wineboot.exe", "-u"])
+            let save = runtime.installation.prefix.appendingPathComponent("drive_c/test-save.dat")
+            try Data("existing save".utf8).write(to: save)
+            if !newPrefix {
+                try Data("1\n".utf8).write(to: runtime.installation.prefix.appendingPathComponent(".pufflet-standard-display-v1"))
+            }
             try await runtime.runWindows(["reg", "add", "HKCU\\Control Panel\\Desktop", "/v", "LogPixels", "/t", "REG_DWORD", "/d", "192", "/f"])
             try await runtime.runWindows(["reg", "add", "HKCU\\Software\\Wine\\Mac Driver", "/v", "RetinaMode", "/d", "y", "/f"])
-            try await runtime.prepareDisplayDefaults(isNewPrefix: true)
+            try await runtime.prepareDisplayDefaults(isNewPrefix: newPrefix)
             try await runtime.stopPrivatePrefix(expectedPrefix: runtime.installation.prefix)
             let actual = try await runtime.displayConfiguration()
-            #expect(actual.retina == false)
-            #expect(actual.dpi == 96)
-            #expect(FileManager.default.fileExists(atPath: runtime.installation.prefix.appendingPathComponent(".pufflet-display-verified-v2").path))
+            #expect(actual.retina == !newPrefix)
+            #expect(actual.dpi == (newPrefix ? 96 : 192))
+            #expect(FileManager.default.fileExists(atPath: runtime.installation.prefix.appendingPathComponent(".pufflet-display-verified-v2").path) == newPrefix)
+            #expect(try Data(contentsOf: save) == Data("existing save".utf8))
             try await runtime.stopPrivatePrefix(expectedPrefix: runtime.installation.prefix)
             try FileManager.default.removeItem(at: root)
         } catch {
