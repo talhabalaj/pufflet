@@ -51,10 +51,9 @@ Validation of the profile layer is recorded in
 picker capture. The standalone production-code check can be reproduced with:
 
 ```sh
-xcrun swiftc -swift-version 6 -default-isolation MainActor -parse-as-library \
-  Sources/AppIdentity.swift Sources/RuntimeArtifact.swift Sources/SteamLibrary.swift \
-  Sources/SteamArtworkStore.swift Sources/SteamRuntime.swift Sources/SteamDisplayDefaults.swift \
-  scripts/ci/check-display-profiles.swift -o /tmp/pufflet-display-profile-check
+# After a normal Debug build, point this at its Build/Products/Debug directory.
+sh scripts/ci/build-display-profile-check.sh /absolute/path/Build/Products/Debug \
+  /tmp/pufflet-display-profile-check
 /tmp/pufflet-display-profile-check /absolute/path/PuffletRuntime.app /absolute/path/libSteamLibraryDock.dylib
 ```
 

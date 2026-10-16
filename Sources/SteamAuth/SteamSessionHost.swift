@@ -149,7 +149,10 @@ actor SteamSessionHost {
             let changesDisplay = target.map { $0 != displayConfiguration } ?? false
             let changesGraphics = graphicsForLaunch && self.runtime?.d3dMetal != runtime.d3dMetal
             if changesDisplay || changesGraphics {
-                guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty else { throw SteamDisplayProfiles.Failure.busy }
+                guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty else {
+                    if changesDisplay { throw SteamDisplayProfiles.Failure.busy }
+                    throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
+                }
                 try await shutdownOwned(notify: false)
             } else { return }
         }

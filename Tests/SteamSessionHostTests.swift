@@ -377,6 +377,27 @@ private actor PreparedClient: SteamClientPreparing {
         SteamGame(id: id, name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: root.appendingPathComponent("steamapps/common/Fixture"))
     }
 
+    @Test func profileAndRendererSwitchPreservesSelectedExecutableAndSetupIsolation() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root), installer = PreparedClient()
+        let host = SteamSessionHost(paths: paths, hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        try SteamDisplayProfiles(paths: paths).set(.highResolution, for: "1")
+        var metal = runtime
+        metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
+        let selected = game("1", root: root), executable = selected.folder.appendingPathComponent("game.exe")
+        try await host.startGame(selected, option: 0, executable: executable, destination: root, library: [], credentials: credentials, runtime: metal)
+        #expect(await installer.calls == 2)
+        #expect(await installer.applied == [.init(retinaValue: "y", dpi: 96)])
+        #expect(await !installer.preparedWithD3DMetal)
+        #expect(await !installer.queriedWithD3DMetal)
+        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8) == executable.resolvingSymlinksInPath().path)
+        try await host.shutdown()
+        #expect(!FileManager.default.fileExists(atPath: runtime.dockAllowRecord.path))
+        #expect(await !host.isActive)
+    }
+
     @Test func profileSwitchRestartsIdleHostAndInheritRestoresFrozenBaseline() async throws {
         let script = Self.script.replacingOccurrences(of: "if action == 'launch': emit(req, app, 'launch-game-running', 1)", with: "if action == 'launch': emit(req, app, 'launch-host-result', 0)")
         let (root, runtime, url) = try fixture(script); defer { try? FileManager.default.removeItem(at: root) }

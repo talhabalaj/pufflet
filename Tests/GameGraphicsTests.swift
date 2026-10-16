@@ -89,15 +89,8 @@ struct GameGraphicsTests {
             logDirectory: root.appendingPathComponent("Logs"))
         let capture = root.appendingPathComponent("frame.bmp")
         func cleanup() async throws {
-            let server = Process()
-            server.executableURL = runtime.installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver")
-            server.arguments = ["-k"]
-            server.environment = runtime.environment().filter { !$0.key.hasPrefix("DYLD_") }
-            server.standardOutput = FileHandle.nullDevice; server.standardError = FileHandle.nullDevice
-            try server.run()
-            while server.isRunning { try await Task.sleep(for: .milliseconds(50)) }
-            // Confirm the private server stopped, with the runtime's bounded
-            // force-stop fallback if Wine did not respond to the soft request.
+            // Use the same bounded graceful/soft stop and exact-prefix client
+            // cleanup as the app, including on sample failure or cancellation.
             try await runtime.stopPrivatePrefix(expectedPrefix: paths.prefix)
         }
         do {
