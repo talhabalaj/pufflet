@@ -73,8 +73,15 @@ These results establish process flags and lifetimes, not a visually verified
 Dock-menu appearance or literal Dock-menu click. No screenshot has been
 fabricated or substituted. Real-account gameplay was not needed or exercised.
 
+The final integrated Debug build/test run against main's renderer changes
+passed **107 tests in 21 suites**, with both offline Wine exit cases enabled.
+The native helper/game/prefix-mismatch policy matrix and both existing Node
+runtime-build integration tests passed. Shell/Python syntax and diff checks
+passed. No new authenticated Steam operation was performed.
+
 ## Rebuild and reproduce
 
+Run `Runtime/test-dock-bridge.sh` for the account-free native policy matrix.
 Run `Runtime/build-dock-bridge.sh` with Xcode installed. Run
 `Runtime/build-process-guard.sh` with `LLVM_MINGW_BIN` pointing to LLVM-MinGW
 20260421 (the same compiler/notices as the bundled host). Normal app builds
