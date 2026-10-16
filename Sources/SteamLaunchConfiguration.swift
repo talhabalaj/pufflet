@@ -11,7 +11,16 @@ nonisolated enum SteamLaunchConfiguration {
         }
     }
 
+    struct Selection: Sendable {
+        let option: UInt32
+        let executable: URL
+    }
+
     @concurrent static func option(for game: SteamGame, caches: [URL]) async throws -> UInt32 {
+        try await selection(for: game, caches: caches).option
+    }
+
+    @concurrent static func selection(for game: SteamGame, caches: [URL]) async throws -> Selection {
         var missingExecutable = false
         for cache in caches {
             guard let size = try? cache.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 256 * 1024 * 1024,
@@ -19,7 +28,9 @@ nonisolated enum SteamLaunchConfiguration {
                   let metadata = try? metadata(for: game.id, in: bytes) else { continue }
             if let option = choose(from: metadata, game: game, executableExists: { relative in
                 FileManager.default.fileExists(atPath: game.folder.appendingPathComponent(relative).path)
-            }) { return option }
+            }), let relative = (metadata["appinfo"]?["config"]?["launch"] ?? metadata["config"]?["launch"])?[String(option)]?["executable"]?.text {
+                return Selection(option: option, executable: game.folder.appendingPathComponent(relative.replacingOccurrences(of: "\\", with: "/")))
+            }
             if choose(from: metadata, game: game, executableExists: { _ in true }) != nil { missingExecutable = true }
         }
         if missingExecutable { throw ConfigurationError.missingExecutable }

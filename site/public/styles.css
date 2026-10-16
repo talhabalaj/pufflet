@@ -71,3 +71,5 @@
 .demo-scene{animation-fill-mode:backwards}
 
 .demo-scene[data-demo-running] .native-back,.demo-scene:not([data-demo-running]):has(.native-popover[data-open]) .demo-replay{display:none}
+
+@media(max-width:760px){.site-header .nav-guide{display:none}}
