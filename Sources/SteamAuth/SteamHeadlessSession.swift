@@ -201,7 +201,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
             do {
                 let option = try await SteamLaunchConfiguration.option(for: game, caches: metadataCaches)
                 let root = game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-                try await sessionHost.start(appID: appID, destination: root, library: library, credentials: credentials, runtime: runtime)
+                try await sessionHost.start(appID: appID, destination: root, library: library, credentials: credentials, runtime: runtime, graphicsForLaunch: true)
                 try await sessionHost.launch(game: game, option: option)
             } catch { launchingAppID = nil; isActive = await sessionHost.isActive; throw error }
             return
@@ -211,7 +211,9 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         }
         isActive = true; installing = false; stopping = false; errorMessage = nil; status = "Preparing Steam support…"
         do {
-            let folders = try await installer.prepare(runtime: runtime, games: library) { [weak self] text in
+            var setupRuntime = runtime
+            setupRuntime.d3dMetal = nil
+            let folders = try await installer.prepare(runtime: setupRuntime, games: library) { [weak self] text in
                 await self?.setStatus(text)
             }
             guard let folder = folders[game.id] else { throw SteamClientPackages.Failure.conflict }

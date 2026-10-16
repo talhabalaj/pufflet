@@ -103,12 +103,21 @@ actor SteamSessionHost {
         (events, continuation) = AsyncStream.makeStream()
     }
 
-    func start(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
+    func start(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime,
+               graphicsForLaunch: Bool = false) async throws {
         guard !stopping else { throw Failure.stopped("Steam is shutting down. Try again when it has stopped.") }
         if let process, !process.isRunning { await exited(code: Int(process.terminationStatus), generation: generation) }
         guard !stopping else { throw Failure.stopped("Steam is still shutting down. Try again shortly.") }
         if !starting, process != nil, !ready { try await shutdown() }
         let root = destination.resolvingSymlinksInPath()
+        if ready, graphicsForLaunch, self.runtime?.d3dMetal != runtime.d3dMetal {
+            // A running Steam client owns the environment inherited by games.
+            // Never reuse a host with another game's renderer, or interrupt work.
+            guard ongoing.isEmpty, pending.isEmpty else {
+                throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
+            }
+            try await shutdown(notify: false)
+        }
         if ready {
             guard self.destination?.standardizedFileURL.path == root.standardizedFileURL.path, accountID == credentials.steamID else { throw SteamClientPackages.Failure.activeSession }
             return
@@ -122,7 +131,9 @@ actor SteamSessionHost {
         self.destination = root; self.runtime = runtime; accountID = credentials.steamID
         let current = UUID(); generation = current
         do {
-            _ = try await installer.prepare(runtime: runtime, games: library, destination: root) { [weak self] text in
+            var setupRuntime = runtime
+            setupRuntime.d3dMetal = nil
+            _ = try await installer.prepare(runtime: setupRuntime, games: library, destination: root) { [weak self] text in
                 await self?.progress(text, generation: current)
             }
             guard generation == current, !stopping else { throw CancellationError() }
@@ -319,7 +330,7 @@ actor SteamSessionHost {
         reset(error: message)
     }
 
-    func shutdown() async throws {
+    func shutdown(notify: Bool = true) async throws {
         guard !stopping else { throw Failure.stopped("Steam is still shutting down. Keep Pufflet open and try again.") }
         stopping = true; expectedExit = true; ready = false
         do {
@@ -343,7 +354,7 @@ actor SteamSessionHost {
             }
             guard !process.isRunning else { stopping = false; throw Failure.stopped("Steam has not stopped yet. Keep Pufflet open and retry.") }
         }
-        reset(error: failureMessage)
+        reset(error: failureMessage, notify: notify)
         } catch {
             stopping = false
             throw error
@@ -355,7 +366,7 @@ actor SteamSessionHost {
         for waiter in starts { waiter.resume(throwing: error) }
         for request in requests { request.continuation.resume(throwing: error) }
     }
-    private func reset(error: String?) {
+    private func reset(error: String?, notify: Bool = true) {
         failWaiters(Failure.stopped(error ?? "Steam support stopped."))
         generation = UUID(); process?.terminationHandler = nil; process = nil
         reader?.cancel(); reader = nil
@@ -365,7 +376,7 @@ actor SteamSessionHost {
         input = nil; output = nil; ready = false; starting = false; stopping = false
         try? FileManager.default.removeItem(at: paths.handoff)
         try? FileManager.default.removeItem(at: paths.requests)
-        continuation.yield(.stopped(error))
+        if notify { continuation.yield(.stopped(error)) }
     }
     private func prepareRequests() throws {
         let folder = paths.requests

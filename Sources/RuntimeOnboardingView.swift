@@ -8,7 +8,8 @@ struct RuntimeOnboardingView: View {
     @State private var showsAccount = false
 
     private var steps: [Bool] {
-        [model.settings.libraryURL != nil, model.runtimeSetup.isReady, model.account.accountName != nil, model.readyToPlay]
+        [model.settings.libraryURL != nil, model.runtimeSetup.isReady, model.account.accountName != nil, model.readyToPlay,
+         model.graphics.skipped || model.graphics.installation != nil]
     }
     private var currentStep: Int? { steps.firstIndex(of: false) }
 
@@ -82,13 +83,22 @@ struct RuntimeOnboardingView: View {
                             .disabled(!model.runtimeSetup.isReady || model.settings.libraryURL == nil)
                     }
                 }
+                Divider().padding(.leading, 38)
+                step(4, "DirectX 12 Games (Optional)") {
+                    Text("DirectX 12 games need Apple’s Game Porting Toolkit. You can skip this and add it when a game needs it.")
+                    ToolkitControls(support: model.graphics)
+                } accessory: {
+                    if model.graphics.installation == nil, !model.graphics.skipped {
+                        Button("Skip") { model.graphics.skip() }
+                    }
+                }
             }
             .padding(.horizontal, 12)
             .background(.background.secondary, in: .rect(cornerRadius: 10))
             HStack {
                 Spacer()
                 Button("Continue Later") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Open Library") { dismiss() }.keyboardShortcut(.defaultAction).disabled(!model.readyToPlay)
+                Button("Open Library") { dismiss() }.keyboardShortcut(.defaultAction).disabled(!model.readyToPlay || !steps[4])
             }
         }
         .padding(22).frame(width: 560)

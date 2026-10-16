@@ -24,14 +24,65 @@ struct SteamSessionProtocolTests {
 
 private actor PreparedClient: SteamClientPreparing {
     private(set) var calls = 0
+    private(set) var preparedWithD3DMetal = false
     func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL?, progress: @Sendable (String) async -> Void) async throws -> [String: String] {
         calls += 1
+        preparedWithD3DMetal = preparedWithD3DMetal || runtime.d3dMetal != nil
         try await Task.sleep(for: .milliseconds(30))
         return [:]
     }
 }
 
 @MainActor struct SteamSessionHostTests {
+    @Test func graphicsSwitchRestartsIdleHostButKeepsSetupOnDXMT() async throws {
+        let script = #"""
+        import os, sys
+        with open('graphics-hosts.txt', 'a') as log:
+            log.write(os.environ.get('WINEDLLPATH_D3DMETAL', 'DXMT') + '\n')
+        print('[steam-host] pufflet2 request-id=0 app-id=0 session-ready=1', flush=True)
+        for line in sys.stdin:
+            parts = line.split()
+            if parts[1] == 'shutdown': break
+        """#
+        let (root, runtime, url) = try fixture(script)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime, graphicsForLaunch: true)
+        var metal = runtime
+        metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
+        try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
+        #expect(await installer.calls == 2)
+        #expect(await !installer.preparedWithD3DMetal)
+        // A download can reuse the host without changing a running game's graphics.
+        try await host.start(appID: 3, destination: root, library: [], credentials: credentials, runtime: runtime)
+        #expect(await installer.calls == 2)
+        try await host.start(appID: 4, destination: root, library: [], credentials: credentials, runtime: runtime, graphicsForLaunch: true)
+        #expect(await installer.calls == 3)
+        try await host.shutdown()
+        let lines = try String(contentsOf: runtime.installation.prefix.appendingPathComponent("graphics-hosts.txt"), encoding: .utf8).split(separator: "\n")
+        #expect(lines == ["DXMT", Substring(root.appendingPathComponent("toolkit/wine").path), "DXMT"])
+    }
+
+    @Test func graphicsSwitchDoesNotInterruptDownloads() async throws {
+        let (root, runtime, url) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        try await host.install(appID: 1)
+        var metal = runtime
+        metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
+        await #expect(throws: SteamSessionHost.Failure.self) {
+            try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
+        }
+        #expect(await installer.calls == 1)
+        #expect(await host.isActive)
+        try await host.shutdown()
+    }
+
     private func fixture(_ script: String? = nil) throws -> (URL, SteamRuntime, URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-session-test-" + UUID().uuidString)
         let wine = root.appendingPathComponent("runtime/Contents/SharedSupport/wine/bin")
@@ -98,7 +149,8 @@ private actor PreparedClient: SteamClientPreparing {
         let (root, runtime, url) = try fixture(script); defer { try? FileManager.default.removeItem(at: root) }
         let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
         try await host.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
-        try await Task.sleep(for: .seconds(1))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while await host.isActive, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(50)) }
         #expect(await !host.isActive)
     }
     @Test func cleanShutdownPreservesPendingDownloadsWithoutAFalseFailure() async throws {
