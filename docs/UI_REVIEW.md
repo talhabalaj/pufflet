@@ -221,7 +221,7 @@ While here, restore view state as well as the frame. Today the filter resets to 
 **Screenshots:** 09, 17, 07 · **Code:** `Sources/LibrarySettings.swift:68-126`, `Sources/SteamAuth/SteamAccountView.swift`
 
 - The window is pinned at `frame(width: 620, height: 500)` (`:126`) and scrolls: the Updates section is entirely below the fold (09). Mac Settings windows size to their content and split topics into toolbar-style panes (HIG → Settings).
-- "Steam support / App data" and the Wine/DXMT footnote are advanced plumbing shown at the same level as choosing a library. The merged "End Steam session…" button (`:100-109`) appears only while a session is running, and it sits in that same section. People sent to it from the account sheet (18) have to scroll a fixed-height form to find it. Offer it in the account sheet as well (finding 11).
+- "Steam support / App data" and the Wine/DXMT footnote are advanced plumbing shown at the same level as choosing a library. The merged "End Steam session…" button (`:100-109`) appears only while a session is running, and it sits in that same section. The account sheet sends people here (18). Offer the action in the sheet as well (finding 11).
 - Paths are right-aligned plain text. Use a short display name with an icon, and keep the full path in `.help`.
 - Button labels: "Choose or create folder…" → **Change…**, "Show app data" → **Show in Finder**.
 - The Steam account is managed from a toolbar button and a sheet (07). On the Mac, accounts usually live in Settings (Mail ▸ Settings ▸ Accounts). Music instead has an Account menu in the menu bar, so Steam ▸ Steam Account… plus a Settings pane are both native options. A toolbar button that opens a sheet isn't.
@@ -244,7 +244,7 @@ Settings {
 
 - **Bug: the list collapses to a strip and clips the active download (19).** The rows sit in a `ScrollView` limited only by `.frame(maxHeight: 360)` (`:59`). A popover sizes itself to its content's ideal height, and a vertical `ScrollView` doesn't take that from its content, so it collapses to a narrow strip.
   - In 19, the game name and the "Installing…" state are scrolled out of view, and the status line ("Steam is downloading and installing…") is cut in half by the top edge.
-  - A scroller appears even though only a row or two exist.
+  - The scroller thumb sits partway down, so any rows above the active one are hidden as well.
   - People have to scroll inside a popover to see which game is downloading.
 
   Give the scroll area a real height, capped at the maximum, and check it with 1 job and with 6. The quickest fix is `.frame(minHeight: 140, idealHeight: 360, maxHeight: 360)` on the `ScrollView`, which makes the popover open at the cap. Compact Safari-style rows (below) are the better fix, because then the usual one to three jobs fit without any scrolling.
@@ -300,7 +300,7 @@ ContentUnavailableView {
 ```
 
 - A title on the left with **Done** on the right is the iOS navigation-bar pattern. macOS sheets put their buttons bottom-trailing. `.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }` puts them there.
-- `frame(minHeight: 440)` leaves the signed-in state mostly empty (07). Size to content.
+- **The header floats, and the space is wasted (18, 07).** At `:43`, `.frame(width: 440, alignment: .top)` is followed by `.frame(minHeight: 440)`, which defaults to `.center`. The whole stack is therefore centered vertically, and "Steam account / Done" sits about 100 pt below the sheet's top edge instead of at it. Size the sheet to its content (drop `minHeight`). If a minimum height is still wanted, use `.frame(minHeight: 440, alignment: .top)`.
 - **Sign out** is `role: .destructive` but renders as a plain button. It removes the Keychain session and hides the owned library, with no confirmation. Use a `confirmationDialog` ("Sign out of Steam? Your installed games stay on this Mac.").
 - *(code-only)* The QR method needs an extra click on "Generate QR code" before anything happens. Steam's own desktop client shows the code immediately. Start `beginQR()` in `.task` when the QR tab is shown.
 - Long term, this view becomes Settings ▸ Account (finding 8).
