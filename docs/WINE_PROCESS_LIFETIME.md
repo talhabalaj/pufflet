@@ -86,23 +86,38 @@ These results establish process flags/lifetimes and the localized label source,
 not a visually verified Dock menu or literal Dock-menu click. Real-account
 gameplay was not needed or exercised.
 
-The initial lifetime implementation passed **107 tests in 21 suites** against
-main's renderer changes. The stricter exact-image follow-up ran **108 tests**:
-both real-Wine exit cases and the private-allow-record regression passed; one
-synthetic host failed because it compared `/var` and `/private/var` paths as
-strings. Its assertion now compares file identity. A final post-correction
-rerun is **not verified**: Xcode stalled before executing tests, including with
-fresh derived data and test-without-building. Stalled commands and this thread's
-stale host were stopped; no other thread's Wine processes were signaled.
+The integrated follow-up merges lifecycle/evidence commit `b9d5507` (including
+`005cd10`) without rewriting its published `6983d5f` ancestry. The final normal
+Debug app and test bundle build succeeds. **109 tests in 21 suites pass** using
+a standalone Swift Testing runner linked to this exact build's debug dylib and
+Swift module. Repository test sources are compiled unchanged with the project's
+Swift 6 isolation settings and Xcode's Testing macro plugin. Test resources are
+copied beside the runner. This uses the same direct-runner route documented in
+#16's `docs/evidence/display-defaults-20261016/main-integration/README.md`;
+Xcode test-host launch itself remains unverified. No app identity is changed.
+The earlier `/var` versus `/private/var` synthetic assertion failure is resolved
+by comparing file identity and passes in this complete run.
 
-All 22 native policy cases pass, including an unknown sibling helper, C:/Z:
+A separate real-Wine run against the same production build passes both exit
+cases in **42.920 seconds**: native Quit and ordinary exit; selected game regular;
+unknown sibling and crash handler background-only; crash child reaped; unrelated
+same-prefix work survives; and zero clients plus no allow record after teardown.
+Only disposable prefixes and synthetic Windows fixtures are used. The installed
+Dev runtime is read-only under the shared dev slot. Authenticated Steam/gameplay
+is not exercised by this pass, and the opt-in authenticated test remains skipped.
+
+All **22 native policy cases** pass, including an unknown sibling helper, C:/Z:
 aliases, explicit helper denial, private-record checks and wrong-prefix refusal.
-The previous directory heuristic fails the sibling-helper case (regular);
-the exact-image bridge passes it (background-only). Both Node runtime-build
-integration tests pass. The freshly built entire app and injected dylib pass
-strict/deep signature verification; the dylib contains x86_64 and arm64 slices.
-No downloaded runtime or pin changed. No authenticated Steam operation was
-performed.
+All **39 Node tooling tests** pass. The entire freshly built app and injected
+dylib pass strict/deep signature verification. The bundled dylib contains
+x86_64 and arm64 slices; no downloaded runtime or pin changed. The final process
+audit finds no running test runner, wineserver, dockhost or process guard.
+
+Literal Dock-menu acceptance and a true before/after menu screenshot pair remain
+**unverified**. The latest computer-use Dock binding still returns
+`Computer Use server error -10005: timeoutReached`. Passing process activation
+and native Quit assertions does not establish a successful literal menu click.
+The PR remains draft for this visual acceptance gate.
 
 ## Rebuild and reproduce
 
