@@ -1,10 +1,12 @@
 # UI review: native macOS nitpicks
 
-Review of the Pufflet Dev build (`me.balaj.SteamLibrary.dev`, Debug, `main` at `10ec47d`) on macOS 26. The goal is for Pufflet to feel like a first-party Mac app. Every recommendation uses stock SwiftUI/AppKit controls, system materials, SF Symbols and Apple's HIG patterns. Nothing here is custom-drawn.
+Review of the Pufflet Dev build (`me.balaj.SteamLibrary.dev`, Debug) on macOS 26. Screenshots 01–17 were taken on `main` at `10ec47d`. Code references were refreshed against `main` at `45ed2f3`, which includes `feat/persistent-steam-session` (#10) and `feat/per-game-display` (#8). The goal is for Pufflet to feel like a first-party Mac app. Every recommendation uses stock SwiftUI/AppKit controls, system materials, SF Symbols and Apple's HIG patterns. Nothing here is custom-drawn.
 
-**How this was gathered.** I built the Dev app, took the shared Dev slot, and walked the app with System Events (accessibility actions, not synthetic clicks), capturing screens with `screencapture`. I also dumped the menu bar and the accessibility tree. Shared Steam state was never changed: no Play, Install, Retry, Prepare Steam support, sign-out, or desktop Steam start/quit. States I could not reach without changing shared data are reviewed from code and marked **code-only**. Those are: signed-out sign-in (QR, password, Steam Guard), empty library, active, failed or queued downloads, launching and playing, the bottom status bar, and alerts.
+**How this was gathered.** I built the Dev app, took the shared Dev slot, and walked the app with System Events (accessibility actions, not synthetic clicks), capturing screens with `screencapture`. I also dumped the menu bar and the accessibility tree. Shared Steam state was never changed: no Play, Install, Retry, Prepare Steam support, sign-out, or desktop Steam start/quit. States I could not reach without changing shared data are reviewed from code and marked **code-only**. Those are: signed-out sign-in (QR, password, Steam Guard), the empty library, queued and failed downloads, launching and playing, the bottom status bar, and alerts.
 
-Screenshots are in [`docs/ui-review/`](ui-review/). They were taken at 2× and downscaled to 1400 px. The account name is redacted in 07 and 08. An unrelated system notification banner is blanked out in 12, and fragments of it in 14–16.
+Screenshots 18 and 19 were supplied by the project owner from a live build of the merged `main`: the account sheet while a Steam session is running, and a download in progress. A second pass was planned for the remaining states, in the test host's isolated data with fixture games. It wasn't run, because another Pufflet Dev instance was live at the time. The scratch test is not part of this PR.
+
+Screenshots are in [`docs/ui-review/`](ui-review/). They were taken at 2× and downscaled to 1400 px. The account name is redacted in 07, 08 and 18. An unrelated system notification banner is blanked out in 12, and fragments of it in 14–16.
 
 The SwiftUI snippets are sketches of the native pattern, not drop-in code. Helpers such as `model.reveal`, `activeDownloadFraction` and `GameCommands` don't exist yet.
 
@@ -22,6 +24,8 @@ The SwiftUI snippets are sketches of the native pattern, not drop-in code. Helpe
 | 10 | [search-empty](ui-review/10-search-empty.jpg) | Search with no results |
 | 11 | [min-size](ui-review/11-min-size.jpg) | Minimum window (580×472) |
 | 12 | [large-size](ui-review/12-large-size.jpg) | Full-width window |
+| 18 | [account-session-active](ui-review/18-account-session-active.jpg) | Account sheet while a Steam session is running (supplied, merged `main`) |
+| 19 | [downloads-installing](ui-review/19-downloads-installing.jpg) | Downloads popover with an active install (supplied, merged `main`) |
 | 14–17 | [library](ui-review/14-library-light.jpg), [popover](ui-review/15-game-popover-light.jpg), [downloads](ui-review/16-downloads-light.jpg), [settings](ui-review/17-settings-light.jpg) | Light mode |
 
 **What already works, so keep it:** the unified toolbar with `.searchable` and its collapse to a search button at narrow widths (11). `ContentUnavailableView.search` (10). The grouped `Form` in Settings. System colours throughout, so light and dark both look right. Native `NSOpenPanel` and `NSAlert`. Settings is a real `Settings` scene on ⌘,. Window frame restoration works (`NSWindow Frame library-AppWindow-1` is saved).
@@ -31,7 +35,7 @@ The SwiftUI snippets are sketches of the native pattern, not drop-in code. Helpe
 ## Findings, ranked by impact
 
 ### 1. Game covers have only one interaction: click → popover
-**Screenshots:** 01, 02, 03 · **Code:** `Sources/LibraryView.swift:113-147`
+**Screenshots:** 01, 02, 03 · **Code:** `Sources/LibraryView.swift:115-149`
 
 Clicking a cover is the only way to reach anything. There is no context menu, no double-click to play, and no way to reach Show in Finder or Launch using desktop Steam without opening a popover and then the "…" menu inside it. In Finder, Music, Photos and the App Store, a right-click on an item exposes its verbs, and a double-click opens or plays it.
 
@@ -54,7 +58,7 @@ GameTile(game: game, model: model)
 ```
 
 ### 2. The grid can't be used from the keyboard, and the selection highlight is hand-drawn
-**Screenshots:** 01, 02 · **Code:** `Sources/LibraryView.swift:106-150`, `:131`
+**Screenshots:** 01, 02 · **Code:** `Sources/LibraryView.swift:108-152`, `:133`
 
 Tiles are plain-style `Button`s in a `LazyVGrid` with no selection model. There's no arrow-key movement, and Return can't play the selected game. Tab reaches them only when the system Keyboard Navigation setting is on. Pressing Tab during this review moved focus nowhere, but that setting was at its default, so the Tab result alone proves nothing. A game's "selected" state is a hand-drawn 2 pt accent `strokeBorder` that only appears while its popover is open (`:131`). It isn't the system focus ring, so it doesn't follow the Keyboard Navigation setting.
 
@@ -76,7 +80,7 @@ LazyVGrid(columns: columns) {
 ```
 
 ### 3. ⌘F doesn't focus search, and Edit has no Find item
-**Screenshots:** 10 · **Code:** `Sources/LibraryView.swift:35`, `Sources/SteamLibraryApp.swift:56-67`
+**Screenshots:** 10 · **Code:** `Sources/LibraryView.swift:35`, `Sources/SteamLibraryApp.swift:76-87`
 
 With the library window frontmost, ⌘F did nothing: the focused element stayed the window, and typed characters went nowhere. The menu bar dump shows no Find item under Edit. Every Mac app with a search field responds to ⌘F (HIG → Search fields).
 
@@ -98,7 +102,7 @@ CommandGroup(after: .textEditing) {
 **Screenshots:** 01, 04, 05, 11 · **Code:** `Sources/LibraryView.swift:36-63`
 
 - **"…" (Steam options)** (04) mixes setup, app settings, process control and diagnostics. "Settings…" doesn't belong in a toolbar: the HIG puts it in the app menu on ⌘, only, and it already lives there. "Prepare Steam support…", "Open/Quit desktop Steam" and "Show launch log" are menu-bar commands: Steam ▸ … and Help ▸ Show Launch Log.
-- **Refresh** duplicates ⌘R (Steam ▸ Refresh library). Apple's library apps (Music, Photos, TV) don't put refresh in the toolbar. It's also declared twice, at `LibraryView.swift:47` and `SteamLibraryApp.swift:65`.
+- **Refresh** duplicates ⌘R (Steam ▸ Refresh library). Apple's library apps (Music, Photos, TV) don't put refresh in the toolbar. It's also declared twice, at `LibraryView.swift:46` and `SteamLibraryApp.swift:85`.
 - **Filter** is a menu-style `Picker` labelled "All games" (05). It hides a two-state choice behind a pop-up. A two- or three-option view switch is a segmented control (Finder's view switcher, Music's Library/Store), and it belongs in the View menu with ⌘1/⌘2.
 - **No tooltips.** Every toolbar control reports `help = missing value` in AX. Hovering an icon-only button shows nothing. The HIG's toolbar guidance expects every icon-only item to have a descriptive tooltip.
 - **Not customizable.** View has no Customize Toolbar…. Use `.toolbar(id:)` so people can remove Refresh or Account.
@@ -129,7 +133,7 @@ CommandGroup(after: .textEditing) {
 Remove the "…" menu entirely once its items have moved to the menu bar (finding 5).
 
 ### 5. The menu bar is thin, inconsistent, and keeps tab commands for a one-window app
-**Evidence:** menu bar dump (below) · **Code:** `Sources/SteamLibraryApp.swift:56-67`
+**Evidence:** menu bar dump (below) · **Code:** `Sources/SteamLibraryApp.swift:76-87`
 
 ```
 Pufflet Dev: About, Check for Updates…, Settings… ⌘,, Services, Hide/Quit
@@ -176,7 +180,7 @@ Help:        Pufflet Dev Help                                             ← no
 ```
 
 ### 6. Use a single `Window`, not a `WindowGroup`
-**Evidence:** View ▸ Show Tab Bar / Show All Tabs and the Window menu's tab commands · **Code:** `Sources/SteamLibraryApp.swift:46`
+**Evidence:** View ▸ Show Tab Bar / Show All Tabs and the Window menu's tab commands · **Code:** `Sources/SteamLibraryApp.swift:66`
 
 Pufflet has exactly one library window: New is removed, and reopening is handled by `applicationShouldHandleReopen`. A `WindowGroup` still opts into window tabbing and can create duplicate windows, for example through state restoration or the `openWindow` API. Music, App Store and System Settings use a single main window that is listed in the Window menu.
 
@@ -195,11 +199,11 @@ func applicationWillFinishLaunching(_ n: Notification) { NSWindow.allowsAutomati
 While here, restore view state as well as the frame. Today the filter resets to All games on every launch. Persist it with `@AppStorage("libraryFilter")` or `@SceneStorage`.
 
 ### 7. The game popover has dead and non-native controls
-**Screenshots:** 02, 03, 15 · **Code:** `Sources/LibraryView.swift:152-208`
+**Screenshots:** 02, 03, 15 · **Code:** `Sources/LibraryView.swift:154-214`
 
-- **Dead "…" button.** For games that are not installed, the `Menu` at `:197-203` has no items. It still draws an ellipsis that opens nothing (02, 15). Hide it when it's empty, or better, drop it once the context menu exists.
-- **"Show files" uses `.buttonStyle(.link)`** (`:193-194`, 03). Link styling means "navigate to a URL". A file action should be a borderless button, named the Mac way: **Show in Finder**.
-- **Raw full path** `/Users/…/Games/PuffletDev` as caption text (`:170-171`) is developer-facing. Show the destination the way Finder does, with a folder icon and the library's display name, plus free space on that volume. Keep the full path in `.help`.
+- **Dead "…" button.** For games that are not installed, the `Menu` at `:199-209` has no items. It still draws an ellipsis that opens nothing (02, 15). Hide it when it's empty, or better, drop it once the context menu exists.
+- **"Show files" uses `.buttonStyle(.link)`** (`:195-196`, 03). Link styling means "navigate to a URL". A file action should be a borderless button, named the Mac way: **Show in Finder**.
+- **Raw full path** `/Users/…/Games/PuffletDev` as caption text (`:172-173`) is developer-facing. Show the destination the way Finder does, with a folder icon and the library's display name, plus free space on that volume. Keep the full path in `.help`.
 - **Duplicated status.** "Not installed" / "Installed" repeats the line directly under the cover the popover is pointing at.
 - **Placement.** `arrowEdge: .bottom` puts the popover below the tile, covering the next row and the tile's own label (02, 03). An edge-aware anchor (`.trailing` for left columns, `.leading` for right columns) keeps the clicked cover and its label visible.
 - **Legibility over art (light mode, 15).** The glass popover picks up the cover behind it (a yellow wash from Backrooms). The secondary caption text drops in contrast. This sorts itself out once the popover no longer sits over artwork (placement above). Don't override the material.
@@ -214,10 +218,10 @@ While here, restore view state as well as the frame. Today the filter resets to 
 ```
 
 ### 8. Settings: one fixed-size scrolling form; account management lives somewhere else
-**Screenshots:** 09, 17, 07 · **Code:** `Sources/LibrarySettings.swift:74-120`, `Sources/SteamAuth/SteamAccountView.swift`
+**Screenshots:** 09, 17, 07 · **Code:** `Sources/LibrarySettings.swift:68-126`, `Sources/SteamAuth/SteamAccountView.swift`
 
-- The window is pinned at `frame(width: 620, height: 500)` (`:116`) and scrolls: the Updates section is entirely below the fold (09). Mac Settings windows size to their content and split topics into toolbar-style panes (HIG → Settings).
-- "Steam support / App data" and the Wine/DXMT footnote are advanced plumbing shown at the same level as choosing a library.
+- The window is pinned at `frame(width: 620, height: 500)` (`:126`) and scrolls: the Updates section is entirely below the fold (09). Mac Settings windows size to their content and split topics into toolbar-style panes (HIG → Settings).
+- "Steam support / App data" and the Wine/DXMT footnote are advanced plumbing shown at the same level as choosing a library. The merged "End Steam session…" button (`:100-109`) appears only while a session is running, and it sits in that same section. People sent to it from the account sheet (18) have to scroll a fixed-height form to find it. Offer it in the account sheet as well (finding 11).
 - Paths are right-aligned plain text. Use a short display name with an icon, and keep the full path in `.help`.
 - Button labels: "Choose or create folder…" → **Change…**, "Show app data" → **Show in Finder**.
 - The Steam account is managed from a toolbar button and a sheet (07). On the Mac, accounts usually live in Settings (Mail ▸ Settings ▸ Accounts). Music instead has an Account menu in the menu bar, so Steam ▸ Steam Account… plus a Settings pane are both native options. A toolbar button that opens a sheet isn't.
@@ -235,9 +239,17 @@ Settings {
 }
 ```
 
-### 9. Downloads: no progress in the toolbar, and the popover rows aren't Safari-like
-**Screenshots:** 06, 16 · **Code:** `Sources/DownloadsView.swift:17-53`, `Sources/LibraryView.swift:41-42`
+### 9. Downloads: the list is squashed and clipped, there's no progress in the toolbar, and the rows aren't Safari-like
+**Screenshots:** 19, 06, 16 · **Code:** `Sources/DownloadsView.swift:18-63`, `:25-59`, `Sources/LibraryView.swift:41-42`
 
+- **Bug: the list collapses to a strip and clips the active download (19).** The rows sit in a `ScrollView` limited only by `.frame(maxHeight: 360)` (`:59`). A popover sizes itself to its content's ideal height, and a vertical `ScrollView` doesn't take that from its content, so it collapses to a narrow strip.
+  - In 19, the game name and the "Installing…" state are scrolled out of view, and the status line ("Steam is downloading and installing…") is cut in half by the top edge.
+  - A scroller appears even though only a row or two exist.
+  - People have to scroll inside a popover to see which game is downloading.
+
+  Give the scroll area a real height, capped at the maximum, and check it with 1 job and with 6. The quickest fix is `.frame(minHeight: 140, idealHeight: 360, maxHeight: 360)` on the `ScrollView`, which makes the popover open at the cap. Compact Safari-style rows (below) are the better fix, because then the usual one to three jobs fit without any scrolling.
+- "Steam work: 179.8 MB of 5.95 GB" (19) reads like internal terminology. Safari's subtitle is "179.8 MB of 5.95 GB — 3 minutes remaining". Drop "Steam work:", and add a time estimate if the host reports a rate.
+- **Pause** and **Stop download** (19) are full-size bordered text buttons in every active row. Safari uses one small trailing icon button per row: `pause.circle.fill`/`play.circle.fill` and `xmark.circle.fill`, each with `.help`.
 - The toolbar Downloads button looks the same whether or not anything is downloading. Progress only appears in a bottom bar (code-only). Safari's toolbar download button shows a progress ring. Do the same with a determinate `ProgressView` in the toolbar item's label.
 - Completed jobs ("Muck — Installed", 06) stay in the list with no way to clear them. Safari has a **Clear** button.
 - Rows are text plus text-buttons ("Stop download", "Remove from queue", "Retry"). Native rows have a cover thumbnail, name, a bar `ProgressView`, a byte/time subtitle, and trailing icon buttons (`xmark.circle.fill` to stop, `magnifyingglass.circle.fill` to show in Finder, `arrow.clockwise.circle.fill` to retry), each with `.help`.
@@ -267,8 +279,25 @@ Button { model.showsDownloads.toggle() } label: {
 } else if !model.runtimeSetup.isReady, model.runtimeSetup.isPaused || model.runtimeSetup.savedBytes > 0 {
 ```
 
-### 11. The account sheet uses an iOS header and wastes space
-**Screenshots:** 07 · **Code:** `Sources/SteamAuth/SteamAccountView.swift:11-16`, `:23`, `:39`, `:58-65`
+### 11. The account sheet overflows while a Steam session runs, uses an iOS header, and wastes space
+**Screenshots:** 18, 07 · **Code:** `Sources/SteamAuth/SteamAccountView.swift:12-17`, `:19-26`, `:43`, `:62-69`
+
+- **Bug: the signed-in state overflows the sheet when `sessionActive` is true (18).** `ContentUnavailableView`'s `actions:` lays out its children in a row. The caption "End the Steam session in Settings before changing accounts." (`:25`) therefore sits beside the disabled **Sign out** button instead of under it. The row is wider than the 440 pt sheet, so it spills over both edges. The caption is cut off at "before cha…", and the button's bezel is clipped by the left edge.
+  - Move the explanation into `description:` and leave only the button in `actions:`.
+  - The caption sends people to Settings to find "End Steam session…". Offer the action right here instead: **End Steam Session…** beside a disabled Sign Out.
+
+```swift
+ContentUnavailableView {
+    Label("Signed in as \(name)", systemImage: "checkmark.seal")
+} description: {
+    Text(sessionActive
+         ? "Steam is running for a download or game. End the Steam session to change accounts."
+         : "Your Steam session is saved in this Mac’s Keychain.")
+} actions: {
+    if sessionActive { Button("End Steam Session…") { confirmEndSession = true } }
+    Button("Sign Out…", role: .destructive) { confirmSignOut = true }.disabled(sessionActive)
+}
+```
 
 - A title on the left with **Done** on the right is the iOS navigation-bar pattern. macOS sheets put their buttons bottom-trailing. `.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }` puts them there.
 - `frame(minHeight: 440)` leaves the signed-in state mostly empty (07). Size to content.
@@ -277,26 +306,26 @@ Button { model.showsDownloads.toggle() } label: {
 - Long term, this view becomes Settings ▸ Account (finding 8).
 
 ### 12. The bottom status bar is too tall and does too many jobs *(code-only)*
-**Code:** `Sources/LibraryView.swift:65-92`
+**Code:** `Sources/LibraryView.swift:64-92`
 
 28 pt horizontal and 14 pt vertical padding over `.bar` makes a strip much taller than Finder's or Mail's status bar. It also carries five different kinds of content: Playing, a download plus a duplicate "Downloads" button, refresh progress, refresh error plus Retry, and the launch message.
 
 **Native fix.** Download progress goes in the toolbar (finding 9). Keep a slim status bar (`.controlSize(.small)`, `.font(.callout)`, about 6 pt vertical padding) only for "Playing …", "Starting …" and refresh progress. A refresh error with an empty library belongs in the `ContentUnavailableView`. With a populated library, an `exclamationmark.triangle` plus Retry in that slim bar is fine.
 
 ### 13. Tile text is heavy and rows are ragged
-**Screenshots:** 01, 12 · **Code:** `Sources/LibraryView.swift:133-138`
+**Screenshots:** 01, 12 · **Code:** `Sources/LibraryView.swift:135-140`
 
 - `.headline` (semibold) under every cover is heavier than Music, TV or Photos, which use regular `.callout`/`.body` titles with a `.secondary` subtitle.
 - A two-line title ("Assetto Corsa Competizione", "Backrooms: Escape Together") pushes that tile's status line down a row's worth, so status lines don't align across the row. Use `.lineLimit(2, reservesSpace: true)`.
 - "Not installed" printed under nearly every cover is noise when most of the library isn't installed. Show the status line only for exceptions (Installed, Downloading 42 %, Playing), or dim uninstalled covers slightly. Music handles this with an `icloud.and.arrow.down` glyph rather than a sentence.
 
 ### 14. Alerts *(code-only)*
-**Code:** `Sources/LibraryView.swift:99-102`
+**Code:** `Sources/LibraryView.swift:98-105`
 
-"Steam needs attention" is a generic title that always shows "Open desktop Steam" as the first, and therefore default, button. HIG → Alerts: the title states the specific problem (use the error as the title), the informative text says what to do, and the default button is the most likely safe action. Here that is usually **OK**, with "Open Desktop Steam" as a secondary option.
+"Steam needs attention" is a generic title. Its first, and therefore default, button is "Repair installation" when a repair applies, and "Open desktop Steam" otherwise. HIG → Alerts: the title states the specific problem (use the error as the title), the informative text says what to do, and the default button is the most likely safe action. Here that is usually **OK**, with "Open Desktop Steam" as a secondary option.
 
 ### 15. Accessibility
-**Evidence:** AX inspection · **Code:** `Sources/LibraryView.swift:132`, `:143-144`
+**Evidence:** AX inspection · **Code:** `Sources/LibraryView.swift:134`, `:145-146`
 
 - Tiles carry an `AXAttributedDescription` (from `.accessibilityLabel(game.name)`), an `AXValue` with the install status ("Not installed"), and the AXPress action. I didn't read the description's value or run VoiceOver, so do a quick VoiceOver pass to confirm it reads "<game>, Not installed, button". Add `.accessibilityAction(named: "Play")`, `"Install"` and `"Show in Finder"` so VoiceOver users get the verbs without opening the popover. These are the same actions as the context menu.
 - Toolbar items have no `.help`, which also means no VoiceOver hint (finding 4).
@@ -313,21 +342,21 @@ Button { model.showsDownloads.toggle() } label: {
 
 ---
 
-## Top 10 to do first, and branch conflicts
+## Top 10 to do first
 
-Conflicts were checked on 2026-10-16 against the committed branches: `feat/persistent-steam-session` at `9f9f27f` and `feat/per-game-display` at `2ed1b33`, both diffed against `main`. `feat/per-game-display` touches only `SteamRuntime.swift`, `SteamClientInstaller.swift` and the new `SteamDisplayDefaults.swift`, so it conflicts with none of these today. `feat/persistent-steam-session` edits `LibraryView`, `DownloadsView`, `SteamLibraryApp` (including `init` and the scene), `LibrarySettings`, `RuntimeOnboardingView`, `SteamAccountView` and `AppUpdater`.
+Both branches this review was written alongside have merged into `main` at `45ed2f3`: `feat/persistent-steam-session` (#10) and `feat/per-game-display` (#8). None of these fixes conflict with an open branch any more. The last column notes the merged code each fix has to build on, so it isn't designed twice.
 
-| # | Fix | Files | Conflict with `persistent-steam-session` | `per-game-display` |
-|---|---|---|---|---|
-| 1 | Context menu and double-click on covers (F1) | `LibraryView.swift` `GameTile` | Low: same file, but their hunks don't touch `GameTile` | None today. If per-game settings get UI, they belong in Get Info (F7). |
-| 2 | Keyboard focus and arrow navigation in the grid (F2) | `LibraryView.swift` grid and `GameTile` | Low: same file, different hunks | None |
-| 3 | ⌘F and Edit ▸ Find (F3) | `LibraryView.swift:35`, `SteamLibraryApp.swift` commands | **Yes**: they edit the `CommandMenu("Steam")` block next to it | None |
-| 4 | Onboarding "paused but ✓" bug and finished-step buttons (F10) | `RuntimeOnboardingView.swift:33-62` | Low: they change `:47` and `:75-76`, which are adjacent | None |
-| 5 | Single `Window`, no tabbing, persisted filter (F6) | `SteamLibraryApp.swift:46`, `AppDelegate` | **Yes**: they rewrite `applicationShouldTerminate` and the commands in the same file | None |
-| 6 | Menu bar: title case, Game/View/Steam/Help items (F5) | `SteamLibraryApp.swift:56-67` | **Yes**: same `CommandMenu("Steam")` lines (they drop `.disabled`) | None |
-| 7 | Toolbar: move the "…" items out, segmented filter, `.help`, customizable (F4) | `LibraryView.swift:36-63` | **Yes**: they edit the account and refresh `.disabled` modifiers at `:43-46` | None |
-| 8 | Popover: remove the dead "…", Show in Finder button, path display, placement (F7) | `LibraryView.swift:152-208` | **Yes**: they add "Repair installation…" to that `Menu` and change the Play/Install `.disabled` logic | Likely later, if per-game display settings are added to the popover |
-| 9 | Downloads: toolbar progress, Safari-style rows, Clear (F9) | `DownloadsView.swift`, `LibraryView.swift:41-42` | **Heavy**: they rewrite the active-row block for Pause/Resume/Stop | None |
-| 10 | Settings panes, with Account moved into Settings (F8, F11) | `LibrarySettings.swift`, `SteamAccountView.swift`, `LibraryView.swift:98` | **Yes**: they add "End Steam session…" to Settings and `sessionActive` to `SteamAccountView` | None |
+| # | Fix | Files | Builds on merged code |
+|---|---|---|---|
+| 1 | **Bug:** downloads popover squashed and clipped (F9) | `DownloadsView.swift:25-59` | Pause/Resume/Stop rows from #10 |
+| 2 | **Bug:** account sheet overflows while a session runs (F11) | `SteamAccountView.swift:19-26` | `sessionActive` and "End Steam session…" from #10 |
+| 3 | Context menu and double-click on covers (F1) | `LibraryView.swift:108-152` | Include "Repair Installation…" from #10 |
+| 4 | Keyboard focus and arrow navigation in the grid (F2) | `LibraryView.swift` grid and `GameTile` | — |
+| 5 | Onboarding "paused but ✓" bug and finished-step buttons (F10) | `RuntimeOnboardingView.swift:33-62` | — |
+| 6 | ⌘F and Edit ▸ Find (F3) | `LibraryView.swift:35`, `SteamLibraryApp.swift:76-87` | — |
+| 7 | Single `Window`, no tabbing, persisted filter (F6) | `SteamLibraryApp.swift:66`, `AppDelegate` | Keep #10's `applicationShouldTerminate` session shutdown |
+| 8 | Menu bar: title case, Game/View/Steam/Help items (F5) | `SteamLibraryApp.swift:76-87` | Add End Steam Session… to the Steam menu |
+| 9 | Toolbar: move the "…" items out, segmented filter, `.help`, customizable (F4) | `LibraryView.swift:36-63` | — |
+| 10 | Popover: remove the dead "…", Show in Finder button, path display, placement (F7) | `LibraryView.swift:154-214` | Repair moves to the context menu; per-game display settings from #8 belong in Get Info |
 
-**Safe to start now:** 1, 2 and 4, plus the tile typography (F13), which is low-conflict polish. Items 3 and 5–10 should wait for `feat/persistent-steam-session` to land, or be rebased onto it. Items 7–9 in particular redesign controls that branch is adding to (Repair, Pause/Resume, End session), so doing them after it merges avoids designing twice.
+**Next after these:** the Downloads redesign with toolbar progress, Safari-style rows and Clear (F9), and Settings panes with Account moved into Settings (F8, F11). Fixes 1 and 2 are small stopgaps for the same views. They're worth doing first because they're visible breakage today.
