@@ -24,11 +24,19 @@ class CloudAppTests(unittest.TestCase):
             self.assertEqual(result, app)
             self.assertEqual((result / 'Contents/Info.plist').read_bytes(), before)
 
-    def test_scheme_named_export_is_rejected_without_renaming(self):
+    def test_scheme_named_cloud_export_is_renamed_with_contents_intact(self):
         with tempfile.TemporaryDirectory() as root:
             app = self.make(root, 'SteamLibrary.app')
-            with self.assertRaisesRegex(ValueError, 'export name'):
-                canonical_app(root)
+            before = (app / 'Contents/Info.plist').read_bytes()
+            result = canonical_app(root)
+            self.assertEqual(result, Path(root) / 'Pufflet.app')
+            self.assertFalse(app.exists())
+            self.assertEqual((result / 'Contents/Info.plist').read_bytes(), before)
+
+    def test_scheme_named_export_with_wrong_identity_is_not_renamed(self):
+        with tempfile.TemporaryDirectory() as root:
+            app = self.make(root, 'SteamLibrary.app', CFBundleExecutable='SteamLibrary')
+            with self.assertRaises(ValueError): canonical_app(root)
             self.assertTrue(app.is_dir())
             self.assertFalse((Path(root) / 'Pufflet.app').exists())
 
