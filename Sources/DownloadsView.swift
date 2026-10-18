@@ -97,15 +97,7 @@ private struct DownloadRow: View {
     @ViewBuilder private var subtitle: some View {
         switch job.state {
         case .preparing, .installing, .paused:
-            let bytes = report.installWork.map {
-                "\(ByteCountFormatter.string(fromByteCount: $0.done, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: $0.total, countStyle: .file))"
-            }
-            if report.fields["install-paused-playing"] == 1 { Text("Paused while you play") }
-            else if job.state == .paused { Text(bytes.map { "Paused — \($0)" } ?? "Paused — existing files are kept") }
-            else if job.state == .preparing { Text("Preparing…") }
-            else if !model.headless.persistentEnabled { Text(bytes ?? model.headless.status) }
-            else if report.fields["install-verifying"] == 1 { Text("Verifying and restoring game files…") }
-            else { Text(bytes ?? report.installStatus) }
+            Text(model.downloadActivityStatus(for: job))
         case .queued: Text("Waiting")
         case .completed: Text(model.downloadStatus(for: job.id) ?? job.state.title)
         case .failed, .stopped, .interrupted:

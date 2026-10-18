@@ -428,6 +428,20 @@ import os
         }
     }
 
+    func downloadActivityStatus(for job: GameDownload) -> String {
+        guard [.preparing, .installing, .paused].contains(job.state) else { return job.state.title }
+        let report = headless.persistentEnabled ? headless.installReports[job.id] ?? SteamHostReport() : headless.report
+        let bytes = report.installWork.map {
+            "\(ByteCountFormatter.string(fromByteCount: $0.done, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: $0.total, countStyle: .file))"
+        }
+        if report.fields["install-paused-playing"] == 1 { return "Paused while you play" }
+        if job.state == .paused { return bytes.map { "Paused — \($0)" } ?? "Paused — existing files are kept" }
+        if job.state == .preparing { return "Preparing…" }
+        if !headless.persistentEnabled { return bytes ?? headless.status }
+        if report.fields["install-verifying"] == 1 { return "Verifying and restoring game files…" }
+        return bytes ?? report.installStatus
+    }
+
     /// Plays an installed game. A game that isn't installed opens Get Info instead,
     /// so its download size and free space are visible before anything is downloaded.
     func primaryAction(_ entry: LibraryGame) {
