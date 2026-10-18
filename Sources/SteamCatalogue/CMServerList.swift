@@ -73,11 +73,27 @@ actor CMServerList {
     }
 
     func refreshServerList() async throws {
-        let freshServers = try await fetchServerList()
-        guard !freshServers.isEmpty else {
-            throw SteamError.noServersAvailable
+        try Task.checkCancellation()
+        let availableServers: [CMServer]
+        do {
+            let freshServers = try await fetchServerList()
+            guard !freshServers.isEmpty else {
+                throw SteamError.noServersAvailable
+            }
+            availableServers = freshServers
+        } catch {
+            // Cancellation must never turn into a successful cached connection.
+            try Task.checkCancellation()
+            guard !(error is CancellationError), (error as? URLError)?.code != .cancelled else {
+                throw error
+            }
+            guard let cached = loadCachedServers(), !cached.isEmpty else {
+                throw error
+            }
+            availableServers = cached
         }
-        servers = freshServers
+        try Task.checkCancellation()
+        servers = availableServers
         lastFetched = Date()
         cacheServerList()
     }
@@ -100,9 +116,6 @@ actor CMServerList {
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
-            if let cached = loadCachedServers(), !cached.isEmpty {
-                return cached.filter(\.isValid)
-            }
             throw SteamError.connectionFailed("CM directory returned non-200 status")
         }
 
