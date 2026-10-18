@@ -144,13 +144,18 @@ nonisolated struct SteamInstallation: Sendable {
         if let text = try? String(contentsOf: steam.appendingPathComponent("steamapps/libraryfolders.vdf"), encoding: .utf8) {
             var parser = VDFParser(text)
             if let folders = try? parser.parse()["libraryfolders"] {
-                for value in folders.values.values {
-                    if let path = value["path"]?.text ?? value.text, let url = windowsURL(path) { roots.append(url) }
+                for (_, value) in folders.values.sorted(by: {
+                    let order = $0.key.compare($1.key, options: .numeric)
+                    return order == .orderedSame ? $0.key < $1.key : order == .orderedAscending
+                }) {
+                    if let path = value["path"]?.text ?? value.text, let url = libraryURL(path) { roots.append(url) }
                 }
             }
         }
         var found: [String: SteamGame] = [:]
-        for root in Set(roots.map { $0.resolvingSymlinksInPath() }) {
+        var visited: Set<URL> = []
+        // Keep the selected root first, then registry order, including for duplicate app IDs.
+        for root in roots.map({ $0.resolvingSymlinksInPath() }) where visited.insert(root).inserted {
             let apps = root.appendingPathComponent("steamapps")
             let manifests = (try? FileManager.default.contentsOfDirectory(at: apps, includingPropertiesForKeys: nil)) ?? []
             for manifest in manifests where manifest.lastPathComponent.hasPrefix("appmanifest_") && manifest.pathExtension == "acf" {
@@ -159,14 +164,16 @@ nonisolated struct SteamInstallation: Sendable {
                       let game = try? Self.game(from: text, steamApps: apps) else { continue }
                 var directory: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: game.folder.path, isDirectory: &directory), directory.boolValue else { continue }
-                found[game.id] = game
+                if found[game.id] == nil { found[game.id] = game }
             }
         }
         if roots.count == 1 && !FileManager.default.fileExists(atPath: steam.path) { throw CocoaError(.fileNoSuchFile) }
         return found.values.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
-    private func windowsURL(_ path: String) -> URL? {
+    private func libraryURL(_ path: String) -> URL? {
+        // POSIX backslashes and URL punctuation are literal filename characters.
+        if path.hasPrefix("/") { return URL(filePath: path, directoryHint: .isDirectory) }
         let normalized = path.replacingOccurrences(of: "\\", with: "/")
         guard normalized.count > 2, normalized.dropFirst().hasPrefix(":/"),
               let drive = normalized.first, drive.isASCII, drive.isLetter else { return nil }
