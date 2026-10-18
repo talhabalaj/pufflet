@@ -203,9 +203,23 @@ import Testing
         #expect(SteamHostReport.parse(Data("[steam-host] pufflet1 install-work-done-kib=-1\n[steam-host] pufflet1 install-work-total-kib=10\n".utf8)).installWork == nil)
     }
 
-    @Test func updatingManifestCannotEnablePlay() throws {
+    @Test func updatingInstalledManifestPreservesPlayAvailability() throws {
         let manifest = #""AppState" { "appid" "10" "name" "Fixture" "installdir" "Fixture" "StateFlags" "1028" }"#
-        #expect(try SteamInstallation.game(from: manifest, steamApps: URL(filePath: "/fixture/steamapps")) == nil)
+        let game = try #require(try SteamInstallation.game(from: manifest, steamApps: URL(filePath: "/fixture/steamapps")))
+        let entry = try #require(LibraryGame.merge(installed: [game], owned: []).first)
+        #expect(entry.installation?.isUpdatePending == true)
+        let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
+        let suite = "OwnedLibraryTests." + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite)); defer { defaults.removePersistentDomain(forName: suite) }
+        let model = LibraryModel(settings: LibrarySettings(defaults: defaults, support: root, home: root),
+                                 headless: SteamHeadlessSession(paths: .init(support: root)),
+                                 ownedLibrary: SteamOwnedLibrary(cache: root.appendingPathComponent("Owned")),
+                                 downloads: SteamDownloadQueue(root: root.appendingPathComponent("Queue")),
+                                 paths: .init(support: root), graphics: GraphicsSupport(defaults: defaults))
+        model.games = [game]
+        model.filter = .installed
+        #expect(model.filteredGames == [entry])
+        #expect(model.canStart(entry))
     }
 
     @Test func packageIDsRejectTruncatedOrWronglyTypedEntries() {

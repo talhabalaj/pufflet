@@ -7,6 +7,7 @@ nonisolated struct SteamGame: Identifiable, Equatable, Sendable {
     let bytes: Int64
     let folder: URL
     var branch = "public"
+    var isUpdatePending = false
 
     var sizeDescription: String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
@@ -182,11 +183,12 @@ nonisolated struct SteamInstallation: Sendable {
               id != "228980", let name = state?["name"]?.text, !name.isEmpty,
               let directory = state?["installdir"]?.text, !directory.isEmpty,
               !directory.contains("/"), !directory.contains("\\"), directory != ".", directory != "..",
-              let flags = state?["StateFlags"]?.text.flatMap(Int.init), flags == 4 else { return nil }
+              let flags = state?["StateFlags"]?.text.flatMap(Int.init), flags & 4 != 0 else { return nil }
         return SteamGame(id: id, name: name, installDirectory: directory,
                          bytes: state?["SizeOnDisk"]?.text.flatMap(Int64.init) ?? 0,
                          folder: steamApps.appendingPathComponent("common").appendingPathComponent(directory),
-                         branch: state?["UserConfig"]?["BetaKey"]?.text ?? "public")
+                         branch: state?["UserConfig"]?["BetaKey"]?.text ?? "public",
+                         isUpdatePending: flags & (2 | 1024) != 0)
     }
 
     func cachedArtwork(appID: String, kind: SteamArtworkKind = .hero) -> URL? {
