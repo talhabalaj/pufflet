@@ -478,7 +478,7 @@ private struct StatusBar: View {
         } else if let id = model.activeDownloadID, let job = model.downloads.jobs.first(where: { $0.id == id }) {
             bar {
                 ProgressView().controlSize(.small)
-                Text("\(job.name): \(model.headless.isActive ? model.headless.status : "Preparing…")")
+                Text("\(job.name): \(model.downloadActivityStatus(for: job))")
                 Spacer()
             }
         } else if model.ownedLibrary.isRefreshing, !model.entries.isEmpty {
