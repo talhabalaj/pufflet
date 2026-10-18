@@ -12,6 +12,9 @@ struct SteamLibraryTests {
       "StateFlags" "4"
       "installdir" "over the hill"
       "SizeOnDisk" "4317304379"
+      "buildid" "25931885"
+      "TargetBuildID" "25992246"
+      "UpdateResult" "7"
       "InstalledDepots" { "123" { "manifest" "456" } }
     }
     """#
@@ -22,6 +25,21 @@ struct SteamLibraryTests {
         #expect(game.name == "over the hill")
         #expect(game.bytes == 4_317_304_379)
         #expect(game.folder.path == "/tmp/steamapps/common/over the hill")
+        #expect(!game.isUpdatePending)
+    }
+
+    @Test(arguments: [4, 6, 1028, 1030])
+    func fullyInstalledBitKeepsUpdatingGamesInstalled(_ flags: Int) throws {
+        let changed = manifest.replacingOccurrences(of: #""StateFlags" "4""#, with: "\"StateFlags\" \"\(flags)\"")
+        let game = try #require(try SteamInstallation.game(from: changed, steamApps: URL(filePath: "/tmp/steamapps")))
+        #expect(game.id == "2929250")
+        #expect(game.isUpdatePending == (flags != 4))
+    }
+
+    @Test(arguments: [0, 2, 1024, 1026])
+    func updateBitsWithoutFullyInstalledAreNotInstalled(_ flags: Int) throws {
+        let changed = manifest.replacingOccurrences(of: #""StateFlags" "4""#, with: "\"StateFlags\" \"\(flags)\"")
+        #expect(try SteamInstallation.game(from: changed, steamApps: URL(filePath: "/tmp/steamapps")) == nil)
     }
 
     @Test(arguments: ["../escape", "..", "folder/game", #"folder\game"#])
@@ -37,7 +55,9 @@ struct SteamLibraryTests {
         #expect(try SteamInstallation.game(from: incomplete, steamApps: URL(filePath: "/tmp")) == nil)
     }
 
-    @Test func staleCompleteManifestCannotMakeADeletedFolderInstalled() throws {
+    @Test(arguments: [4, 1030])
+    func staleCompleteManifestCannotMakeADeletedFolderInstalled(_ flags: Int) throws {
+        let manifest = manifest.replacingOccurrences(of: #""StateFlags" "4""#, with: "\"StateFlags\" \"\(flags)\"")
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let apps = root.appendingPathComponent("steamapps")

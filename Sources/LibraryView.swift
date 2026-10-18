@@ -299,6 +299,7 @@ private struct GameTile: View {
     private var statusText: String {
         if model.isPlaying(game) { return "Playing" }
         if model.isLaunching(game) { return "Launching" }
+        if game.installation?.isUpdatePending == true { return "Update pending" }
         return model.downloadStatus(for: game.id) ?? (game.installation == nil ? "Not installed" : "Installed")
     }
 
@@ -314,6 +315,9 @@ private struct GameTile: View {
             }
         } else if let state = model.downloads.jobs.first(where: { $0.id == game.id })?.state, state == .failed {
             Label(state.title, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
+        } else if game.installation?.isUpdatePending == true {
+            Text("Update pending")
+                .help("Steam may need to finish updating before this game can launch.")
         } else if let status = model.downloadStatus(for: game.id) {
             Text(status)
         } else {
@@ -441,6 +445,7 @@ struct GameInspector: View {
         if let work = model.downloadProgress(for: game.id) {
             return "Downloading, " + (Double(work.done) / Double(work.total)).formatted(.percent.precision(.fractionLength(0)))
         }
+        if game.installation?.isUpdatePending == true { return "Update pending" }
         return model.downloadStatus(for: game.id) ?? (game.installation == nil ? "Not installed" : "Installed")
     }
 
