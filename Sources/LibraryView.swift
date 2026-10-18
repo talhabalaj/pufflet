@@ -225,6 +225,27 @@ struct GameMenuItems: View {
     }
 }
 
+/// A portrait slot shared by the grid and inspector, independent of the source art's shape.
+struct GameCoverArtwork: View {
+    let artwork: NSImage?
+
+    var body: some View {
+        Rectangle().fill(.quaternary)
+            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            .overlay {
+                if let artwork {
+                    GeometryReader { geometry in
+                        Image(nsImage: artwork).resizable().scaledToFill()
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                    }
+                } else {
+                    Image(systemName: "gamecontroller").font(.largeTitle).foregroundStyle(.secondary)
+                }
+            }
+            .clipShape(.rect(cornerRadius: 8))
+    }
+}
+
 private struct GameTile: View {
     let game: LibraryGame
     @Bindable var model: LibraryModel
@@ -235,16 +256,7 @@ private struct GameTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Group {
-                if let artwork {
-                    Image(nsImage: artwork).resizable().scaledToFill()
-                } else {
-                    Rectangle().fill(.quaternary)
-                        .overlay { Image(systemName: "gamecontroller").font(.largeTitle).foregroundStyle(.secondary) }
-                }
-            }
-            .aspectRatio(2.0 / 3.0, contentMode: .fit)
-            .clipShape(.rect(cornerRadius: 8))
+            GameCoverArtwork(artwork: artwork)
             .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
             .overlay(alignment: .bottomLeading) {
                 if hovering, model.canStart(game) {
@@ -339,11 +351,8 @@ struct GameInspector: View {
             Form {
                 Section {
                     VStack(spacing: 12) {
-                        Group {
-                            if let artwork { Image(nsImage: artwork).resizable().scaledToFill() } else { Rectangle().fill(.quaternary) }
-                        }
-                        .aspectRatio(2.0 / 3.0, contentMode: .fit).frame(width: 120)
-                        .clipShape(.rect(cornerRadius: 8)).shadow(color: .black.opacity(0.2), radius: 3, y: 1)
+                        GameCoverArtwork(artwork: artwork).frame(width: 120)
+                            .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
                         .accessibilityHidden(true)
                         Text(game.name).font(.title3.weight(.semibold)).multilineTextAlignment(.center)
                         primaryButton(game)
