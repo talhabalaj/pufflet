@@ -51,6 +51,23 @@ import Testing
         #expect(LibraryGame.merge(installed: [installed], owned: []).map(\.id) == ["10"])
     }
 
+    @Test func gridIdentityDeduplicatesAppsWithoutMergingTestServersOrNames() {
+        let owned = [
+            OwnedSteamGame(id: "578080", name: "PUBG: BATTLEGROUNDS", estimatedBytes: nil),
+            OwnedSteamGame(id: "813000", name: "PUBG: Experimental Server", estimatedBytes: nil),
+            OwnedSteamGame(id: "813000", name: "PUBG: Experimental Server", estimatedBytes: nil),
+            OwnedSteamGame(id: "622590", name: "PUBG: Test Server", estimatedBytes: nil),
+            OwnedSteamGame(id: "10", name: "Same name", estimatedBytes: nil),
+            OwnedSteamGame(id: "20", name: "Same name", estimatedBytes: nil)
+        ]
+        let installed = SteamGame(id: "578080", name: "PUBG: BATTLEGROUNDS", installDirectory: "PUBG", bytes: 20,
+                                  folder: URL(filePath: "/fixture/steamapps/common/PUBG"))
+        let entries = LibraryGame.merge(installed: [installed, installed], owned: owned)
+        #expect(entries.count == 5)
+        #expect(Set(entries.map(\.id)).count == entries.count)
+        #expect(Set(entries.map(\.id)) == ["578080", "813000", "622590", "10", "20"])
+    }
+
     @Test func queueIsAccountScopedAndRestartsResumePendingWork() throws {
         let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
         let queue = SteamDownloadQueue(root: root)
