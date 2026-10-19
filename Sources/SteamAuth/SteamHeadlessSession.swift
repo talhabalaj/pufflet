@@ -111,6 +111,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     private var installing = false
     private var stopping = false
     private var preparing = false
+    private(set) var isUninstalling = false
     private(set) var report = SteamHostReport()
     private(set) var lastInstallSucceeded = false
     private let installer: SteamClientInstaller
@@ -127,7 +128,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func recoverPreviousSession(runtime: SteamRuntime) async throws {
-        guard !isActive, !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
+        guard !isActive, !preparing, !stopping, !isUninstalling else { throw SteamClientPackages.Failure.activeSession }
         isActive = true
         do {
             try await sessionHost.recoverPreviousSession(runtime: runtime)
@@ -139,7 +140,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func prepare(runtime: SteamRuntime, library: [SteamGame], destination: URL? = nil) async throws {
-        guard !isActive, !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
+        guard !isActive, !preparing, !stopping, !isUninstalling else { throw SteamClientPackages.Failure.activeSession }
         preparing = true
         isActive = true; status = "Preparing Steam support…"
         defer { preparing = false }
@@ -162,7 +163,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func install(appID: String, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
-        guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
+        guard !preparing, !stopping, !isUninstalling else { throw SteamClientPackages.Failure.activeSession }
         if persistentEnabled {
             guard let number = UInt32(appID), number > 0, number <= Int32.max else { throw SteamError.invalidMessage }
             observeSession()
@@ -221,7 +222,7 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     }
 
     func start(game: SteamGame, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime, metadataCaches: [URL]) async throws {
-        guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
+        guard !preparing, !stopping, !isUninstalling else { throw SteamClientPackages.Failure.activeSession }
         if persistentEnabled {
             guard !hasLaunchWork, let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
             preparing = true
@@ -336,6 +337,20 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
                 }
             }
         }
+    }
+
+    /// Runs `body` while Steam support is stopped and can't be started. In the
+    /// persistent session the host actor owns this, so it races safely with Play
+    /// and queued downloads; the one-shot fallback requires an idle session.
+    func uninstall<T: Sendable>(_ body: @escaping @Sendable () async throws -> T) async throws -> T {
+        guard !preparing, !stopping, !isUninstalling, !hasLaunchWork, submittedInstalls.isEmpty, !installing else {
+            throw SteamSessionHost.Failure.stopped("Steam is busy with a game or download. Wait for it to finish before uninstalling.")
+        }
+        isUninstalling = true
+        defer { isUninstalling = false }
+        if persistentEnabled { return try await sessionHost.withClientStopped(body) }
+        guard !isActive else { throw SteamSessionHost.Failure.stopped("Steam support is running. Wait for it to finish before uninstalling.") }
+        return try await body()
     }
 
     func takeInstallResults() -> [String: String?] {
