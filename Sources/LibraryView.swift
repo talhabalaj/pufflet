@@ -143,9 +143,12 @@ struct LibraryView: View {
                           alignment: .leading, spacing: 26) {
                     ForEach(model.filteredGames) { game in
                         GameTile(game: game, model: model, selected: model.selectedID == game.id, emphasized: gridFocused)
-                            .onTapGesture(count: 2) { if model.canStart(game) { model.primaryAction(game) } }
-                            // Select on the first click without waiting out the double-click interval.
-                            .simultaneousGesture(TapGesture().onEnded { model.selectedID = game.id; gridFocused = true })
+                            // One gesture, like Finder: every click selects immediately, and the second
+                            // click of a double-click also plays. No double-tap recognizer to wait on.
+                            .onTapGesture {
+                                model.selectedID = game.id; gridFocused = true
+                                if NSApp.currentEvent?.clickCount == 2, model.canStart(game) { model.primaryAction(game) }
+                            }
                             .contextMenu { GameMenuItems(game: game, model: model, inContextMenu: true) }
                     }
                 }
