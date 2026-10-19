@@ -171,25 +171,7 @@ struct LibraryView: View {
                 .help("Show all your games, or only the ones installed on this Mac")
             }
         }
-        ToolbarItem(id: "downloads", placement: .primaryAction) {
-            let active = model.activeDownloadID.flatMap { id in model.downloads.jobs.first { $0.id == id } }
-            Button { model.showsDownloads.toggle() } label: {
-                if let active, let work = model.downloadProgress(for: active.id) {
-                    Label {
-                        Text("Downloads")
-                    } icon: {
-                        Gauge(value: Double(work.done), in: 0...Double(work.total)) { Text("Downloads") }
-                            currentValueLabel: { Image(systemName: "arrow.down") }
-                            .gaugeStyle(.accessoryCircularCapacity).tint(.accentColor)
-                            .scaleEffect(0.42).frame(width: 22, height: 22)
-                    }
-                } else {
-                    Label("Downloads", systemImage: "arrow.down.circle")
-                }
-            }
-            .help(active.map { "Downloading \($0.name)" } ?? "Show downloads")
-            .popover(isPresented: $model.showsDownloads, arrowEdge: .bottom) { DownloadsView(model: model) }
-        }
+        ToolbarItem(id: "downloads", placement: .primaryAction) { DownloadsToolbarButton(model: model) }
         ToolbarItem(id: "info", placement: .primaryAction) {
             if !model.entries.isEmpty {
                 Button("Get Info", systemImage: "info.circle") { model.showsInspector.toggle() }
@@ -214,6 +196,32 @@ struct LibraryView: View {
 
     private func chooseLibrary() {
         do { try model.chooseLibraryFolder() } catch { locationError = error.localizedDescription }
+    }
+}
+
+/// Its own view so download progress, which changes every second, redraws only this button
+/// rather than the whole library body, toolbar and inspector.
+private struct DownloadsToolbarButton: View {
+    @Bindable var model: LibraryModel
+
+    var body: some View {
+        let active = model.activeDownloadID.flatMap { id in model.downloads.jobs.first { $0.id == id } }
+        Button { model.showsDownloads.toggle() } label: {
+            if let active, let work = model.downloadProgress(for: active.id) {
+                Label {
+                    Text("Downloads")
+                } icon: {
+                    Gauge(value: Double(work.done), in: 0...Double(work.total)) { Text("Downloads") }
+                        currentValueLabel: { Image(systemName: "arrow.down") }
+                        .gaugeStyle(.accessoryCircularCapacity).tint(.accentColor)
+                        .scaleEffect(0.42).frame(width: 22, height: 22)
+                }
+            } else {
+                Label("Downloads", systemImage: "arrow.down.circle")
+            }
+        }
+        .help(active.map { "Downloading \($0.name)" } ?? "Show downloads")
+        .popover(isPresented: $model.showsDownloads, arrowEdge: .bottom) { DownloadsView(model: model) }
     }
 }
 
@@ -389,6 +397,8 @@ struct GameDisplaySettings: View {
 struct GameInspector: View {
     @Bindable var model: LibraryModel
     @State private var artwork: NSImage?
+    /// Read off the main actor: a volume query can stall a selection change.
+    @State private var availableBytes: Int64?
 
     var body: some View {
         if let game = model.selectedEntry {
@@ -423,9 +433,8 @@ struct GameInspector: View {
                             if let library = model.settings.libraryURL { folderLabel(library).help(library.path) }
                             else { Text("Choose a download folder in Settings") }
                         }
-                        if let available = model.settings.libraryURL.flatMap({ try? $0.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]) })?
-                            .volumeAvailableCapacityForImportantUsage {
-                            LabeledContent("Available", value: ByteCountFormatter.string(fromByteCount: available, countStyle: .file))
+                        if let availableBytes {
+                            LabeledContent("Available", value: ByteCountFormatter.string(fromByteCount: availableBytes, countStyle: .file))
                         }
                     }
                 }
@@ -466,6 +475,12 @@ struct GameInspector: View {
             }
             .formStyle(.grouped)
             .task(id: game.id) { artwork = await model.artworkStore.image(appID: game.id, installation: model.installation, kind: .cover) }
+            .task(id: AvailableSpaceRequest(gameID: game.id, library: model.settings.libraryURL)) {
+                // Keep the last value while refreshing so the row doesn't flicker between games.
+                guard let library = model.settings.libraryURL else { availableBytes = nil; return }
+                guard game.installation == nil else { return }
+                availableBytes = await Self.availableBytes(at: library)
+            }
         } else {
             ContentUnavailableView("No Game Selected", systemImage: "info.circle", description: Text("Select a game to see its details."))
         }
@@ -487,6 +502,12 @@ struct GameInspector: View {
             .buttonStyle(.glassProminent).controlSize(.large)
             .disabled(game.installation == nil ? !model.canInstall : !model.canStart(game))
         }
+    }
+
+    private struct AvailableSpaceRequest: Equatable { let gameID: String; let library: URL? }
+
+    @concurrent private static func availableBytes(at library: URL) async -> Int64? {
+        try? library.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage
     }
 
     private func status(_ game: LibraryGame) -> String {
