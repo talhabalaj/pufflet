@@ -349,6 +349,20 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         if action == "cancel" { submittedInstalls.remove(id) }
     }
 
+    func hasSubmittedInstall(_ id: String) -> Bool { submittedInstalls.contains(id) }
+
+    /// Explicit user recovery only; callers hold download admission until Play finishes.
+    func restartForPlay() async throws {
+        guard persistentEnabled, !preparing, !stopping, !hasLaunchWork else { throw SteamClientPackages.Failure.activeSession }
+        stopping = true
+        defer { stopping = false }
+        // Reset synchronously after confirmed teardown, so a delayed stopped event
+        // cannot clear the replacement session's submitted installs.
+        try await sessionHost.shutdown(notify: false)
+        receive(.stopped(nil))
+        installReports = [:]; installResults = [:]
+    }
+
     func shutdown(runtime: SteamRuntime) async throws {
         guard !preparing, !stopping else { throw SteamClientPackages.Failure.activeSession }
         stopping = true

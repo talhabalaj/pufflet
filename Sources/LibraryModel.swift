@@ -35,9 +35,19 @@ import os
     private(set) var isStoppingDownload = false
     private var catalogueTask: Task<Void, Never>?
     private var downloadTask: Task<Void, Never>?
+    struct PendingPlay {
+        let gameID: String
+        let accountKey: String?
+        let library: URL?
+        let blockingAppIDs: [String]
+        let requiresRestart: Bool
+    }
+    var blockedPlay: PendingPlay?
+    private(set) var queuedPlay: PendingPlay?
+    private(set) var isRestartingForPlay = false
     var hasDownloadWork: Bool { downloads.hasPendingWork || activeDownloadID != nil || isStoppingDownload }
-    var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
-    var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
+    var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil }
+    var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil }
     var canPlay: Bool {
         phase == .idle && downloadTask == nil && !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled ? !headless.hasLaunchWork : !hasDownloadWork && !headless.isActive)
     }
@@ -145,6 +155,7 @@ import os
                 if let error = headless.takeError() { errorMessage = error }
                 if !headless.isActive { phase = .idle; nativeLaunch = false }
             }
+            if let game = takeQueuedPlayIfReady() { await play(game) }
             if case let .launching(id) = phase,
                let game = games.first(where: { $0.id == id }), snapshot.process(for: game) != nil {
                 phase = .idle
@@ -175,6 +186,8 @@ import os
 
     func play(_ game: SteamGame) async {
         guard phase == .idle else { return }
+        cancelQueuedPlay()
+        blockedPlay = nil
         errorMessage = nil; repairGameID = nil
         if let process = snapshot.process(for: game),
            let application = NSRunningApplication(processIdentifier: process.pid),
@@ -184,7 +197,11 @@ import os
             }
             return
         }
-        guard canPlay, !downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }), requireRuntime() else { return }
+        if downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }) {
+            offerPlayAfterDownloads(game, blockingAppIDs: [game.id], requiresRestart: false)
+            return
+        }
+        guard canPlay, requireRuntime() else { return }
         do {
             guard playingGame == nil else { throw SteamDisplayProfiles.Failure.busy }
             if let storageError = downloads.storageError { throw SteamError.authenticationFailed(storageError) }
@@ -229,9 +246,76 @@ import os
             phase = .idle
             nativeLaunch = false
             launchDeadline = nil
-            errorMessage = error.localizedDescription
+            if case let SteamSessionHost.Failure.graphicsBusy(appIDs) = error {
+                offerPlayAfterDownloads(game, blockingAppIDs: appIDs.map(String.init), requiresRestart: true)
+            } else { errorMessage = error.localizedDescription }
             if case SteamLaunchConfiguration.ConfigurationError.missingExecutable = error { repairGameID = game.id }
             logger.error("Game launch failed: \(error.localizedDescription)")
+            startNextDownload()
+        }
+    }
+
+    func offerPlayAfterDownloads(_ game: SteamGame, blockingAppIDs: [String], requiresRestart: Bool) {
+        blockedPlay = PendingPlay(gameID: game.id, accountKey: downloads.accountKey,
+            library: settings.libraryURL?.resolvingSymlinksInPath(), blockingAppIDs: blockingAppIDs, requiresRestart: requiresRestart)
+    }
+
+    var blockedPlayDetail: String {
+        guard let request = blockedPlay else { return "" }
+        let jobs = downloads.jobs.filter { request.blockingAppIDs.contains($0.id) }
+        let status = jobs.map { "\($0.name): \(downloadActivityStatus(for: $0))" }.joined(separator: "\n")
+        let explanation = request.requiresRestart
+            ? "Steam support needs to restart to apply this game’s saved graphics backend. Play when downloads finish, or restart support now and resume downloads afterward. Existing files are kept."
+            : "This game’s download or update must finish before Play. Paused downloads must be resumed first."
+        return status.isEmpty ? explanation : explanation + "\n\n" + status
+    }
+
+    func queueBlockedPlay(_ selection: PendingPlay? = nil) {
+        guard let request = selection ?? blockedPlay else { return }
+        queuedPlay = request; blockedPlay = nil
+    }
+
+    func cancelQueuedPlay() { queuedPlay = nil }
+
+    func takeQueuedPlayIfReady() -> SteamGame? {
+        guard let request = queuedPlay else { return nil }
+        guard request.accountKey == downloads.accountKey, request.library == settings.libraryURL?.resolvingSymlinksInPath(),
+              let game = games.first(where: { $0.id == request.gameID }) else {
+            queuedPlay = nil
+            return nil
+        }
+        if downloads.jobs.contains(where: { request.blockingAppIDs.contains($0.id) && [.failed, .stopped, .interrupted].contains($0.state) }) {
+            queuedPlay = nil; errorMessage = "Play cancelled because a download needs attention. Check Downloads, then try Play again."
+            return nil
+        }
+        guard !hasDownloadWork, canPlay else { return nil }
+        queuedPlay = nil
+        return game
+    }
+
+    func restartAndPlayBlockedGame(_ selection: PendingPlay? = nil) async {
+        guard let request = selection ?? blockedPlay, request.requiresRestart, phase == .idle, downloadTask == nil,
+              !isStoppingDownload, !headless.hasLaunchWork,
+              request.accountKey == downloads.accountKey, request.library == settings.libraryURL?.resolvingSymlinksInPath(),
+              let game = games.first(where: { $0.id == request.gameID }),
+              !downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }) else {
+            blockedPlay = nil
+            errorMessage = "Steam support can’t restart right now. Try again in a moment, or choose Play When Ready."
+            return
+        }
+        blockedPlay = nil; cancelQueuedPlay()
+        phase = .preparingSupport; isRestartingForPlay = true
+        do {
+            try await headless.restartForPlay()
+            for job in downloads.jobs where [.preparing, .installing].contains(job.state) { downloads.update(job.id, state: .queued) }
+            activeDownloadID = nil
+            phase = .idle; isRestartingForPlay = false
+            try Task.checkCancellation()
+            await play(game)
+            startNextDownload()
+        } catch {
+            phase = .idle; isRestartingForPlay = false
+            errorMessage = error.localizedDescription
             startNextDownload()
         }
     }
@@ -413,6 +497,12 @@ import os
     }
 
     func controlDownload(_ action: String, job: GameDownload) async {
+        guard !isRestartingForPlay else { return }
+        // A paused job retained across an explicit renderer restart has no host request yet.
+        if action == "resume", job.state == .paused, !headless.hasSubmittedInstall(job.id) {
+            downloads.update(job.id, state: .queued); startNextDownload()
+            return
+        }
         if action == "cancel", job.state == .preparing {
             downloadTask?.cancel()
             downloads.update(job.id, state: .stopped)
@@ -425,6 +515,7 @@ import os
     }
 
     func shutdownSession() async throws {
+        cancelQueuedPlay(); blockedPlay = nil
         isStoppingDownload = true
         defer { isStoppingDownload = false }
         let pending = downloadTask
@@ -515,7 +606,8 @@ import os
 
     func canStart(_ entry: LibraryGame) -> Bool {
         if isPlaying(entry) { return true }
-        if isPending(entry) || isLaunching(entry) { return false }
+        if isLaunching(entry) { return false }
+        if isPending(entry) { return entry.installation != nil && phase == .idle && !isRestartingForPlay }
         return entry.installation == nil || canPlay
     }
 

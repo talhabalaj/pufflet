@@ -82,6 +82,7 @@
 		FFD2DE4BA31FBE25F4C7A573 /* WineProcessCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEBF788ADF92630C119E1249 /* WineProcessCleanupTests.swift */; };
 		D3D120000000000000000002 /* GameGraphics.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D120000000000000000001 /* GameGraphics.swift */; };
 		D3D120000000000000000004 /* GameGraphicsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D120000000000000000003 /* GameGraphicsTests.swift */; };
+		B3A900000000000000000002 /* LibraryPlayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A900000000000000000001 /* LibraryPlayTests.swift */; };
 
 /* End PBXBuildFile section */
 
@@ -173,6 +174,7 @@
 		FEDBC114EF850FFE9BE99BAF /* GameDockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDockTests.swift; sourceTree = "<group>"; };
 		D3D120000000000000000001 /* GameGraphics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameGraphics.swift; sourceTree = "<group>"; };
 		D3D120000000000000000003 /* GameGraphicsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameGraphicsTests.swift; sourceTree = "<group>"; };
+		B3A900000000000000000001 /* LibraryPlayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPlayTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -295,6 +297,7 @@
 				883EBDD9B138C6F2DDC5DCCA /* SteamDisplayProfilesTests.swift */,
 				BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */,
 				D3D120000000000000000003 /* GameGraphicsTests.swift */,
+				B3A900000000000000000001 /* LibraryPlayTests.swift */,
 				1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */,
 				D0916B831D45D0C23DFE3A0C /* SteamSessionHostTests.swift */,
 				FEBF788ADF92630C119E1249 /* WineProcessCleanupTests.swift */,
@@ -534,6 +537,7 @@
 				BD6D089A84B60753669D0BF2 /* SteamDisplayProfilesTests.swift in Sources */,
 				4B87276E079B2758A15DEA27 /* SteamLaunchConfigurationTests.swift in Sources */,
 				D3D120000000000000000004 /* GameGraphicsTests.swift in Sources */,
+				B3A900000000000000000002 /* LibraryPlayTests.swift in Sources */,
 				FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */,
 				10975662770F555CA9D0991D /* SteamSessionHostTests.swift in Sources */,
 				FFD2DE4BA31FBE25F4C7A573 /* WineProcessCleanupTests.swift in Sources */,

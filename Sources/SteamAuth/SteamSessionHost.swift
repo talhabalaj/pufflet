@@ -62,7 +62,13 @@ actor SteamSessionHost {
     }
     enum Failure: LocalizedError {
         case stopped(String)
-        var errorDescription: String? { switch self { case let .stopped(message): message } }
+        case graphicsBusy(appIDs: [Int])
+        var errorDescription: String? {
+            switch self {
+            case let .stopped(message): message
+            case .graphicsBusy: "Steam needs to restart to use this game’s graphics backend. Finish its current downloads or restart Steam support to play. Existing files are kept."
+            }
+        }
     }
     nonisolated let events: AsyncStream<Event>
     private let continuation: AsyncStream<Event>.Continuation
@@ -151,7 +157,7 @@ actor SteamSessionHost {
             if changesDisplay || changesGraphics {
                 guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty else {
                     if changesDisplay { throw SteamDisplayProfiles.Failure.busy }
-                    throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
+                    throw Failure.graphicsBusy(appIDs: Array(Set(issued.values)).sorted())
                 }
                 try await shutdownOwned(notify: false)
             } else { return }
