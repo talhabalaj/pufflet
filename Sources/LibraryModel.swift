@@ -255,14 +255,14 @@ import os
             phase = .launching(game.id)
             let caches = [nativeRuntime.installation.steam, installation.steam].map { $0.appendingPathComponent("appcache/appinfo.vdf") }
             let selection = try await SteamLaunchConfiguration.selection(for: game, caches: caches)
-            let importsD3D12 = await Self.importsD3D12(selection.executable)
+            let requiresD3D12 = await Self.requiresD3D12(selection.executable)
             graphics.refresh()
             let requested = graphics.backend(for: game.id)
-            if graphics.installation == nil, requested == .d3dMetal || (requested == .auto && importsD3D12) {
+            if graphics.installation == nil, requested == .d3dMetal || (requested == .auto && requiresD3D12) {
                 phase = .idle; showsGraphicsSetup = true
                 return
             }
-            let resolved = requested.resolved(importsD3D12: importsD3D12, hasD3DMetal: graphics.installation != nil)
+            let resolved = requested.resolved(requiresD3D12: requiresD3D12, hasD3DMetal: graphics.installation != nil)
             var gameRuntime = nativeRuntime
             gameRuntime.d3dMetal = resolved == .d3dMetal ? graphics.installation : nil
             if snapshot.steam != nil {
@@ -386,7 +386,7 @@ import os
         }
     }
 
-    @concurrent private static func importsD3D12(_ executable: URL) async -> Bool { PEImports.usesD3D12(at: executable) }
+    @concurrent private static func requiresD3D12(_ executable: URL) async -> Bool { PEImports.requiresD3D12(at: executable) }
 
     func playInDesktopSteam(_ game: SteamGame) async {
         guard phase == .idle, !headless.isActive, !hasDownloadWork else { return }
@@ -398,8 +398,8 @@ import os
             do {
                 let caches = [installation.steam, nativeRuntime.installation.steam].map { $0.appendingPathComponent("appcache/appinfo.vdf") }
                 let selection = try await SteamLaunchConfiguration.selection(for: game, caches: caches)
-                let importsD3D12 = await Self.importsD3D12(selection.executable)
-                if graphics.backend(for: game.id) == .d3dMetal || importsD3D12 {
+                let requiresD3D12 = await Self.requiresD3D12(selection.executable)
+                if graphics.backend(for: game.id) == .d3dMetal || requiresD3D12 {
                     errorMessage = "Use Play in Pufflet to apply this game’s graphics backend. Desktop Steam uses its own launch environment."
                     return
                 }

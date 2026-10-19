@@ -439,7 +439,7 @@ struct GameInspector: View {
                             ForEach(GraphicsBackend.allCases, id: \.self) { Text($0.title).tag($0) }
                         }
                         .disabled(model.isPlaying(game) || model.isLaunching(game))
-                        Text("Auto uses D3DMetal for detected DirectX 12 games when available, and DXMT otherwise. Choose D3DMetal manually for games that select DirectX at runtime.")
+                        Text("Auto uses D3DMetal for games that only support DirectX 12, when it’s set up, and DXMT for everything else, including games that also support DirectX 11. Choose D3DMetal yourself if a game needs DirectX 12 but Auto doesn’t pick it.")
                             .font(.caption).foregroundStyle(.secondary)
                         Button("Set Up Game Porting Toolkit…") { model.showsGraphicsSetup = true }
                     }

@@ -9,19 +9,54 @@ nonisolated enum GraphicsBackend: String, CaseIterable, Sendable {
         switch self { case .auto: "Auto"; case .dxmt: "DXMT"; case .d3dMetal: "D3DMetal" }
     }
 
-    func resolved(importsD3D12: Bool, hasD3DMetal: Bool) -> Self {
-        self == .auto ? (importsD3D12 && hasD3DMetal ? .d3dMetal : .dxmt) : self
+    /// `requiresD3D12` comes from `PEImports.requiresD3D12`: Auto uses D3DMetal
+    /// only for games that can't render any other way.
+    func resolved(requiresD3D12: Bool, hasD3DMetal: Bool) -> Self {
+        self == .auto ? (requiresD3D12 && hasD3DMetal ? .d3dMetal : .dxmt) : self
     }
 }
 
 /// Reads PE import tables, never executes the game or scans its strings for API names.
 /// Launchers and games that call LoadLibrary at runtime can require a manual choice.
 nonisolated enum PEImports {
-    static func usesD3D12(at url: URL) -> Bool {
+    /// Whether Auto should pick D3DMetal: the game imports Direct3D 12 and no
+    /// Direct3D 10 or 11. Engines that ship both (Unity's player, many Unreal
+    /// builds) default to or fall back to D3D11, which DXMT runs well. D3DMetal
+    /// also reports the main display from `IDXGISwapChain::GetContainingOutput`,
+    /// which breaks resolution menus on external monitors, so it is used only
+    /// when DirectX 12 is the game's sole option. dxgi.dll says nothing either
+    /// way: both D3D11 and D3D12 games import it.
+    static func requiresD3D12(_ libraries: Set<String>) -> Bool {
+        !libraries.isDisjoint(with: ["d3d12.dll", "d3d12core.dll"])
+            && libraries.isDisjoint(with: ["d3d11.dll", "d3d10.dll", "d3d10_1.dll", "d3d10core.dll"])
+    }
+
+    static func requiresD3D12(at url: URL) -> Bool { requiresD3D12(rendererLibraries(at: url)) }
+
+    /// The executable's imports plus those of DLLs it imports from its own
+    /// folder, one level deep. Unity and similar engines ship a small launcher
+    /// whose renderer imports live in a sibling such as UnityPlayer.dll.
+    static func rendererLibraries(at url: URL) -> Set<String> {
+        let direct = libraries(at: url)
+        let wanted = direct.subtracting(systemLibraries)
+        guard !wanted.isEmpty else { return direct }
+        // Imports are matched case-insensitively, as Windows does, by listing the folder.
+        let siblings = (try? FileManager.default.contentsOfDirectory(at: url.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? []
+        return siblings.filter { wanted.contains($0.lastPathComponent.lowercased()) }.prefix(16).reduce(into: direct) { result, sibling in
+            result.formUnion(libraries(at: sibling))
+        }
+    }
+
+    // Never worth opening next to a game: Windows and the renderers themselves.
+    private static let systemLibraries: Set<String> = ["kernel32.dll", "user32.dll", "gdi32.dll", "advapi32.dll", "shell32.dll",
+        "ole32.dll", "oleaut32.dll", "ws2_32.dll", "winmm.dll", "version.dll", "ntdll.dll", "dxgi.dll", "d3d12.dll", "d3d12core.dll",
+        "d3d11.dll", "d3d10.dll", "d3d10_1.dll", "d3d10core.dll", "d3d9.dll"]
+
+    static func libraries(at url: URL) -> Set<String> {
         guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
               size <= 128 * 1024 * 1024,
-              let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return false }
-        return libraries(in: data).contains { ["d3d12.dll", "d3d12core.dll"].contains($0) }
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return [] }
+        return libraries(in: data)
     }
 
     static func libraries(in data: Data) -> Set<String> {
