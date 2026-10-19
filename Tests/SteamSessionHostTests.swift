@@ -102,8 +102,12 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.install(appID: 1)
         var metal = runtime
         metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
-        await #expect(throws: SteamSessionHost.Failure.self) {
+        // The refusal names the blocking downloads so Play can offer to wait or restart.
+        do {
             try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
+            Issue.record("Renderer switch must not interrupt a submitted download")
+        } catch SteamSessionHost.Failure.graphicsBusy(let appIDs) {
+            #expect(appIDs == [1])
         }
         try await host.control("pause", appID: 1)
         await #expect(throws: SteamSessionHost.Failure.self) {
