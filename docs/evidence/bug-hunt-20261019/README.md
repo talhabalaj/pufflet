@@ -64,7 +64,10 @@ machine-wide service restart or other agent's process was used to recover it.
 
 ## Validation and cleanup
 
-The final full Swift suite passed: **153 tests in 25 suites**, in 70.708 seconds.
+After integrating current main's uninstall feature, the final full Swift suite
+passed: **166 tests in 27 suites**, in 70.590 seconds. Integration coverage also
+checks that uninstall excludes reserved installs and queued Play, and keeps app
+updates postponed until removal finishes.
 All **70 Node tests** passed. The normal signed Debug app built successfully.
 Opt-in authenticated/game tests were not enabled in the unit suite. An earlier
 full run hit two existing timing-sensitive fixtures (soft-stop command logging

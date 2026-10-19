@@ -110,6 +110,7 @@ actor SteamSessionHost {
     private var preparingSupport = false
     private var ownsPreparedPrefix = false
     private var switchingDisplay = false
+    private var uninstalling = false
 
     init(paths: SteamClientPaths = .standard, hostURL: URL? = Bundle.main.url(forResource: "dockhost", withExtension: "exe"),
          installer: (any SteamClientPreparing)? = nil) {
@@ -129,7 +130,7 @@ actor SteamSessionHost {
     // configuration, startup and launch submission, preventing queued installs
     // or a second Play from entering between these suspended steps.
     func startGame(_ game: SteamGame, option: UInt32, executable: URL, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
-        guard !switchingDisplay, !starting, !preparingSupport, !stopping, installReservations.isEmpty,
+        guard !switchingDisplay, !starting, !preparingSupport, !stopping, installReservations.isEmpty, !uninstalling,
               ongoing.subtracting(installRequests).isEmpty else { throw SteamDisplayProfiles.Failure.busy }
         let preference = try SteamDisplayProfiles(paths: paths).preference(for: game.id)
         guard let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
@@ -144,6 +145,7 @@ actor SteamSessionHost {
     private func startManaged(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime,
                               requestedDisplay: SteamDisplayPreference? = nil, graphicsForLaunch: Bool = false, installAttempt: UUID? = nil) async throws {
         guard !stopping, !preparingSupport else { throw Failure.stopped("Steam is being prepared or stopped. Try again shortly.") }
+        guard !uninstalling else { throw Failure.stopped("Pufflet is uninstalling a game. Try again when it finishes.") }
         let identity = try runtime.identity()
         guard identity.prefix == paths.prefix.standardizedFileURL,
               paths.prefix.standardizedFileURL == paths.prefix.resolvingSymlinksInPath().standardizedFileURL else { throw SteamClientPackages.Failure.conflict }
@@ -352,7 +354,26 @@ actor SteamSessionHost {
         try? await shutdownOwned()
     }
 
-    var isActive: Bool { starting || process != nil || stopping || preparingSupport || ownsPreparedPrefix || switchingDisplay || !installReservations.isEmpty }
+    var isActive: Bool { starting || process != nil || stopping || preparingSupport || ownsPreparedPrefix || switchingDisplay || uninstalling || !installReservations.isEmpty }
+
+    /// Runs a file-level uninstall with Valve's client stopped. Uses the same
+    /// ownership as Play and installs: refused while any request, download
+    /// (including a paused one) or game is in flight; an idle client is shut down
+    /// first so it can't hold stale install state; and no start, Play or setup can
+    /// enter until `body` returns. Valve's client rescans manifests when it next starts.
+    func withClientStopped<T: Sendable>(_ body: @Sendable () async throws -> T) async throws -> T {
+        guard !uninstalling, !switchingDisplay, !starting, !preparingSupport, !stopping, installReservations.isEmpty else {
+            throw Failure.stopped("Steam is starting or stopping. Try again when it’s ready.")
+        }
+        guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty else {
+            throw Failure.stopped("Steam is busy with a download or game. Wait for it to finish before uninstalling.")
+        }
+        uninstalling = true
+        defer { uninstalling = false }
+        if process != nil || ownsPreparedPrefix { try await shutdownOwned() }
+        guard process == nil, !ownsPreparedPrefix, !starting else { throw Failure.stopped("Steam has not stopped yet. Try again shortly.") }
+        return try await body()
+    }
 
     // Holds the attempt's reservation across every preparation/reuse suspension
     // until submission and any cancellation cleanup settle, so a restart cannot
@@ -360,7 +381,7 @@ actor SteamSessionHost {
     func startInstall(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials,
                       runtime: SteamRuntime, attempt: UUID) async throws {
         try Task.checkCancellation()
-        guard !switchingDisplay, installReservations[attempt] == nil, !installReservations.values.contains(appID) else {
+        guard !uninstalling, !switchingDisplay, installReservations[attempt] == nil, !installReservations.values.contains(appID) else {
             throw SteamClientPackages.Failure.activeSession
         }
         installReservations[attempt] = appID

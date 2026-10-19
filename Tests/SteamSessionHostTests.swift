@@ -159,6 +159,38 @@ private actor PreparedClient: SteamClientPreparing {
         let encoded = claims.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
         return SteamCredentials(accountName: "fixture", refreshToken: "fixture.\(encoded).fixture", accessToken: "")
     }
+    @Test func uninstallWaitsForDownloadsThenStopsTheIdleClientAndBlocksStarts() async throws {
+        let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        try await host.install(appID: 1)
+        // A download (even a paused one) owns the client: uninstall is refused, nothing runs.
+        await #expect(throws: SteamSessionHost.Failure.self) { try await host.withClientStopped { Issue.record("ran while downloading") } }
+        try await host.control("pause", appID: 1)
+        await #expect(throws: SteamSessionHost.Failure.self) { try await host.withClientStopped { Issue.record("ran while paused") } }
+        try await host.control("cancel", appID: 1)
+        // Idle: the client is stopped first, and no start can enter until the removal returns.
+        let (gate, open) = AsyncStream<Void>.makeStream()
+        let (entered, enter) = AsyncStream<Void>.makeStream()
+        let removal = Task { try await host.withClientStopped { enter.yield(); for await _ in gate { break }; return 7 } }
+        for await _ in entered { break }
+        #expect(await host.isActive)
+        await #expect(throws: SteamSessionHost.Failure.self) {
+            try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: runtime)
+        }
+        await #expect(throws: SteamClientPackages.Failure.self) {
+            try await host.startInstall(appID: 2, destination: root, library: [], credentials: credentials, runtime: runtime, attempt: UUID())
+        }
+        open.yield(); open.finish()
+        #expect(try await removal.value == 7)
+        #expect(await !host.isActive)
+        // The idle client was shut down, so the next start prepares a fresh one.
+        try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: runtime)
+        #expect(await installer.calls == 2)
+        try await host.shutdown()
+    }
     @Test func failedPreHostCleanupRetainsOwnershipUntilShutdownCanBeVerified() async throws {
         let (root, runtime, _) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
         let server = root.appendingPathComponent("runtime/Contents/SharedSupport/wine/bin/wineserver")
@@ -750,6 +782,9 @@ private actor PreparedClient: SteamClientPreparing {
         let install = Task { try await host.startInstall(appID: 3, destination: root, library: [], credentials: credentials, runtime: runtime, attempt: UUID()) }
         var deadline = ContinuousClock.now.advanced(by: .seconds(5))
         while await installer.heldQueryCount < 1, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        await #expect(throws: SteamSessionHost.Failure.self) {
+            try await host.withClientStopped { Issue.record("Uninstall entered a reserved install") }
+        }
         await #expect(throws: (any Error).self) {
             try await host.startGame(selected, option: 0, executable: executable, destination: second, library: [selected], credentials: credentials, runtime: runtime)
         }

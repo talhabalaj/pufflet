@@ -22,6 +22,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.errorMessage = "Steam support is restarting to start your game. Quit again once the game opens or the restart finishes."
             return .terminateCancel
         }
+        if let id = model.uninstallingID {
+            // Quitting mid-removal would stop Steam support under the delete.
+            let alert = NSAlert()
+            alert.messageText = "Pufflet is uninstalling \(model.entries.first { $0.id == id }?.name ?? "a game")"
+            alert.informativeText = "Quit after it finishes. This usually takes a few seconds."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return .terminateCancel
+        }
         if model.hasDownloadWork {
             let alert = NSAlert()
             alert.messageText = "A game download is in progress"

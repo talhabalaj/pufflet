@@ -27,6 +27,7 @@ struct SteamGame { let id: String; let installDirectory: String }
     var blockedPlay: SteamGame?
     var isRestartingForPlay = false
     var hasDownloadWork = false
+    var uninstallingID: String?
     var snapshot = RuntimeSnapshot()
     var games = [SteamGame(id: "123", installDirectory: "FixtureGame")]
     var launchDeadline: ContinuousClock.Instant?
@@ -153,4 +154,12 @@ for path in [#"C:\Games\SteamClient\Steam.exe"#, "/prefix/drive_c/Games/SteamCli
 }
 model.snapshot = RuntimeSnapshot(processes: [steam], steamExecutable: client)
 expect(model.snapshot.steam?.pid == 101, "Configuring a client keeps the default Steam match")
+model.snapshot = RuntimeSnapshot()
+model.uninstallingID = "123"
+expect(request(), "Uninstall must postpone an update restart")
+subject.resumePendingInstall()
+expect(installs == 4, "Uninstall must keep an update postponed")
+model.uninstallingID = nil
+subject.resumePendingInstall()
+expect(installs == 5, "Finishing uninstall must permit installation")
 print("PASS: updater activity regressions")

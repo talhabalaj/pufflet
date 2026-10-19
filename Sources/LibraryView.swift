@@ -37,6 +37,12 @@ struct LibraryView: View {
         .confirmationDialog("Sign out of Steam?", isPresented: $model.confirmsSignOut) {
             Button("Sign Out", role: .destructive) { model.account.signOut() }
         } message: { Text("Your installed games stay on this Mac. Sign in again to see the rest of your library.") }
+        .confirmationDialog("Uninstall “\(model.uninstallRequest?.game.name ?? "")”?",
+                            isPresented: Binding(get: { model.uninstallRequest != nil }, set: { if !$0 { model.uninstallRequest = nil } }),
+                            presenting: model.uninstallRequest) { request in
+            Button("Uninstall", role: .destructive) { Task { await model.uninstall(request) } }
+            Button("Cancel", role: .cancel) { model.uninstallRequest = nil }
+        } message: { request in Text(Self.uninstallMessage(request)) }
         .alert(errorParts.title, isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             if model.headless.persistentEnabled, let id = model.repairGameID, let entry = model.entries.first(where: { $0.id == id }) {
                 Button("Repair Installation") { model.errorMessage = nil; model.repair(entry) }
@@ -63,6 +69,14 @@ struct LibraryView: View {
         .alert("Choose a Steam library", isPresented: Binding(get: { locationError != nil }, set: { if !$0 { locationError = nil } })) {
             Button("OK", role: .cancel) { locationError = nil }
         } message: { Text(locationError ?? "") }
+    }
+
+    static func uninstallMessage(_ request: LibraryModel.UninstallRequest) -> String {
+        let size = ByteCountFormatter.string(fromByteCount: request.bytes, countStyle: .file)
+        let library = FileManager.default.displayName(atPath: request.game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().path)
+        return "This frees \(size) by deleting the game’s files from “\(library)”. You can reinstall it from your library at any time.\n\n"
+            + "Saves in Pufflet’s Windows folder (including Documents/My Games) and in Steam Cloud are kept, as are this game’s display and graphics settings. "
+            + "Saves stored inside the game’s own folder are deleted."
     }
 
     private var subtitle: String {
@@ -227,6 +241,11 @@ struct GameMenuItems: View {
             }
             Button("Launch Using Desktop Steam") { if let installed { Task { await model.playInDesktopSteam(installed) } } }
                 .disabled(installed == nil || !model.canChangeLibrary)
+            Divider()
+            // Menus can't show why an item is unavailable, so a blocked uninstall
+            // stays enabled and explains the reason instead.
+            Button("Uninstall…", role: .destructive) { if let game { Task { await model.requestUninstall(game) } } }
+                .disabled(installed == nil || model.uninstallingID != nil)
         }
     }
 
@@ -311,6 +330,7 @@ private struct GameTile: View {
     }
 
     private var statusText: String {
+        if model.uninstallingID == game.id { return "Uninstalling" }
         if model.isPlaying(game) { return "Playing" }
         if model.isLaunching(game) { return "Launching" }
         if game.installation?.isUpdatePending == true { return "Update pending" }
@@ -318,7 +338,9 @@ private struct GameTile: View {
     }
 
     @ViewBuilder private var status: some View {
-        if model.isPlaying(game) {
+        if model.uninstallingID == game.id {
+            HStack(spacing: 5) { ProgressView().controlSize(.mini); Text("Uninstalling…") }
+        } else if model.isPlaying(game) {
             Label("Playing", systemImage: "play.fill").foregroundStyle(.tint)
         } else if model.isLaunching(game) {
             HStack(spacing: 5) { ProgressView().controlSize(.mini); Text("Launching…") }
@@ -426,6 +448,16 @@ struct GameInspector: View {
                         Button("Launch Using Desktop Steam") { Task { await model.playInDesktopSteam(installed) } }
                             .disabled(!model.canChangeLibrary)
                     }
+                    Section {
+                        let blocked = model.uninstallBlockReason(game)
+                        Button("Uninstall…", role: .destructive) { Task { await model.requestUninstall(game) } }
+                            .disabled(blocked != nil)
+                        if let blocked, model.uninstallingID != game.id {
+                            Text(blocked).font(.caption).foregroundStyle(.secondary)
+                        }
+                    } footer: {
+                        Text("Deletes the game’s files to free disk space. Saves outside its folder, Steam Cloud and these settings are kept.")
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -454,6 +486,7 @@ struct GameInspector: View {
     }
 
     private func status(_ game: LibraryGame) -> String {
+        if model.uninstallingID == game.id { return "Uninstalling…" }
         if model.isPlaying(game) { return "Playing" }
         if model.isLaunching(game) { return "Launching" }
         if let work = model.downloadProgress(for: game.id) {
@@ -487,6 +520,12 @@ private struct StatusBar: View {
             bar {
                 ProgressView().controlSize(.small)
                 Text(model.message ?? (model.entries.first { $0.id == id }.map { "Starting \($0.name)…" } ?? "Starting…"))
+                Spacer()
+            }
+        } else if let id = model.uninstallingID {
+            bar {
+                ProgressView().controlSize(.small)
+                Text("Uninstalling \(model.entries.first { $0.id == id }?.name ?? "game")…")
                 Spacer()
             }
         } else if let request = model.queuedPlay {
