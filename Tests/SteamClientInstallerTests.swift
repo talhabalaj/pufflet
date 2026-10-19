@@ -32,7 +32,8 @@ struct SteamClientInstallerTests {
         let path = try #require(parsed["libraryfolders"]?["1"]?["path"]?.text)
         #expect(path.hasPrefix("C:\\SteamLibraries\\library-"))
         #expect(first["10"] == path + "\\steamapps\\common\\Fixture Game")
-        #expect(parsed["libraryfolders"]?["0"]?["path"]?.text == "C:\\Program Files (x86)\\Steam")
+        // Slot 0 is the client's own folder, wherever it sits on drive C.
+        #expect(parsed["libraryfolders"]?["0"]?["path"]?.text == "C:\\Steam")
         let alias = prefix.appendingPathComponent("drive_c/SteamLibraries/" + String(path.split(separator: "\\").last!))
         #expect(alias.resolvingSymlinksInPath().path == library.resolvingSymlinksInPath().path)
         #expect(parsed["libraryfolders"]?["1"]?["apps"]?["10"]?.text == "100")
