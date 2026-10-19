@@ -8,7 +8,14 @@ struct LibraryView: View {
     @State private var columnCount = 4
     @State private var locationError: String?
     @Environment(\.openSettings) private var openSettings
-    private let minimumTileWidth: CGFloat = 140, tileSpacing: CGFloat = 22
+    /// Tiles keep one width so opening the inspector, which animates the content width,
+    /// moves whole columns instead of stretching and shrinking every cover each frame.
+    static let tileWidth: CGFloat = 160, tileSpacing: CGFloat = 22, gridPadding: CGFloat = 24
+
+    /// The column count of an adaptive grid with fixed-width tiles, which arrow keys use to move between rows.
+    static func columnCount(width: CGFloat) -> Int {
+        max(1, Int((width - 2 * gridPadding + tileSpacing) / (tileWidth + tileSpacing)))
+    }
 
     var body: some View {
         Group {
@@ -132,7 +139,7 @@ struct LibraryView: View {
             } else { ContentUnavailableView.search(text: model.search) }
         } else {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumTileWidth, maximum: 180), spacing: tileSpacing, alignment: .top)],
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.tileWidth, maximum: Self.tileWidth), spacing: Self.tileSpacing, alignment: .top)],
                           alignment: .leading, spacing: 26) {
                     ForEach(model.filteredGames) { game in
                         GameTile(game: game, model: model, selected: model.selectedID == game.id, emphasized: gridFocused)
@@ -142,10 +149,9 @@ struct LibraryView: View {
                             .contextMenu { GameMenuItems(game: game, model: model, inContextMenu: true) }
                     }
                 }
-                .padding(24)
-                .onGeometryChange(for: Int.self) {
-                    max(1, Int(($0.size.width - 48 + tileSpacing) / (minimumTileWidth + tileSpacing)))
-                } action: { columnCount = $0 }
+                .padding(Self.gridPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: Int.self) { Self.columnCount(width: $0.size.width) } action: { columnCount = $0 }
             }
             .focusable()
             .focused($gridFocused)

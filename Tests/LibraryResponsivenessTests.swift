@@ -68,3 +68,14 @@ import Testing
         return (model, root, defaults, suite)
     }
 }
+
+@MainActor struct LibraryGridTests {
+    @Test func columnCountMatchesFixedWidthTiles() {
+        // 24 pt padding on each side, 160 pt tiles, 22 pt gaps.
+        #expect(LibraryView.columnCount(width: 100) == 1)
+        #expect(LibraryView.columnCount(width: 48 + 160) == 1)
+        #expect(LibraryView.columnCount(width: 48 + 2 * 160 + 22) == 2)
+        #expect(LibraryView.columnCount(width: 48 + 2 * 160 + 22 - 1) == 1)
+        #expect(LibraryView.columnCount(width: 48 + 5 * 160 + 4 * 22) == 5)
+    }
+}
