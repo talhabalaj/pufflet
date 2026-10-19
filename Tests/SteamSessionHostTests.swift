@@ -508,6 +508,85 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.shutdown()
     }
 
+    // Holds app 1's install acknowledgement until the test cancels the waiting task.
+    private static let delayedAckScript = #"""
+    import pathlib, sys, time
+    root = pathlib.Path(__file__).parent
+    print('[steam-host] pufflet2 request-id=0 app-id=0 session-ready=1', flush=True)
+    active = set()
+    for line in sys.stdin:
+        parts = line.split()
+        req, action = parts[:2]
+        app = int(parts[2]) if len(parts) > 2 else 0
+        if action == 'shutdown': break
+        if action == 'install':
+            active.add(app)
+            if app == 1:
+                (root / 'submitted').touch()
+                while not (root / 'ack').exists(): time.sleep(.005)
+        if action == 'cancel': active.discard(app)
+        (root / 'active').write_text(','.join(map(str, sorted(active))))
+        print(f'[steam-host] pufflet2 request-id={req} app-id={app} command-result=0', flush=True)
+    """#
+
+    private func waitForSubmission(in root: URL) async throws -> Bool {
+        let marker = root.appendingPathComponent("submitted")
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !FileManager.default.fileExists(atPath: marker.path), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return FileManager.default.fileExists(atPath: marker.path)
+    }
+
+    @Test func cancellationAfterInstallSubmissionStopsOnlyThatAppAndKeepsPartialFiles() async throws {
+        let (root, runtime, url) = try fixture(Self.delayedAckScript)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
+        let partial = root.appendingPathComponent("partial.bin")
+        try Data("partial content".utf8).write(to: partial)
+        do {
+            try await host.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
+            try await host.install(appID: 2)
+            let install = Task { try await host.install(appID: 1) }
+            let submitted = try await waitForSubmission(in: root)
+            install.cancel()
+            try Data().write(to: root.appendingPathComponent("ack"))
+            await #expect(throws: CancellationError.self) { try await install.value }
+            #expect(submitted)
+            #expect(try String(contentsOf: root.appendingPathComponent("active"), encoding: .utf8) == "2")
+            #expect(try Data(contentsOf: partial) == Data("partial content".utf8))
+            #expect(await host.isActive)
+            try await host.shutdown()
+        } catch {
+            try? await host.shutdown()
+            throw error
+        }
+    }
+
+    @Test func stopDuringFacadeInstallAcknowledgementDoesNotReportItSubmitted() async throws {
+        let (root, runtime, url) = try fixture(Self.delayedAckScript)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root)
+        let actor = SteamSessionHost(paths: paths, hostURL: url, installer: PreparedClient())
+        let facade = SteamHeadlessSession(paths: paths, hostURL: url, sessionHost: actor)
+        let credentials = try credentials()
+        do {
+            let install = Task { try await facade.install(appID: "1", destination: root, library: [], credentials: credentials, runtime: runtime) }
+            let submitted = try await waitForSubmission(in: root)
+            install.cancel()
+            try Data().write(to: root.appendingPathComponent("ack"))
+            await #expect(throws: CancellationError.self) { try await install.value }
+            #expect(submitted)
+            #expect(!facade.hasSubmittedInstall("1"))
+            #expect(try String(contentsOf: root.appendingPathComponent("active"), encoding: .utf8) == "")
+            #expect(facade.takeInstallResults().isEmpty)
+            try await actor.shutdown()
+        } catch {
+            try? await actor.shutdown()
+            throw error
+        }
+    }
+
     private static let script = #"""
     import os, sys
     def emit(req, app, key, value):

@@ -130,7 +130,7 @@ private struct DownloadRow: View {
         case .failed, .stopped, .interrupted:
             Button("Retry", systemImage: "arrow.clockwise.circle.fill") { model.retryDownload(job) }
                 .help("Retry. Steam checks the existing files and continues.")
-                .disabled(model.isStoppingDownload)
+                .disabled(!model.canRetryDownload(job))
         case .completed:
             if let game = model.games.first(where: { $0.id == job.id }) {
                 Button("Show in Finder", systemImage: "magnifyingglass.circle.fill") {

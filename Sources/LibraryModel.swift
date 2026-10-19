@@ -421,7 +421,7 @@ import os
     }
 
     func install(_ entry: LibraryGame) {
-        guard canInstall, entry.installation == nil, let owned = entry.owned, let destination = settings.libraryURL else { return }
+        guard canInstall, !isSubmittingDownload(entry.id), entry.installation == nil, let owned = entry.owned, let destination = settings.libraryURL else { return }
         guard account.accountName != nil else { showsAccount = true; return }
         guard requireRuntime() else { return }
         downloads.enqueue(owned, destination: destination)
@@ -429,7 +429,7 @@ import os
     }
 
     func repair(_ entry: LibraryGame) {
-        guard headless.persistentEnabled, canInstall, !isPlaying(entry),
+        guard headless.persistentEnabled, canInstall, !isSubmittingDownload(entry.id), !isPlaying(entry),
               let destination = settings.libraryURL, let game = entry.installation else { return }
         guard account.accountName != nil else { showsAccount = true; return }
         guard requireRuntime() else { return }
@@ -440,7 +440,7 @@ import os
     }
 
     func retryDownload(_ job: GameDownload) {
-        guard canInstall else { return }
+        guard canInstall, canRetryDownload(job) else { return }
         guard let owned = ownedLibrary.games.first(where: { $0.id == job.id }), job.destination.resolvingSymlinksInPath().path == settings.libraryURL?.resolvingSymlinksInPath().path else {
             errorMessage = "Refresh your Steam library and choose the original download folder before retrying."
             return
@@ -464,9 +464,18 @@ import os
                 guard snapshot.steam == nil else { throw SteamError.authenticationFailed("Close desktop Steam before downloading games in Pufflet.") }
                 guard let credentials = try SteamKeychain().load(), credentials.isUsable() else { throw SteamError.authSessionExpired }
                 try await headless.install(appID: job.id, destination: job.destination, library: games, credentials: credentials, runtime: nativeRuntime)
+                // Stop can land after the facade returned but before this task resumed.
+                if Task.isCancelled {
+                    if headless.persistentEnabled { try await headless.cancelInstall(id: job.id) }
+                    throw CancellationError()
+                }
                 downloads.update(job.id, state: .installing)
             } catch {
-                if !isStoppingDownload, downloads.jobs.first(where: { $0.id == job.id })?.state != .stopped {
+                if case SteamSessionHost.Failure.cancellationFailed = error {
+                    // Steam may still be downloading; keep the controls instead of claiming it stopped.
+                    downloads.update(job.id, state: .installing)
+                    errorMessage = error.localizedDescription
+                } else if !isStoppingDownload, downloads.jobs.first(where: { $0.id == job.id })?.state != .stopped {
                     downloads.update(job.id, state: .failed, error: error.localizedDescription)
                     downloads.stopWaiting()
                     activeDownloadID = nil
@@ -496,15 +505,25 @@ import os
         activeDownloadID = downloads.jobs.first { [.preparing, .installing, .paused].contains($0.state) }?.id
     }
 
+    // Install, repair and Retry wait until the same app's submission or its
+    // cancellation settles, so a late acknowledgement cannot claim the new attempt.
+    private func isSubmittingDownload(_ id: String) -> Bool {
+        activeDownloadID == id && downloadTask != nil
+    }
+
+    func canRetryDownload(_ job: GameDownload) -> Bool {
+        !isStoppingDownload && !isSubmittingDownload(job.id)
+    }
+
     func controlDownload(_ action: String, job: GameDownload) async {
-        guard !isRestartingForPlay else { return }
+        guard !isRestartingForPlay, let job = downloads.jobs.first(where: { $0.id == job.id }) else { return }
         // A paused job retained across an explicit renderer restart has no host request yet.
         if action == "resume", job.state == .paused, !headless.hasSubmittedInstall(job.id) {
             downloads.update(job.id, state: .queued); startNextDownload()
             return
         }
         if action == "cancel", job.state == .preparing {
-            downloadTask?.cancel()
+            if activeDownloadID == job.id { downloadTask?.cancel() }
             downloads.update(job.id, state: .stopped)
             return
         }
