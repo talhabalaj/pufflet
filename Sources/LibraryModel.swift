@@ -36,14 +36,24 @@ import os
     private var catalogueTask: Task<Void, Never>?
     private var downloadTask: Task<Void, Never>?
     var hasDownloadWork: Bool { downloads.hasPendingWork || activeDownloadID != nil || isStoppingDownload }
-    var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
-    var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork }
+    var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && uninstallingID == nil }
+    var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && uninstallingID == nil }
     var canPlay: Bool {
-        phase == .idle && downloadTask == nil && !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled ? !headless.hasLaunchWork : !hasDownloadWork && !headless.isActive)
+        phase == .idle && downloadTask == nil && !isStoppingDownload && !runtimeSetup.isBusy && uninstallingID == nil
+            && (headless.persistentEnabled ? !headless.hasLaunchWork : !hasDownloadWork && !headless.isActive)
     }
     var canInstall: Bool {
-        phase == .idle && !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled || phase == .idle && (!headless.isActive || activeDownloadID != nil))
+        phase == .idle && !isStoppingDownload && !runtimeSetup.isBusy && uninstallingID == nil
+            && (headless.persistentEnabled || phase == .idle && (!headless.isActive || activeDownloadID != nil))
     }
+    struct UninstallRequest: Identifiable, Equatable {
+        let game: SteamGame
+        let bytes: Int64
+        var id: String { game.id }
+    }
+    /// A measured uninstall awaiting confirmation.
+    var uninstallRequest: UninstallRequest?
+    private(set) var uninstallingID: String?
     var entries: [LibraryGame] { LibraryGame.merge(installed: games, owned: ownedLibrary.games) }
     var showsAccount = false
     var games: [SteamGame] = []
@@ -355,6 +365,75 @@ import os
         showsDownloads = true
     }
 
+    /// Why `entry` can't be uninstalled right now, or nil when it can. Removing a
+    /// game stops Valve's client, so any running game or download blocks it.
+    func uninstallBlockReason(_ entry: LibraryGame) -> String? {
+        let name = entry.name
+        guard let game = entry.installation else { return "\(name) isn’t installed." }
+        if uninstallingID != nil { return "Pufflet is already uninstalling a game. Wait for it to finish." }
+        if isPlaying(entry) { return "Quit \(name) before uninstalling it. Pufflet can’t remove a game that’s running." }
+        if isLaunching(entry) { return "\(name) is starting. Quit it before uninstalling it." }
+        if let job = downloads.jobs.first(where: { $0.id == entry.id && [.queued, .preparing, .installing, .paused].contains($0.state) }) {
+            switch job.state {
+            case .queued: return "\(name) is queued in Downloads. Remove it from the queue before uninstalling it."
+            case .paused: return "\(name) has a paused download. Cancel it in Downloads before uninstalling the game."
+            default:
+                let repairing = headless.installReports[entry.id]?.fields["install-verifying"] == 1
+                return "\(name) is \(repairing ? "being repaired" : "updating"). Wait for it to finish, or cancel it in Downloads."
+            }
+        }
+        if let other = playingGame { return "Quit \(other.name) before uninstalling \(name). Pufflet stops Steam to remove a game." }
+        if case .launching = phase { return "A game is starting. Wait for it to open, then quit it before uninstalling \(name)." }
+        if phase != .idle || isStoppingDownload || runtimeSetup.isBusy { return "Pufflet is busy with Steam. Try uninstalling \(name) when it finishes." }
+        if hasDownloadWork { return "Downloads are in progress. Wait for them to finish, or stop them, before uninstalling \(name)." }
+        if snapshot.steam != nil { return "Quit desktop Steam before uninstalling \(name)." }
+        let root = game.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath()
+        guard let library = settings.libraryURL, library.standardizedFileURL.resolvingSymlinksInPath().path == root.path else {
+            return "\(name) isn’t in Pufflet’s download folder. Uninstall it from desktop Steam, or choose its library in Settings."
+        }
+        return nil
+    }
+
+    /// Measures the game and asks for confirmation, or explains why it can't be removed.
+    func requestUninstall(_ entry: LibraryGame) async {
+        if let reason = uninstallBlockReason(entry) { errorMessage = reason; return }
+        guard let game = entry.installation, let library = settings.libraryURL else { return }
+        do {
+            let plan = try await SteamGameUninstaller.plan(for: game, libraryRoot: library)
+            uninstallRequest = UninstallRequest(game: game, bytes: plan.bytes)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    func uninstall(_ request: UninstallRequest) async {
+        uninstallRequest = nil
+        // State may have changed while the dialog was open: re-check everything.
+        guard let entry = entries.first(where: { $0.id == request.id }), entry.installation == request.game else {
+            errorMessage = "\(request.game.name) changed while you were deciding. Refresh your library and try again."
+            return
+        }
+        if let reason = uninstallBlockReason(entry) { errorMessage = reason; return }
+        guard let library = settings.libraryURL else { return }
+        let game = request.game, client = paths.steam
+        uninstallingID = game.id; errorMessage = nil; message = nil
+        defer { uninstallingID = nil; startNextDownload() }
+        do {
+            let outcome = try await headless.uninstall {
+                try await SteamGameUninstaller.uninstall(game, libraryRoot: library, client: client)
+            }
+            refreshLibrary()
+            downloads.removeFinished(game.id)
+            message = "Uninstalled \(game.name) and freed \(ByteCountFormatter.string(fromByteCount: outcome.bytes, countStyle: .file))"
+            if !outcome.warnings.isEmpty { errorMessage = "\(game.name) was uninstalled. " + outcome.warnings.joined(separator: " ") }
+            logger.info("Uninstalled app \(game.id, privacy: .public), \(outcome.bytes) bytes")
+        } catch {
+            refreshLibrary()
+            errorMessage = error.localizedDescription
+            // Files remain with Steam's manifest: offer Repair from the alert.
+            if games.contains(where: { $0.id == game.id }) { repairGameID = game.id }
+            logger.error("Uninstall failed: \(error.localizedDescription)")
+        }
+    }
+
     func retryDownload(_ job: GameDownload) {
         guard canInstall else { return }
         guard let owned = ownedLibrary.games.first(where: { $0.id == job.id }), job.destination.resolvingSymlinksInPath().path == settings.libraryURL?.resolvingSymlinksInPath().path else {
@@ -368,7 +447,7 @@ import os
 
     func startNextDownload() {
         if case .launching = phase { return }
-        guard phase != .preparingSupport, downloads.storageError == nil, downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy,
+        guard phase != .preparingSupport, downloads.storageError == nil, downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy, uninstallingID == nil,
               headless.persistentEnabled || (activeDownloadID == nil && !headless.isActive && phase == .idle),
               let job = downloads.next else { return }
         activeDownloadID = job.id

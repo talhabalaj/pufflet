@@ -59,6 +59,11 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
         jobs.removeAll { $0.id == id && $0.state == .queued }; save()
     }
 
+    /// Forgets a finished job, e.g. a completed install whose game was uninstalled.
+    func removeFinished(_ id: String) {
+        jobs.removeAll { $0.id == id && [.completed, .failed, .stopped, .interrupted].contains($0.state) }; save()
+    }
+
     var hasFinished: Bool { jobs.contains { [.completed, .failed, .stopped, .interrupted].contains($0.state) } }
 
     func clearFinished() {

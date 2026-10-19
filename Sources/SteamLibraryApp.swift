@@ -17,6 +17,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }
+        if let id = model.uninstallingID {
+            // Quitting mid-removal would stop Steam support under the delete.
+            let alert = NSAlert()
+            alert.messageText = "Pufflet is uninstalling \(model.entries.first { $0.id == id }?.name ?? "a game")"
+            alert.informativeText = "Quit after it finishes. This usually takes a few seconds."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return .terminateCancel
+        }
         if model.hasDownloadWork {
             let alert = NSAlert()
             alert.messageText = "A game download is in progress"
@@ -75,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .onChange(of: model.hasDownloadWork) { AppUpdater.shared.resumePendingInstall() }
                 .onChange(of: model.runtimeSetup.isBusy) { AppUpdater.shared.resumePendingInstall() }
                 .onChange(of: model.phase) { AppUpdater.shared.resumePendingInstall() }
+                .onChange(of: model.uninstallingID) { AppUpdater.shared.resumePendingInstall() }
         }
         .defaultSize(width: 900, height: 570)
         .windowResizability(.contentMinSize)
