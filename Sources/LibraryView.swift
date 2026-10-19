@@ -318,14 +318,15 @@ private struct GameTile: View {
             .overlay(alignment: .bottomLeading) {
                 if hovering, model.canStart(game) {
                     let playing = model.isPlaying(game)
-                    Button(playing ? "Return to Game" : game.installation == nil ? "Install…" : "Play",
+                    Button(playing ? "Return to Game" : game.installation == nil ? "Install" : "Play",
                            systemImage: playing ? "arrow.up.forward" : game.installation == nil ? "arrow.down" : "play.fill") {
                         model.selectedID = game.id
-                        model.primaryAction(game)
+                        if game.installation == nil { model.install(game) } else { model.primaryAction(game) }
                     }
                     .labelStyle(.iconOnly).font(.title3)
                     .buttonStyle(.glassProminent).buttonBorderShape(.circle).controlSize(.extraLarge)
-                    .help(playing ? "Return to \(game.name)" : game.installation == nil ? "See the download size and install \(game.name)" : "Play \(game.name)")
+                    .disabled(game.installation == nil && !model.canInstall)
+                    .help(playing ? "Return to \(game.name)" : game.installation == nil ? "Install \(game.name)" : "Play \(game.name)")
                     .padding(8)
                 }
             }
