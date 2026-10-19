@@ -237,9 +237,109 @@ import Testing
         try await model.shutdownSession()
     }
 
+    /// Play with only a paused download in the way restarts Steam without asking,
+    /// and Play on an outdated game updates it first without a full verify.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["PUFFLET_LIVE_SMOOTH_PLAY"] == "1"))
+    func isolatedPlayWhilePausedAndUpdateFirst() async throws {
+        let (model, root) = try await applicationFixture()
+        model.account.refresh()
+        let library = try #require(model.settings.libraryURL)
+        try FileManager.default.createDirectory(at: library.appendingPathComponent("steamapps"), withIntermediateDirectories: true)
+        let window = applicationWindow(model)
+        let observation = Task { await model.observeRuntime() }
+        defer { observation.cancel(); window.close() }
+        let small = "212800", large = "1625450"
+        func stage(_ name: String) throws {
+            try Data((name + "\n").utf8).write(to: root.appendingPathComponent("smooth-milestone.txt"), options: .atomic)
+            print("Smooth play stage: \(name)")
+        }
+        func job(_ id: String) -> GameDownload? { model.downloads.jobs.first { $0.id == id } }
+        func wait(_ label: String, seconds: Int, until condition: @MainActor () -> Bool) async throws {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(seconds))
+            while !condition() {
+                if let error = model.errorMessage { throw SteamSessionHost.Failure.stopped("\(label): \(error)") }
+                if model.blockedPlay != nil { throw SteamSessionHost.Failure.stopped("\(label): Play asked: \(model.blockedPlayDetail)") }
+                guard ContinuousClock.now < deadline else { throw SteamSessionHost.Failure.stopped("Timed out at: " + label) }
+                try await Task.sleep(for: .milliseconds(250))
+            }
+        }
+        func quitGame(_ id: String) async throws {
+            if let game = model.games.first(where: { $0.id == id }), let process = await SteamRuntime.snapshot().process(for: game) {
+                _ = Darwin.kill(process.pid, SIGTERM)
+            }
+            try await wait("game-exit", seconds: 60) { !model.headless.hasLaunchWork }
+        }
+        do {
+            try stage("install-small")
+            model.downloads.enqueue(.init(id: small, name: "Super Crate Box", estimatedBytes: nil), destination: library)
+            model.startNextDownload()
+            try await wait("install-small", seconds: 600) { job(small)?.state == .completed }
+
+            try stage("pause-large")
+            model.downloads.enqueue(.init(id: large, name: "Muck", estimatedBytes: nil), destination: library)
+            model.startNextDownload()
+            try await wait("large-progress", seconds: 300) { (model.headless.installReports[large]?.installWork?.done ?? 0) > 0 }
+            await model.controlDownload("pause", job: try #require(job(large)))
+            #expect(job(large)?.state == .paused)
+            let pausedAt = model.headless.installReports[large]?.installWork
+            print("Smooth play paused at:", pausedAt.map { "\($0.done) of \($0.total)" } ?? "unknown")
+
+            // A different display profile needs a restart; only a paused download is in the way.
+            try stage("play-while-paused")
+            model.setDisplayPreference(.highResolution, for: small)
+            let game = try #require(model.games.first { $0.id == small })
+            await model.play(game)
+            #expect(model.blockedPlay == nil)
+            try await wait("game-running", seconds: 240) { model.headless.playingAppID == small }
+            #expect(job(large)?.state == .paused)
+            #expect(!model.headless.hasSubmittedInstall(large))
+            print("Smooth play status after restart:", model.downloadActivityStatus(for: try #require(job(large))))
+            try await quitGame(small)
+
+            try stage("resume-large")
+            await model.controlDownload("resume", job: try #require(job(large)))
+            try await wait("large-resumed", seconds: 300) { (model.headless.installReports[large]?.installWork?.done ?? 0) > 0 }
+            let resumedAt = model.headless.installReports[large]?.installWork
+            print("Smooth play resumed at:", resumedAt.map { "\($0.done) of \($0.total)" } ?? "unknown")
+            if let pausedAt, let resumedAt { #expect(resumedAt.done >= pausedAt.done / 2) }
+            await model.controlDownload("cancel", job: try #require(job(large)))
+
+            // Steam reads StateFlags at startup: mark the game outdated while it's stopped.
+            try stage("update-first")
+            model.setDisplayPreference(.inherit, for: small)
+            try await model.shutdownSession()
+            let manifest = library.appendingPathComponent("steamapps/appmanifest_\(small).acf")
+            let text = try String(contentsOf: manifest, encoding: .utf8)
+            let outdatedText = text.replacingOccurrences(of: #""StateFlags"(\s+)"4""#, with: #""StateFlags"$1"6""#, options: .regularExpression)
+            #expect(outdatedText != text)
+            try outdatedText.write(to: manifest, atomically: true, encoding: .utf8)
+            model.refreshLibrary()
+            let outdated = try #require(model.games.first { $0.id == small })
+            #expect(outdated.isUpdatePending)
+            await model.play(outdated)
+            #expect(job(small)?.kind == .update)
+            #expect(model.queuedPlay?.gameID == small)
+            try await wait("update-then-play", seconds: 600) { model.headless.playingAppID == small }
+            #expect(job(small)?.state == .completed)
+            #expect(model.headless.installReports[small]?.fields["install-verifying"] != 1)
+            print("Smooth play update report:", model.headless.installReports[small]?.fields ?? [:])
+            #expect(model.games.first { $0.id == small }?.isUpdatePending == false)
+            try await quitGame(small)
+            try stage("finished")
+            try await model.shutdownSession()
+        } catch {
+            try? stage("failed")
+            try? await model.shutdownSession()
+            throw error
+        }
+    }
+
     private func applicationFixture() async throws -> (LibraryModel, URL) {
         let root = URL(filePath: try #require(ProcessInfo.processInfo.environment["PUFFLET_LIVE_ROOT"])).standardizedFileURL
-        guard root.path.hasPrefix("/tmp/pufflet-live-session-") || root.path.hasPrefix("/private/tmp/pufflet-live-session-") else { throw SteamError.invalidMessage }
+        // /tmp is a symlink, which the prefix ownership checks refuse; Caches is not.
+        let caches = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/pufflet-live-session-").path
+        guard root.path.hasPrefix("/tmp/pufflet-live-session-") || root.path.hasPrefix("/private/tmp/pufflet-live-session-")
+                || root.path.hasPrefix(caches) else { throw SteamError.invalidMessage }
         let credentials = try savedCredentials()
         let defaults = try #require(UserDefaults(suiteName: "PuffletAppLive." + UUID().uuidString))
         let settings = LibrarySettings(defaults: defaults, support: root, home: root)

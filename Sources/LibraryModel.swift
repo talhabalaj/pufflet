@@ -316,9 +316,11 @@ import os
             } else { errorMessage = error.localizedDescription }
             if case SteamLaunchConfiguration.ConfigurationError.missingExecutable = error { repairGameID = game.id }
             if case SteamSessionHost.Failure.disconnected = error { retryPlayID = game.id }
-            logger.error("Game launch failed: \(error.localizedDescription)")
             // A download started now would hold the session the restart needs.
-            if automaticRestart == nil { startNextDownload() }
+            if automaticRestart == nil {
+                logger.error("Game launch failed: \(error.localizedDescription)")
+                startNextDownload()
+            }
         }
         if let automaticRestart {
             logger.info("Restarting Steam support for app \(game.id, privacy: .public); only paused or queued downloads were waiting")
