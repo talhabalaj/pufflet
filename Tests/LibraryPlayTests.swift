@@ -51,6 +51,19 @@ import Testing
         #expect(model.takeQueuedPlayIfReady()?.id == "10")
     }
 
+    @Test func restartPlayWhenReadySurvivesAnotherGamesStoppedDownload() throws {
+        let (model, root, defaults, suite) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        let game = game(root); model.games = [game]
+        model.downloads.enqueue(.init(id: "20", name: "Other game", estimatedBytes: 1), destination: root)
+        model.offerPlayAfterDownloads(game, blockingAppIDs: ["20"], requiresRestart: true)
+        model.queueBlockedPlay()
+        model.downloads.update("20", state: .stopped)
+        // Stopping the other download frees Steam support instead of cancelling Play.
+        #expect(model.takeQueuedPlayIfReady()?.id == "10")
+        #expect(model.errorMessage == nil)
+    }
+
     @Test func queuedPlayForAGameThatLeftTheLibraryExplainsWhy() throws {
         let (model, root, defaults, suite) = try fixture()
         defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }

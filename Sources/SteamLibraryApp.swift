@@ -17,6 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }
+        // Steam support cannot stop while it restarts, and the restart then starts the game.
+        if model.isRestartingForPlay {
+            model.errorMessage = "Steam support is restarting to start your game. Quit again once the game opens or the restart finishes."
+            return .terminateCancel
+        }
         if model.hasDownloadWork {
             let alert = NSAlert()
             alert.messageText = "A game download is in progress"

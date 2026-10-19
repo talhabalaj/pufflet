@@ -54,6 +54,9 @@ struct DesktopSteamClientTests {
         #expect(throws: DesktopSteamClient.Failure.self) {
             try DesktopSteamClient(root: client, managedPrefix: root.appendingPathComponent("managed/prefix"))
         }
+        // While Steam updates itself, its process is still recognized from the chosen folder.
+        let located = try DesktopSteamClient(root: client, managedPrefix: root.appendingPathComponent("managed/prefix"), requireComplete: false)
+        #expect(located.windowsExecutable == "Steam\\steam.exe")
     }
 
     @Test func rejectsContentOnlyLibraryAndManagedPrefixEvenWithUIFiles() throws {

@@ -102,8 +102,12 @@ import os
     var desktopSteam: DesktopSteamClient? {
         settings.desktopSteamURL.flatMap { try? DesktopSteamClient(root: $0, managedPrefix: nativeRuntime.installation.prefix) }
     }
+    /// The chosen client even while Steam is updating its files, for recognizing and stopping it.
+    private var chosenDesktopSteam: DesktopSteamClient? {
+        settings.desktopSteamURL.flatMap { try? DesktopSteamClient(root: $0, managedPrefix: nativeRuntime.installation.prefix, requireComplete: false) }
+    }
     /// The chosen client's steam.exe relative to drive_c, for recognizing its process.
-    var desktopSteamExecutable: String? { desktopSteam?.windowsExecutable }
+    var desktopSteamExecutable: String? { chosenDesktopSteam?.windowsExecutable }
     /// Uses the same Wine app as `runtime`, so `observeRuntime` still owns its processes.
     private func desktopRuntime(_ client: DesktopSteamClient) -> SteamRuntime {
         SteamRuntime(installation: client.installation(using: installation), dockBridge: runtime.dockBridge)
@@ -180,7 +184,12 @@ import os
             }
             // Play can take minutes; the loop must keep finishing downloads meanwhile.
             if downloadsWaitForLibrary, !headless.hasLaunchWork, phase == .idle { downloadsWaitForLibrary = false; startNextDownload() }
-            if let game = takeQueuedPlayIfReady() { Task { await play(game) } }
+            if let request = queuedPlay, let game = takeQueuedPlayIfReady() {
+                // Play starts later; if a download or launch took over meanwhile, keep waiting.
+                Task {
+                    if canPlay { await play(game) } else if queuedPlay == nil { queuedPlay = request }
+                }
+            }
             if case let .launching(id) = phase,
                let game = games.first(where: { $0.id == id }), snapshot.process(for: game) != nil {
                 phase = .idle
@@ -251,7 +260,7 @@ import os
                 phase = .launching(game.id)
                 message = "Closing desktop Steam…"
                 launchDeadline = ContinuousClock.now.advanced(by: .seconds(25))
-                try await (desktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"])
+                try await (chosenDesktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"])
                 let executable = desktopSteamExecutable
                 for _ in 0..<20 {
                     if await SteamRuntime.snapshot(steamExecutable: executable).steam == nil { break }
@@ -318,7 +327,10 @@ import os
             errorMessage = "Play cancelled because the game is no longer in your library. Refresh the library, then try Play again."
             return nil
         }
-        if downloads.jobs.contains(where: { request.blockingAppIDs.contains($0.id) && [.failed, .stopped, .interrupted].contains($0.state) }) {
+        // A restart waits on other games' downloads, so stopping or losing one
+        // only frees Steam support; this game's own failed download blocks Play.
+        if !request.requiresRestart,
+           downloads.jobs.contains(where: { request.blockingAppIDs.contains($0.id) && [.failed, .stopped, .interrupted].contains($0.state) }) {
             queuedPlay = nil; errorMessage = "Play cancelled because a download needs attention. Check Downloads, then try Play again."
             return nil
         }
@@ -354,11 +366,12 @@ import os
             startNextDownload()
         } catch {
             phase = .idle; isRestartingForPlay = false
-            errorMessage = error.localizedDescription
             // The host may have survived; apply Stop and Pause made during the restart.
             for job in downloads.jobs where [.stopped, .paused].contains(job.state) && headless.hasSubmittedInstall(job.id) {
                 await controlDownload(job.state == .stopped ? "cancel" : "pause", job: job)
             }
+            // The restart failure explains the state better than a follow-up control error.
+            errorMessage = error.localizedDescription
             startNextDownload()
         }
     }
@@ -429,7 +442,7 @@ import os
 
     func quitSteam() async {
         guard snapshot.steam != nil, !games.contains(where: isPlaying) else { return }
-        do { try await (desktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"]) }
+        do { try await (chosenDesktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"]) }
         catch { errorMessage = error.localizedDescription }
     }
 

@@ -17,7 +17,9 @@ nonisolated struct DesktopSteamClient: Sendable {
         }
     }
 
-    init(root selection: URL, managedPrefix: URL) throws {
+    /// `requireComplete: false` only locates a chosen client, for recognizing or
+    /// stopping it while Steam updates its own files; opening it needs a complete client.
+    init(root selection: URL, managedPrefix: URL, requireComplete: Bool = true) throws {
         let root = selection.standardizedFileURL.resolvingSymlinksInPath()
         var drive = root
         while drive.path != "/", drive.lastPathComponent != "drive_c" { drive.deleteLastPathComponent() }
@@ -28,8 +30,8 @@ nonisolated struct DesktopSteamClient: Sendable {
         func regular(_ name: String) -> Bool {
             (try? root.appendingPathComponent(name).resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
         }
-        guard regular("steam.exe"), regular("steamclient64.dll"), regular("steamui.dll"),
-              regular("bin/cef/cef.win7x64/steamwebhelper.exe") || regular("bin/cef/cef.win7/steamwebhelper.exe") else {
+        guard !requireComplete || regular("steam.exe") && regular("steamclient64.dll") && regular("steamui.dll")
+                && (regular("bin/cef/cef.win7x64/steamwebhelper.exe") || regular("bin/cef/cef.win7/steamwebhelper.exe")) else {
             throw Failure.incomplete
         }
         self.root = root

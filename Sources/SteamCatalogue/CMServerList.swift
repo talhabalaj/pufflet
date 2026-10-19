@@ -99,7 +99,8 @@ actor CMServerList {
             fromCache = true
         }
         try Task.checkCancellation()
-        servers = availableServers
+        // Reloading the same cache would forget which servers just failed.
+        if !(fromCache && listFromCache && !servers.isEmpty) { servers = availableServers }
         lastFetched = Date()
         listFromCache = fromCache
         if !fromCache { cacheServerList() }
@@ -119,7 +120,8 @@ actor CMServerList {
             throw SteamError.connectionFailed("Invalid CM directory URL")
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        // A cached list is retried every minute, so a hung directory must not stall each connect.
+        let (data, response) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 15))
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
