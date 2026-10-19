@@ -11,7 +11,7 @@ nonisolated struct SteamSessionEvent: Equatable, Sendable {
     static let keys: Set<String> = ["session-ready", "session-playing", "session-idle-shutdown", "session-result", "command-result",
         "install-request-result", "install-state", "install-update-state", "install-work-done-kib", "install-work-total-kib",
         "install-verifying", "install-manifest-state", "install-complete", "install-result", "install-paused", "install-paused-playing", "install-user-paused",
-        "launch-option-index", "launch-option-missing", "launch-install-directory-verified", "launch-client-error", "launch-request-submitted",
+        "install-no-progress", "launch-option-index", "launch-option-missing", "launch-install-directory-verified", "launch-client-error", "launch-request-submitted",
         "launch-game-running", "launch-game-ended", "launch-host-result", "launch-discovery-restored", "launch-update-wait",
         "launch-config-wait", "launch-session-wait", "ceg-request", "ceg-result"]
 

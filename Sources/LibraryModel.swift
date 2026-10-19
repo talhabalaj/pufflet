@@ -659,6 +659,7 @@ import os
         if job.state == .paused { return bytes.map { "Paused — \($0)" } ?? "Paused — existing files are kept" }
         if job.state == .preparing { return "Preparing…" }
         if !headless.persistentEnabled { return bytes ?? headless.status }
+        if let waiting = report.installWaitStatus { return waiting }
         if report.fields["install-verifying"] == 1 { return "Verifying and restoring game files…" }
         return bytes ?? report.installStatus
     }

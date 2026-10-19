@@ -46,6 +46,14 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         if fields["install-request-result"] == 0 || fields["install-work-done-kib"] != nil { return "Steam is downloading and installing…" }
         return status
     }
+    /// Dock's install-no-progress is a status, never a result: Valve may still be
+    /// queueing, verifying or retrying, so the user chooses to wait or Stop and Retry.
+    var installWaitStatus: String? {
+        guard fields["install-no-progress"] == 1 else { return nil }
+        return fields["install-verifying"] == 1
+            ? "Verification has made no recent progress — keep waiting, or Stop and Retry"
+            : "No recent progress — Steam may be waiting. Keep waiting, or Stop and Retry"
+    }
 
     var status: String {
         if fields["shutdown-begin"] != nil { return "Finishing the Steam session…" }
