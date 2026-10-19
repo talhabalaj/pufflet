@@ -35,9 +35,28 @@ import os
     private(set) var isStoppingDownload = false
     private var catalogueTask: Task<Void, Never>?
     private var downloadTask: Task<Void, Never>?
+    struct PendingPlay {
+        let gameID: String
+        let accountKey: String?
+        let library: URL?
+        let blockingAppIDs: [String]
+        let requiresRestart: Bool
+        var restartsForLibrary = false
+    }
+    var blockedPlay: PendingPlay?
+    private(set) var queuedPlay: PendingPlay?
+    private(set) var isRestartingForPlay = false
+    /// Steam support is serving a game from another library; queued installs wait for it to end.
+    private(set) var downloadsWaitForLibrary = false
     var hasDownloadWork: Bool { downloads.hasPendingWork || activeDownloadID != nil || isStoppingDownload }
-    var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && uninstallingID == nil }
-    var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && uninstallingID == nil }
+    var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil && uninstallingID == nil }
+    var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil && uninstallingID == nil }
+    /// Any work an app relaunch would interrupt, including desktop Steam and its games in our runtime.
+    var shouldPostponeUpdate: Bool {
+        headless.isActive || phase != .idle || runtimeSetup.isBusy || hasDownloadWork
+            || queuedPlay != nil || blockedPlay != nil || isRestartingForPlay
+            || snapshot.steam != nil || games.contains(where: isPlaying) || uninstallingID != nil
+    }
     var canPlay: Bool {
         phase == .idle && downloadTask == nil && !isStoppingDownload && !runtimeSetup.isBusy && uninstallingID == nil
             && (headless.persistentEnabled ? !headless.hasLaunchWork : !hasDownloadWork && !headless.isActive)
@@ -84,6 +103,24 @@ import os
         SteamRuntime(installation: SteamInstallation(bundle: installation.application, prefix: paths.prefix, runtime: runtimeSetup.application),
                      dockBridge: runtime.dockBridge,
                      logDirectory: paths.support.standardizedFileURL == AppIdentity.support.standardizedFileURL ? nil : paths.support.appendingPathComponent("Logs"))
+    }
+    enum DesktopSteamAction: Equatable { case open, play(String) }
+    /// A desktop Steam request waiting for the user to choose a client.
+    var desktopSteamSetup: DesktopSteamAction?
+    var settingsTab = SettingsTab.general
+    /// The chosen desktop client, if it is still complete. The content library is never a client.
+    var desktopSteam: DesktopSteamClient? {
+        settings.desktopSteamURL.flatMap { try? DesktopSteamClient(root: $0, managedPrefix: nativeRuntime.installation.prefix) }
+    }
+    /// The chosen client even while Steam is updating its files, for recognizing and stopping it.
+    private var chosenDesktopSteam: DesktopSteamClient? {
+        settings.desktopSteamURL.flatMap { try? DesktopSteamClient(root: $0, managedPrefix: nativeRuntime.installation.prefix, requireComplete: false) }
+    }
+    /// The chosen client's steam.exe relative to drive_c, for recognizing its process.
+    var desktopSteamExecutable: String? { chosenDesktopSteam?.windowsExecutable }
+    /// Uses the same Wine app as `runtime`, so `observeRuntime` still owns its processes.
+    private func desktopRuntime(_ client: DesktopSteamClient) -> SteamRuntime {
+        SteamRuntime(installation: client.installation(using: installation), dockBridge: runtime.dockBridge)
     }
 
     init(settings: LibrarySettings = LibrarySettings(), headless: SteamHeadlessSession = SteamHeadlessSession(),
@@ -134,14 +171,11 @@ import os
     func observeRuntime() async {
         logger.info("Native library appeared after \(self.started.duration(to: .now).description, privacy: .public)")
         while !Task.isCancelled {
-            let observed = await SteamRuntime.snapshot()
-            // A Windows path alone cannot distinguish two Wine prefixes.
-            let roots = [installation.runtimeApplication.path + "/", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app").path + "/"]
-            let owned = Set(NSWorkspace.shared.runningApplications.compactMap { application -> Int32? in
-                guard let path = application.bundleURL?.path, roots.contains(where: { path.hasPrefix($0) }) else { return nil }
-                return application.processIdentifier
-            })
-            snapshot = RuntimeSnapshot(processes: observed.processes.filter { owned.contains($0.pid) })
+            // Scope Windows process names to our native Wine runtime images.
+            let roots = [installation.runtimeApplication, FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app")]
+            // Keep ownership discovery off the main actor and out of
+            // LaunchServices: bundleURL can block during a Wine game launch.
+            snapshot = await SteamRuntime.snapshot(steamExecutable: desktopSteamExecutable, runtimeRoots: roots)
             headless.poll()
             if headless.persistentEnabled {
                 finishPersistentDownloads()
@@ -154,6 +188,14 @@ import os
                 message = headless.status
                 if let error = headless.takeError() { errorMessage = error }
                 if !headless.isActive { phase = .idle; nativeLaunch = false }
+            }
+            // Play can take minutes; the loop must keep finishing downloads meanwhile.
+            if downloadsWaitForLibrary, !headless.hasLaunchWork, phase == .idle { downloadsWaitForLibrary = false; startNextDownload() }
+            if let request = queuedPlay, let game = takeQueuedPlayIfReady() {
+                // Play starts later; if a download or launch took over meanwhile, keep waiting.
+                Task {
+                    if canPlay { await play(game) } else if queuedPlay == nil { queuedPlay = request }
+                }
             }
             if case let .launching(id) = phase,
                let game = games.first(where: { $0.id == id }), snapshot.process(for: game) != nil {
@@ -185,6 +227,8 @@ import os
 
     func play(_ game: SteamGame) async {
         guard phase == .idle else { return }
+        cancelQueuedPlay()
+        blockedPlay = nil
         errorMessage = nil; repairGameID = nil
         if let process = snapshot.process(for: game),
            let application = NSRunningApplication(processIdentifier: process.pid),
@@ -194,7 +238,11 @@ import os
             }
             return
         }
-        guard canPlay, !downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }), requireRuntime() else { return }
+        if downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }) {
+            offerPlayAfterDownloads(game, blockingAppIDs: [game.id], requiresRestart: false)
+            return
+        }
+        guard canPlay, requireRuntime() else { return }
         do {
             guard playingGame == nil else { throw SteamDisplayProfiles.Failure.busy }
             if let storageError = downloads.storageError { throw SteamError.authenticationFailed(storageError) }
@@ -219,12 +267,13 @@ import os
                 phase = .launching(game.id)
                 message = "Closing desktop Steam…"
                 launchDeadline = ContinuousClock.now.advanced(by: .seconds(25))
-                try await runtime.send(["-shutdown"])
+                try await (chosenDesktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"])
+                let executable = desktopSteamExecutable
                 for _ in 0..<20 {
-                    if await SteamRuntime.snapshot().steam == nil { break }
+                    if await SteamRuntime.snapshot(steamExecutable: executable).steam == nil { break }
                     try await Task.sleep(for: .seconds(1))
                 }
-                guard await SteamRuntime.snapshot().steam == nil else {
+                guard await SteamRuntime.snapshot(steamExecutable: executable).steam == nil else {
                     throw SteamError.authenticationFailed("Close desktop Steam before starting a game with your native Steam account.")
                 }
             }
@@ -239,9 +288,97 @@ import os
             phase = .idle
             nativeLaunch = false
             launchDeadline = nil
-            errorMessage = error.localizedDescription
+            if case let SteamSessionHost.Failure.graphicsBusy(appIDs) = error {
+                offerPlayAfterDownloads(game, blockingAppIDs: appIDs.map(String.init), requiresRestart: true)
+            } else if case let SteamSessionHost.Failure.libraryBusy(appIDs) = error {
+                offerPlayAfterDownloads(game, blockingAppIDs: appIDs.map(String.init), requiresRestart: true, forLibrary: true)
+            } else { errorMessage = error.localizedDescription }
             if case SteamLaunchConfiguration.ConfigurationError.missingExecutable = error { repairGameID = game.id }
             logger.error("Game launch failed: \(error.localizedDescription)")
+            startNextDownload()
+        }
+    }
+
+    func offerPlayAfterDownloads(_ game: SteamGame, blockingAppIDs: [String], requiresRestart: Bool, forLibrary: Bool = false) {
+        blockedPlay = PendingPlay(gameID: game.id, accountKey: downloads.accountKey,
+            library: settings.libraryURL?.resolvingSymlinksInPath(), blockingAppIDs: blockingAppIDs, requiresRestart: requiresRestart,
+            restartsForLibrary: forLibrary)
+    }
+
+    var blockedPlayDetail: String {
+        guard let request = blockedPlay else { return "" }
+        let jobs = downloads.jobs.filter { request.blockingAppIDs.contains($0.id) }
+        let status = jobs.map { "\($0.name): \(downloadActivityStatus(for: $0))" }.joined(separator: "\n")
+        let reason = request.restartsForLibrary ? "play from this game’s library" : "apply this game’s saved graphics backend"
+        let explanation = request.requiresRestart
+            ? "Steam support needs to restart to \(reason). Play when downloads finish, or restart support now and resume downloads afterward. Existing files are kept."
+            : "This game’s download or update must finish before Play. Paused downloads must be resumed first."
+        return status.isEmpty ? explanation : explanation + "\n\n" + status
+    }
+
+    func queueBlockedPlay(_ selection: PendingPlay? = nil) {
+        guard let request = selection ?? blockedPlay else { return }
+        queuedPlay = request; blockedPlay = nil
+    }
+
+    func cancelQueuedPlay() { queuedPlay = nil }
+
+    func takeQueuedPlayIfReady() -> SteamGame? {
+        guard let request = queuedPlay else { return nil }
+        guard request.accountKey == downloads.accountKey, request.library == settings.libraryURL?.resolvingSymlinksInPath() else {
+            queuedPlay = nil
+            return nil
+        }
+        guard let game = games.first(where: { $0.id == request.gameID }) else {
+            queuedPlay = nil
+            errorMessage = "Play cancelled because the game is no longer in your library. Refresh the library, then try Play again."
+            return nil
+        }
+        // A restart waits on other games' downloads, so stopping or losing one
+        // only frees Steam support; this game's own failed download blocks Play.
+        if !request.requiresRestart,
+           downloads.jobs.contains(where: { request.blockingAppIDs.contains($0.id) && [.failed, .stopped, .interrupted].contains($0.state) }) {
+            queuedPlay = nil; errorMessage = "Play cancelled because a download needs attention. Check Downloads, then try Play again."
+            return nil
+        }
+        // A restart needs the host free of all installs; otherwise only this game's
+        // own download blocks Play, and other games keep downloading alongside it.
+        let waiting = request.requiresRestart ? hasDownloadWork
+            : downloads.jobs.contains { request.blockingAppIDs.contains($0.id) && [.queued, .preparing, .installing, .paused].contains($0.state) }
+        guard !waiting, canPlay else { return nil }
+        queuedPlay = nil
+        return game
+    }
+
+    func restartAndPlayBlockedGame(_ selection: PendingPlay? = nil) async {
+        guard let request = selection ?? blockedPlay, request.requiresRestart, phase == .idle, downloadTask == nil,
+              !isStoppingDownload, !headless.hasLaunchWork,
+              request.accountKey == downloads.accountKey, request.library == settings.libraryURL?.resolvingSymlinksInPath(),
+              let game = games.first(where: { $0.id == request.gameID }),
+              !downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }) else {
+            blockedPlay = nil
+            errorMessage = "Steam support can’t restart right now. Try again in a moment, or choose Play When Ready."
+            return
+        }
+        blockedPlay = nil; cancelQueuedPlay()
+        phase = .preparingSupport; isRestartingForPlay = true
+        do {
+            try await headless.restartForPlay()
+            finishPersistentDownloads()
+            for job in downloads.jobs where [.preparing, .installing].contains(job.state) { downloads.update(job.id, state: .queued) }
+            activeDownloadID = nil
+            phase = .idle; isRestartingForPlay = false
+            try Task.checkCancellation()
+            await play(game)
+            startNextDownload()
+        } catch {
+            phase = .idle; isRestartingForPlay = false
+            // The host may have survived; apply Stop and Pause made during the restart.
+            for job in downloads.jobs where [.stopped, .paused].contains(job.state) && headless.hasSubmittedInstall(job.id) {
+                await controlDownload(job.state == .stopped ? "cancel" : "pause", job: job)
+            }
+            // The restart failure explains the state better than a follow-up control error.
+            errorMessage = error.localizedDescription
             startNextDownload()
         }
     }
@@ -249,7 +386,9 @@ import os
     @concurrent private static func importsD3D12(_ executable: URL) async -> Bool { PEImports.usesD3D12(at: executable) }
 
     func playInDesktopSteam(_ game: SteamGame) async {
-        guard phase == .idle, !headless.isActive, !hasDownloadWork, requireRuntime() else { return }
+        guard phase == .idle, !headless.isActive, !hasDownloadWork else { return }
+        guard let client = desktopSteam else { desktopSteamSetup = .play(game.id); return }
+        guard requireRuntime() else { return }
         // Desktop Steam may already own its launch environment. Apply per-game
         // renderer choices only through our managed Play session.
         if graphics.backend(for: game.id) != .dxmt {
@@ -268,7 +407,10 @@ import os
         launchDeadline = ContinuousClock.now.advanced(by: .seconds(90))
         do {
             try SteamDisplayProfiles(paths: paths).requireFallbackSupport(for: game.id)
-            await suspendCatalogue(); try await runtime.send(["-silent", "-applaunch", game.id])
+            await suspendCatalogue()
+            let desktop = desktopRuntime(client)
+            try await client.connectLibraries(games, destination: settings.libraryURL, runtime: desktop)
+            try await desktop.send(["-silent", "-applaunch", game.id])
         }
         catch { phase = .idle; launchDeadline = nil; errorMessage = error.localizedDescription }
     }
@@ -292,17 +434,41 @@ import os
             errorMessage = "Close the running game before opening desktop Steam."
             return
         }
+        guard let client = desktopSteam else { desktopSteamSetup = .open; return }
         guard requireRuntime() else { return }
         phase = .openingSteam
         defer { phase = .idle }
-        do { await suspendCatalogue(); try await runtime.send(["steam://open/main"]) }
+        do {
+            await suspendCatalogue()
+            let desktop = desktopRuntime(client)
+            try await client.connectLibraries(games, destination: settings.libraryURL, runtime: desktop)
+            try await desktop.send(["steam://open/main"])
+        }
         catch { errorMessage = error.localizedDescription }
     }
 
     func quitSteam() async {
         guard snapshot.steam != nil, !games.contains(where: isPlaying) else { return }
-        do { try await runtime.send(["-shutdown"]) }
+        do { try await (chosenDesktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"]) }
         catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Lets the user pick a desktop client, then continues the request that needed it.
+    func chooseDesktopSteamAndContinue(_ action: DesktopSteamAction, chooseFolder: (() throws -> Bool)? = nil) async {
+        // The alert clears desktopSteamSetup before this asynchronous action runs.
+        // Continue using the request captured by the alert's presenting value.
+        desktopSteamSetup = nil
+        do { guard try (chooseFolder?() ?? chooseDesktopSteamFolder()) else { return } }
+        catch { errorMessage = error.localizedDescription; return }
+        switch action {
+        case .open: await openSteam()
+        case let .play(id): if let game = games.first(where: { $0.id == id }) { await playInDesktopSteam(game) }
+        }
+    }
+
+    func showDesktopSteamSettings() {
+        desktopSteamSetup = nil
+        settingsTab = .advanced
     }
 
     func isLaunching(_ entry: LibraryGame) -> Bool { phase == .launching(entry.id) }
@@ -318,6 +484,7 @@ import os
         guard phase == .idle, !hasDownloadWork, !headless.isActive else { return }
         let previous = catalogueTask
         previous?.cancel()
+        let executable = desktopSteamExecutable
         catalogueTask = Task {
             await ownedLibrary.suspend()
             await previous?.value
@@ -326,7 +493,7 @@ import os
                 let credentials = try SteamKeychain().load()
                 ownedLibrary.activate(credentials)
                 downloads.activate(account: credentials?.isUsable() == true ? credentials?.steamID : nil, resumePending: headless.persistentEnabled)
-                guard !Task.isCancelled, await SteamRuntime.snapshot().steam == nil else { return }
+                guard !Task.isCancelled, await SteamRuntime.snapshot(steamExecutable: executable).steam == nil else { return }
                 await ownedLibrary.refresh()
                 if headless.persistentEnabled { startNextDownload() }
             } catch { errorMessage = error.localizedDescription }
@@ -347,7 +514,7 @@ import os
     }
 
     func install(_ entry: LibraryGame) {
-        guard canInstall, entry.installation == nil, let owned = entry.owned, let destination = settings.libraryURL else { return }
+        guard canInstall, !isSubmittingDownload(entry.id), entry.installation == nil, let owned = entry.owned, let destination = settings.libraryURL else { return }
         guard account.accountName != nil else { showsAccount = true; return }
         guard requireRuntime() else { return }
         downloads.enqueue(owned, destination: destination)
@@ -355,7 +522,7 @@ import os
     }
 
     func repair(_ entry: LibraryGame) {
-        guard headless.persistentEnabled, canInstall, !isPlaying(entry),
+        guard headless.persistentEnabled, canInstall, !isSubmittingDownload(entry.id), !isPlaying(entry),
               let destination = settings.libraryURL, let game = entry.installation else { return }
         guard account.accountName != nil else { showsAccount = true; return }
         guard requireRuntime() else { return }
@@ -371,6 +538,7 @@ import os
         let name = entry.name
         guard let game = entry.installation else { return "\(name) isn’t installed." }
         if uninstallingID != nil { return "Pufflet is already uninstalling a game. Wait for it to finish." }
+        if queuedPlay != nil || blockedPlay != nil || isRestartingForPlay { return "Cancel queued Play before uninstalling a game." }
         if isPlaying(entry) { return "Quit \(name) before uninstalling it. Pufflet can’t remove a game that’s running." }
         if isLaunching(entry) { return "\(name) is starting. Quit it before uninstalling it." }
         if let job = downloads.jobs.first(where: { $0.id == entry.id && [.queued, .preparing, .installing, .paused].contains($0.state) }) {
@@ -435,7 +603,7 @@ import os
     }
 
     func retryDownload(_ job: GameDownload) {
-        guard canInstall else { return }
+        guard canInstall, canRetryDownload(job) else { return }
         guard let owned = ownedLibrary.games.first(where: { $0.id == job.id }), job.destination.resolvingSymlinksInPath().path == settings.libraryURL?.resolvingSymlinksInPath().path else {
             errorMessage = "Refresh your Steam library and choose the original download folder before retrying."
             return
@@ -447,7 +615,8 @@ import os
 
     func startNextDownload() {
         if case .launching = phase { return }
-        guard phase != .preparingSupport, downloads.storageError == nil, downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy, uninstallingID == nil,
+        guard phase != .preparingSupport, downloads.storageError == nil, downloadTask == nil, !isStoppingDownload, !downloadsWaitForLibrary,
+              runtimeSetup.isReady, !runtimeSetup.isBusy, uninstallingID == nil,
               headless.persistentEnabled || (activeDownloadID == nil && !headless.isActive && phase == .idle),
               let job = downloads.next else { return }
         activeDownloadID = job.id
@@ -459,9 +628,23 @@ import os
                 guard snapshot.steam == nil else { throw SteamError.authenticationFailed("Close desktop Steam before downloading games in Pufflet.") }
                 guard let credentials = try SteamKeychain().load(), credentials.isUsable() else { throw SteamError.authSessionExpired }
                 try await headless.install(appID: job.id, destination: job.destination, library: games, credentials: credentials, runtime: nativeRuntime)
+                // Stop can land after the facade returned but before this task resumed.
+                if Task.isCancelled {
+                    if headless.persistentEnabled { try await headless.cancelInstall(id: job.id) }
+                    throw CancellationError()
+                }
                 downloads.update(job.id, state: .installing)
             } catch {
-                if !isStoppingDownload, downloads.jobs.first(where: { $0.id == job.id })?.state != .stopped {
+                if case SteamSessionHost.Failure.cancellationFailed = error {
+                    // Steam may still be downloading; keep the controls instead of claiming it stopped.
+                    downloads.update(job.id, state: .installing)
+                    errorMessage = error.localizedDescription
+                } else if case SteamSessionHost.Failure.libraryBusy = error, !isStoppingDownload,
+                          downloads.jobs.first(where: { $0.id == job.id })?.state == .preparing {
+                    // Not a download failure: retry once the other library's game ends.
+                    downloads.update(job.id, state: .queued)
+                    downloadsWaitForLibrary = true
+                } else if !isStoppingDownload, downloads.jobs.first(where: { $0.id == job.id })?.state != .stopped {
                     downloads.update(job.id, state: .failed, error: error.localizedDescription)
                     downloads.stopWaiting()
                     activeDownloadID = nil
@@ -491,9 +674,32 @@ import os
         activeDownloadID = downloads.jobs.first { [.preparing, .installing, .paused].contains($0.state) }?.id
     }
 
+    // Install, repair and Retry wait until the same app's submission or its
+    // cancellation settles, so a late acknowledgement cannot claim the new attempt.
+    private func isSubmittingDownload(_ id: String) -> Bool {
+        activeDownloadID == id && downloadTask != nil
+    }
+
+    func canRetryDownload(_ job: GameDownload) -> Bool {
+        !isStoppingDownload && !isSubmittingDownload(job.id)
+    }
+
     func controlDownload(_ action: String, job: GameDownload) async {
+        guard let job = downloads.jobs.first(where: { $0.id == job.id }) else { return }
+        // The restart forgets every host install and requeues only preparing or
+        // installing jobs, so Stop and Pause during it are recorded locally.
+        if isRestartingForPlay {
+            if action == "cancel" { downloads.update(job.id, state: .stopped) }
+            else if action == "pause", [.preparing, .installing].contains(job.state) { downloads.update(job.id, state: .paused) }
+            return
+        }
+        // A paused job retained across an explicit renderer restart has no host request yet.
+        if action == "resume", job.state == .paused, !headless.hasSubmittedInstall(job.id) {
+            downloads.update(job.id, state: .queued); startNextDownload()
+            return
+        }
         if action == "cancel", job.state == .preparing {
-            downloadTask?.cancel()
+            if activeDownloadID == job.id { downloadTask?.cancel() }
             downloads.update(job.id, state: .stopped)
             return
         }
@@ -504,6 +710,7 @@ import os
     }
 
     func shutdownSession() async throws {
+        cancelQueuedPlay(); blockedPlay = nil
         isStoppingDownload = true
         defer { isStoppingDownload = false }
         let pending = downloadTask
@@ -578,6 +785,7 @@ import os
         if job.state == .paused { return bytes.map { "Paused — \($0)" } ?? "Paused — existing files are kept" }
         if job.state == .preparing { return "Preparing…" }
         if !headless.persistentEnabled { return bytes ?? headless.status }
+        if let waiting = report.installWaitStatus { return waiting }
         if report.fields["install-verifying"] == 1 { return "Verifying and restoring game files…" }
         return bytes ?? report.installStatus
     }
@@ -594,7 +802,8 @@ import os
 
     func canStart(_ entry: LibraryGame) -> Bool {
         if isPlaying(entry) { return true }
-        if isPending(entry) || isLaunching(entry) { return false }
+        if isLaunching(entry) { return false }
+        if isPending(entry) { return entry.installation != nil && phase == .idle && !isRestartingForPlay }
         return entry.installation == nil || canPlay
     }
 

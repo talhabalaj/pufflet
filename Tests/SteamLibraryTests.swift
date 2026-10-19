@@ -3,6 +3,34 @@ import Testing
 @testable import SteamLibrary
 
 struct SteamLibraryTests {
+    @Test func runtimeOwnershipUsesNativeImageInsteadOfWindowsCommandOrAppRegistration() {
+        let root = URL(filePath: "/fixture/Runtime.app")
+        let snapshot = RuntimeSnapshot(processes: [
+            .init(pid: 10, path: "C:\\Steam\\steam.exe"),
+            .init(pid: 11, path: "C:\\Steam\\steam.exe"),
+            .init(pid: 12, path: "C:\\Steam\\steam.exe")
+        ], steamExecutable: "Steam/steam.exe")
+        let owned = snapshot.owned(by: [root]) { pid in
+            switch pid {
+            case 10: "/fixture/Runtime.app/Contents/SharedSupport/wine/bin/wine"
+            case 11: "/fixture/Runtime.app-other/Contents/MacOS/wine"
+            default: nil
+            }
+        }
+        #expect(owned.processes.map(\.pid) == [10])
+        #expect(owned.steamExecutable == snapshot.steamExecutable)
+    }
+
+    @Test func scopedRuntimeSnapshotFindsAnUnregisteredNativeProcess() async throws {
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let executable = try #require(WineProcessIdentity.executablePath(pid))
+        let root = URL(filePath: executable).deletingLastPathComponent()
+        let owned = await SteamRuntime.snapshot(runtimeRoots: [root])
+        #expect(owned.processes.contains { $0.pid == pid })
+        let other = await SteamRuntime.snapshot(runtimeRoots: [root.appendingPathComponent("unrelated")])
+        #expect(!other.processes.contains { $0.pid == pid })
+    }
+
     private let manifest = #"""
     // Steam app manifest
     "AppState"
@@ -109,5 +137,134 @@ struct SteamLibraryTests {
         let snapshot = RuntimeSnapshot.parse("10 /prefix/drive_c/Program Files (x86)/Steam/Steam.exe\n11 /prefix/drive_c/Program Files (x86)/Steam/steamapps/common/over the hill/over the hill.exe")
         #expect(snapshot.steam?.pid == 10)
         #expect(snapshot.process(for: game)?.pid == 11)
+    }
+}
+
+struct SteamLibraryRootDiscoveryTests {
+    @Test(arguments: [false, true])
+    func discoversAbsolutePOSIXSecondaryLibraries(legacy: Bool) throws {
+        try withFixture { fixture in
+            let secondary = try fixture.library("外部 café # 100% \\")
+            try fixture.game(in: secondary, id: "202", name: "Secondary")
+            try fixture.registry(["1": secondary.path], legacy: legacy)
+            let games = try fixture.installation.library()
+            #expect(Set(games.map(\.id)) == ["101", "202"])
+            #expect(games.first { $0.id == "202" }?.folder.path == secondary.appendingPathComponent("steamapps/common/Secondary").resolvingSymlinksInPath().path)
+        }
+    }
+
+    @Test func duplicateAppIDsPreferSelectedRootThenNumericLibraryOrder() throws {
+        try withFixture { fixture in
+            let second = try fixture.library("second")
+            let tenth = try fixture.library("tenth")
+            try fixture.game(in: second, id: "101", name: "Other Primary Copy")
+            try fixture.game(in: second, id: "202", name: "Second Copy")
+            try fixture.game(in: tenth, id: "202", name: "Tenth Copy")
+            try fixture.registry(["10": tenth.path, "2": second.path])
+            for _ in 0..<20 {
+                let games = try fixture.installation.library()
+                #expect(games.count == 2)
+                #expect(games.first { $0.id == "101" }?.name == "Primary")
+                #expect(games.first { $0.id == "202" }?.name == "Second Copy")
+            }
+            try FileManager.default.removeItem(at: fixture.primary.appendingPathComponent("steamapps/common/Primary"))
+            try FileManager.default.removeItem(at: second.appendingPathComponent("steamapps/common/Second Copy"))
+            let fallback = try fixture.installation.library()
+            #expect(fallback.first { $0.id == "101" }?.name == "Other Primary Copy")
+            #expect(fallback.first { $0.id == "202" }?.name == "Tenth Copy")
+        }
+    }
+
+    @Test(arguments: [#"D:\外部 café"#, "d:/外部 café"], [false, true])
+    func preservesMappedWindowsLibraries(path: String, legacy: Bool) throws {
+        try withFixture { fixture in
+            let drive = try fixture.library("mapped-drive")
+            let secondary = try fixture.library("mapped-drive/外部 café")
+            try fixture.game(in: secondary, id: "202", name: "Secondary")
+            try fixture.mapDrive("d", to: drive)
+            try fixture.registry(["1": path], legacy: legacy)
+            let games = try fixture.installation.library()
+            #expect(Set(games.map(\.id)) == ["101", "202"])
+            #expect(games.first { $0.id == "202" }?.folder.path == secondary.appendingPathComponent("steamapps/common/Secondary").resolvingSymlinksInPath().path)
+        }
+    }
+
+    @Test func mixedRootsAndSymlinkAliasesKeepEachInstalledAppOnce() throws {
+        try withFixture { fixture in
+            let secondary = try fixture.library("Secondary ASCII")
+            try fixture.game(in: secondary, id: "202", name: "Secondary")
+            let alias = fixture.root.appendingPathComponent("alias")
+            try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: secondary)
+            try fixture.mapDrive("d", to: secondary)
+            try fixture.registry(["0": fixture.primary.path, "1": alias.path + "/", "2": secondary.path, "3": "D:/"])
+            let games = try fixture.installation.library()
+            #expect(games.count == 2)
+            #expect(games.first { $0.id == "202" }?.folder.path == secondary.appendingPathComponent("steamapps/common/Secondary").resolvingSymlinksInPath().path)
+        }
+    }
+
+    @Test func missingRootsAndUnsupportedPathsDoNotHideValidGames() throws {
+        try withFixture { fixture in
+            let secondary = try fixture.library("secondary")
+            try fixture.game(in: secondary, id: "202", name: "Secondary")
+            let broken = fixture.root.appendingPathComponent("broken")
+            let missing = fixture.root.appendingPathComponent("missing")
+            try FileManager.default.createSymbolicLink(at: broken, withDestinationURL: missing)
+            try fixture.registry(["1": missing.path, "2": broken.path, "3": "Q:/", "4": "relative",
+                                  "5": "C:relative", "6": secondary.absoluteString, "7": #"\\server\share"#])
+            #expect(try fixture.installation.library().map(\.id) == ["101"])
+
+            // A complete manifest still requires its installed directory to exist.
+            try FileManager.default.removeItem(at: secondary.appendingPathComponent("steamapps/common/Secondary"))
+            try fixture.registry(["1": secondary.path])
+            #expect(try fixture.installation.library().map(\.id) == ["101"])
+        }
+    }
+
+    private func withFixture(_ body: (Fixture) throws -> Void) throws {
+        let root = URL(filePath: "/private/tmp/PuffletLibraryRoots-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fixture = Fixture(root: root)
+        _ = try fixture.library("primary")
+        try fixture.game(in: fixture.primary, id: "101", name: "Primary")
+        try body(fixture)
+    }
+
+    private struct Fixture {
+        let root: URL
+        var primary: URL { root.appendingPathComponent("primary") }
+        var prefix: URL { root.appendingPathComponent("prefix") }
+        var installation: SteamInstallation {
+            SteamInstallation(home: root, bundle: root.appendingPathComponent("unused-bundle"), prefix: prefix,
+                              libraryRoot: primary, runtime: root.appendingPathComponent("unused-runtime"))
+        }
+
+        func library(_ name: String) throws -> URL {
+            let url = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: url.appendingPathComponent("steamapps"), withIntermediateDirectories: true)
+            return url
+        }
+
+        func game(in library: URL, id: String, name: String) throws {
+            let apps = library.appendingPathComponent("steamapps")
+            try FileManager.default.createDirectory(at: apps.appendingPathComponent("common/" + name), withIntermediateDirectories: true)
+            let manifest = VDFValue.object(["AppState": .object([
+                "appid": .string(id), "name": .string(name), "installdir": .string(name), "StateFlags": .string("4")
+            ])])
+            try Data(manifest.encoded.utf8).write(to: apps.appendingPathComponent("appmanifest_\(id).acf"))
+        }
+
+        func registry(_ paths: [String: String], legacy: Bool = false) throws {
+            let entries = paths.mapValues { legacy ? VDFValue.string($0) : .object(["path": .string($0)]) }
+            try Data(VDFValue.object(["libraryfolders": .object(entries)]).encoded.utf8)
+                .write(to: primary.appendingPathComponent("steamapps/libraryfolders.vdf"))
+        }
+
+        func mapDrive(_ drive: String, to destination: URL) throws {
+            let devices = prefix.appendingPathComponent("dosdevices")
+            try FileManager.default.createDirectory(at: devices, withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(at: devices.appendingPathComponent(drive + ":"), withDestinationURL: destination)
+        }
     }
 }

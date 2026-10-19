@@ -244,6 +244,12 @@ struct SteamGameUninstallerTests {
         #expect(model.uninstallBlockReason(entry)?.hasPrefix("Downloads are in progress") == true)
         queue.stopWaiting()
         #expect(model.uninstallBlockReason(entry) == nil)
+        let installed = try #require(entry.installation)
+        model.offerPlayAfterDownloads(installed, blockingAppIDs: [], requiresRestart: true)
+        model.queueBlockedPlay()
+        #expect(model.uninstallBlockReason(entry) == "Cancel queued Play before uninstalling a game.")
+        model.cancelQueuedPlay()
+        #expect(model.uninstallBlockReason(entry) == nil)
     }
 
     @Test func refusedRequestsNeverReachTheFiles() async throws {

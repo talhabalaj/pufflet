@@ -46,6 +46,14 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         if fields["install-request-result"] == 0 || fields["install-work-done-kib"] != nil { return "Steam is downloading and installing…" }
         return status
     }
+    /// Dock's install-no-progress is a status, never a result: Valve may still be
+    /// queueing, verifying or retrying, so the user chooses to wait or Stop and Retry.
+    var installWaitStatus: String? {
+        guard fields["install-no-progress"] == 1 else { return nil }
+        return fields["install-verifying"] == 1
+            ? "Verification has made no recent progress — keep waiting, or Stop and Retry"
+            : "No recent progress — Steam may be waiting. Keep waiting, or Stop and Retry"
+    }
 
     var status: String {
         if fields["shutdown-begin"] != nil { return "Finishing the Steam session…" }
@@ -105,7 +113,8 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
     private(set) var playingAppID: String?
     private(set) var installReports: [String: SteamHostReport] = [:]
     private var installResults: [String: String?] = [:]
-    private var submittedInstalls = Set<String>()
+    // Attempt per app, so a cancelled attempt's late events cannot settle a retry.
+    private var submittedInstalls: [String: UUID] = [:]
     var hasLaunchWork: Bool { launchingAppID != nil || playingAppID != nil }
     private var process: Process?
     private var installing = false
@@ -166,14 +175,30 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         guard !preparing, !stopping, !isUninstalling else { throw SteamClientPackages.Failure.activeSession }
         if persistentEnabled {
             guard let number = UInt32(appID), number > 0, number <= Int32.max else { throw SteamError.invalidMessage }
+            guard submittedInstalls[appID] == nil else { throw SteamClientPackages.Failure.activeSession }
             observeSession()
-            isActive = true; errorMessage = nil; submittedInstalls.insert(appID)
+            let attempt = UUID()
+            isActive = true; errorMessage = nil; submittedInstalls[appID] = attempt
+            installResults.removeValue(forKey: appID)
             installReports[appID] = SteamHostReport()
             do {
-                try await sessionHost.start(appID: number, destination: destination, library: library, credentials: credentials, runtime: runtime)
-                try Task.checkCancellation()
-                try await sessionHost.install(appID: number)
-            } catch { submittedInstalls.remove(appID); isActive = await sessionHost.isActive; throw error }
+                try await sessionHost.startInstall(appID: number, destination: destination, library: library, credentials: credentials, runtime: runtime, attempt: attempt)
+                // Cancellation can arrive while the actor's successful return is
+                // waiting to resume this main-actor facade.
+                if Task.isCancelled {
+                    try await sessionHost.cancelInstall(appID: number, attempt: attempt)
+                    throw CancellationError()
+                }
+            } catch {
+                // An unconfirmed cancel leaves the install running; keep tracking it.
+                if case SteamSessionHost.Failure.cancellationFailed = error { throw error }
+                if submittedInstalls[appID] == attempt {
+                    submittedInstalls.removeValue(forKey: appID)
+                    installResults.removeValue(forKey: appID)
+                }
+                isActive = await sessionHost.isActive
+                throw error
+            }
             return
         }
         guard !isActive, let number = UInt32(appID), number > 0, number <= Int32.max else { throw SteamError.invalidMessage }
@@ -308,22 +333,22 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
             playingAppID = nil
             status = error == nil ? "Ready to play" : "Steam needs attention"
             if let error { errorMessage = error }
-            if let error { for id in submittedInstalls { installResults[id] = .some(error) } }
-            submittedInstalls = []
+            if let error { for id in submittedInstalls.keys { installResults[id] = .some(error) } }
+            submittedInstalls = [:]
         case let .attention(error):
             isActive = true; launchingAppID = nil; playingAppID = nil
             status = "Steam needs attention"; errorMessage = error
-            for id in submittedInstalls { installResults[id] = .some(error) }
-            submittedInstalls = []
-        case let .report(event):
+            for id in submittedInstalls.keys { installResults[id] = .some(error) }
+            submittedInstalls = [:]
+        case let .report(event, attempt):
             let id = String(event.appID)
-            if event.key.hasPrefix("install-"), submittedInstalls.contains(id) {
+            if event.key.hasPrefix("install-"), attempt != nil, submittedInstalls[id] == attempt {
                 var install = installReports[id] ?? SteamHostReport()
                 install.fields[event.key] = event.value
                 installReports[id] = install
                 if event.key == "install-result" {
                     installResults[id] = .some(event.value == 0 && install.installComplete ? nil : install.failure(for: event.value == 0 ? 65 : event.value))
-                    submittedInstalls.remove(id)
+                    submittedInstalls.removeValue(forKey: id)
                 }
             }
             if id == launchingAppID || id == playingAppID {
@@ -358,10 +383,36 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         return installResults
     }
 
+    /// Cancels only this app's current attempt; a retired attempt needs no host command.
+    func cancelInstall(id: String) async throws {
+        guard persistentEnabled, let app = UInt32(id) else { throw SteamError.invalidMessage }
+        if let attempt = submittedInstalls[id] {
+            try await sessionHost.cancelInstall(appID: app, attempt: attempt)
+            if submittedInstalls[id] == attempt { submittedInstalls.removeValue(forKey: id) }
+        }
+        installResults.removeValue(forKey: id)
+    }
+
     func controlDownload(_ action: String, id: String) async throws {
         guard persistentEnabled, let app = UInt32(id) else { throw SteamError.invalidMessage }
-        try await sessionHost.control(action, appID: app)
-        if action == "cancel" { submittedInstalls.remove(id) }
+        if action == "cancel" { try await cancelInstall(id: id) }
+        else { try await sessionHost.control(action, appID: app) }
+    }
+
+    func hasSubmittedInstall(_ id: String) -> Bool { submittedInstalls[id] != nil }
+
+    /// Explicit user recovery only; callers hold download admission until Play finishes.
+    func restartForPlay() async throws {
+        guard persistentEnabled, !preparing, !stopping, !hasLaunchWork else { throw SteamClientPackages.Failure.activeSession }
+        stopping = true
+        defer { stopping = false }
+        // Reset synchronously after confirmed teardown, so a delayed stopped event
+        // cannot clear the replacement session's submitted installs.
+        try await sessionHost.shutdown(notify: false)
+        receive(.stopped(nil))
+        // Keep downloads that finished during teardown so they are not requeued and
+        // re-verified; failures from the forced stop are dropped and the job resumes.
+        installReports = [:]; installResults = installResults.filter { $0.value == nil }
     }
 
     func shutdown(runtime: SteamRuntime) async throws {

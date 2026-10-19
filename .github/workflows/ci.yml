@@ -24,3 +24,24 @@ jobs:
       - run: npm run typecheck --prefix site
       - run: npm run build --prefix site
       - run: bash -n scripts/ci/package-release.sh scripts/ci/package-runtime.sh && sh -n Runtime/bootstrap-runtime.sh Runtime/bundle-runtime.sh ci_scripts/*.sh
+  dock:
+    runs-on: ubuntu-22.04
+    env:
+      LLVM_MINGW: llvm-mingw-20261006-ucrt-ubuntu-22.04-x86_64
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          submodules: recursive
+      - run: bash Research/Madeira/Dock/tools/check.sh
+      - run: python3 Research/Madeira/Dock/tools/check-privacy.py
+      # Cross-build dockhost.exe with a pinned toolchain; the artifact is for
+      # review, and Resources/dockhost.exe is still replaced deliberately.
+      - run: |
+          curl -fsSLo "$RUNNER_TEMP/llvm-mingw.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261006/$LLVM_MINGW.tar.xz"
+          echo "5f9c6ed95b2d4bdb2869a488c5fd5857fbdabcf288a0aa3eb1da43f6a08d8ab4  $RUNNER_TEMP/llvm-mingw.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/llvm-mingw.tar.xz" -C "$RUNNER_TEMP"
+          LLVM_MINGW_BIN="$RUNNER_TEMP/$LLVM_MINGW/bin" DOCK_OUTPUT="$RUNNER_TEMP/dock" bash Research/Madeira/Dock/tools/build.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dockhost
+          path: ${{ runner.temp }}/dock/dockhost-*.exe

@@ -9,9 +9,16 @@ nonisolated struct WindowsProcess: Equatable, Sendable {
 
 nonisolated struct RuntimeSnapshot: Sendable {
     var processes: [WindowsProcess] = []
+    /// The configured desktop client's executable relative to its drive, for
+    /// example `Games\SteamClient\steam.exe`. The default `Steam` folder still matches.
+    var steamExecutable: String? = nil
 
     var steam: WindowsProcess? {
-        processes.first { $0.path.replacingOccurrences(of: "/", with: "\\").lowercased().hasSuffix("\\steam\\steam.exe") }
+        let configured = steamExecutable.map { "\\" + $0.replacingOccurrences(of: "/", with: "\\").trimmingCharacters(in: CharacterSet(charactersIn: "\\")).lowercased() }
+        return processes.first {
+            let path = $0.path.replacingOccurrences(of: "/", with: "\\").lowercased()
+            return path.hasSuffix("\\steam\\steam.exe") || configured.map(path.hasSuffix) == true
+        }
     }
 
     func process(for game: SteamGame) -> WindowsProcess? {
@@ -22,12 +29,21 @@ nonisolated struct RuntimeSnapshot: Sendable {
         }
     }
 
-    static func parse(_ output: String) -> RuntimeSnapshot {
+    func owned(by roots: [URL], executablePath: (Int32) -> String?) -> Self {
+        let paths = roots.map { $0.standardizedFileURL.resolvingSymlinksInPath().path + "/" }
+        return Self(processes: processes.filter { process in
+            guard let image = executablePath(process.pid) else { return false }
+            let path = URL(filePath: image).standardizedFileURL.resolvingSymlinksInPath().path
+            return paths.contains { path.hasPrefix($0) }
+        }, steamExecutable: steamExecutable)
+    }
+
+    static func parse(_ output: String, steamExecutable: String? = nil) -> RuntimeSnapshot {
         RuntimeSnapshot(processes: output.split(separator: "\n").compactMap { line in
             let parts = line.split(maxSplits: 1, whereSeparator: { $0 == " " || $0 == "\t" })
             guard parts.count == 2, let pid = Int32(parts[0]) else { return nil }
             return WindowsProcess(pid: pid, path: String(parts[1]))
-        })
+        }, steamExecutable: steamExecutable)
     }
 }
 
@@ -66,7 +82,7 @@ nonisolated struct SteamRuntime: Sendable {
     }
 
     // Process I/O blocks; do not hold SwiftUI's main actor while inspecting processes.
-    @concurrent static func snapshot() async -> RuntimeSnapshot {
+    @concurrent static func snapshot(steamExecutable: String? = nil, runtimeRoots: [URL]? = nil) async -> RuntimeSnapshot {
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(filePath: "/bin/ps")
@@ -77,8 +93,9 @@ nonisolated struct SteamRuntime: Sendable {
             try process.run()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
-            return .parse(String(decoding: data, as: UTF8.self))
-        } catch { return RuntimeSnapshot() }
+            let snapshot = RuntimeSnapshot.parse(String(decoding: data, as: UTF8.self), steamExecutable: steamExecutable)
+            return runtimeRoots.map { snapshot.owned(by: $0, executablePath: WineProcessIdentity.executablePath) } ?? snapshot
+        } catch { return RuntimeSnapshot(steamExecutable: steamExecutable) }
     }
 
     func environment() -> [String: String] {

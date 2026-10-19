@@ -31,7 +31,7 @@ private actor PreparedClient: SteamClientPreparing {
     private var failApply = false
     private var ignoreApply = false
     private var holdQueries = false
-    private var heldQuery: CheckedContinuation<SteamDisplayConfiguration, Never>?
+    private var heldQueries: [CheckedContinuation<SteamDisplayConfiguration, Never>] = []
 
     func prepare(runtime: SteamRuntime, games: [SteamGame], destination: URL?, progress: @Sendable (String) async -> Void) async throws -> [String: String] {
         calls += 1
@@ -41,7 +41,7 @@ private actor PreparedClient: SteamClientPreparing {
     }
     func displayConfiguration(runtime: SteamRuntime) async -> SteamDisplayConfiguration {
         queriedWithD3DMetal = queriedWithD3DMetal || runtime.d3dMetal != nil
-        if holdQueries { return await withCheckedContinuation { heldQuery = $0 } }
+        if holdQueries { return await withCheckedContinuation { heldQueries.append($0) } }
         return configuration
     }
     func applyDisplayConfiguration(_ value: SteamDisplayConfiguration, runtime: SteamRuntime) async throws {
@@ -55,8 +55,10 @@ private actor PreparedClient: SteamClientPreparing {
         configuration = SteamDisplayConfiguration(retinaQuery: "RetinaMode REG_SZ " + (retina ? "y" : "n"), dpiQuery: "LogPixels REG_DWORD 0x60")
     }
     func holdConfigurationQueries(_ hold: Bool) { holdQueries = hold }
-    var hasHeldQuery: Bool { heldQuery != nil }
-    func releaseConfigurationQuery() { heldQuery?.resume(returning: configuration); heldQuery = nil }
+    var hasHeldQuery: Bool { !heldQueries.isEmpty }
+    var heldQueryCount: Int { heldQueries.count }
+    func releaseNewestConfigurationQuery() { heldQueries.popLast()?.resume(returning: configuration) }
+    func releaseConfigurationQuery() { for query in heldQueries { query.resume(returning: configuration) }; heldQueries = [] }
 }
 
 @MainActor struct SteamSessionHostTests {
@@ -102,8 +104,12 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.install(appID: 1)
         var metal = runtime
         metal.d3dMetal = D3DMetalInstallation(library: root.appendingPathComponent("toolkit"))
-        await #expect(throws: SteamSessionHost.Failure.self) {
+        // The refusal names the blocking downloads so Play can offer to wait or restart.
+        do {
             try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: metal, graphicsForLaunch: true)
+            Issue.record("Renderer switch must not interrupt a submitted download")
+        } catch SteamSessionHost.Failure.graphicsBusy(let appIDs) {
+            #expect(appIDs == [1])
         }
         try await host.control("pause", appID: 1)
         await #expect(throws: SteamSessionHost.Failure.self) {
@@ -173,6 +179,9 @@ private actor PreparedClient: SteamClientPreparing {
         #expect(await host.isActive)
         await #expect(throws: SteamSessionHost.Failure.self) {
             try await host.start(appID: 2, destination: root, library: [], credentials: credentials, runtime: runtime)
+        }
+        await #expect(throws: SteamClientPackages.Failure.self) {
+            try await host.startInstall(appID: 2, destination: root, library: [], credentials: credentials, runtime: runtime, attempt: UUID())
         }
         open.yield(); open.finish()
         #expect(try await removal.value == 7)
@@ -263,6 +272,44 @@ private actor PreparedClient: SteamClientPreparing {
         #expect(!facade.isActive)
         #expect(facade.takeInstallResults().isEmpty)
         #expect(facade.takeError() == nil)
+    }
+
+    @Test func restartForPlayKeepsADownloadThatFinishedDuringTeardown() async throws {
+        // App 1 finishes as the host shuts down; app 2 is cut off and reports a failure.
+        let script = #"""
+        import sys, time
+        def emit(req, app, key, value):
+            print(f'[steam-host] pufflet2 request-id={req} app-id={app} {key}={value}', flush=True)
+        emit(0, 0, 'session-ready', 1)
+        installs = {}
+        for line in sys.stdin:
+            parts = line.split()
+            req, action = parts[0], parts[1]
+            if action == 'shutdown':
+                for key in ('install-complete', 'install-state', 'install-manifest-state'):
+                    emit(installs[1], 1, key, 1 if key == 'install-complete' else 4)
+                emit(installs[1], 1, 'install-result', 0)
+                emit(installs[2], 2, 'install-result', 3)
+                time.sleep(0.3)
+                break
+            installs[int(parts[2])] = req
+            emit(req, parts[2], 'command-result', 0)
+        """#
+        let (root, runtime, url) = try fixture(script); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root)
+        let actor = SteamSessionHost(paths: paths, hostURL: url, installer: PreparedClient())
+        let facade = SteamHeadlessSession(paths: paths, hostURL: url, sessionHost: actor)
+        do {
+            for id in ["1", "2"] { try await facade.install(appID: id, destination: root, library: [], credentials: credentials(), runtime: runtime) }
+            try await facade.restartForPlay()
+            let results = facade.takeInstallResults()
+            #expect(results.keys.sorted() == ["1"])
+            #expect(results["1"] == .some(nil))
+            #expect(!facade.hasSubmittedInstall("1") && !facade.hasSubmittedInstall("2"))
+        } catch {
+            try? await actor.shutdown()
+            throw error
+        }
     }
 
     @Test func failedPrefixTeardownRetainsOwnershipUntilRetrySucceeds() async throws {
@@ -533,6 +580,85 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.shutdown()
     }
 
+    // Holds app 1's install acknowledgement until the test cancels the waiting task.
+    private static let delayedAckScript = #"""
+    import pathlib, sys, time
+    root = pathlib.Path(__file__).parent
+    print('[steam-host] pufflet2 request-id=0 app-id=0 session-ready=1', flush=True)
+    active = set()
+    for line in sys.stdin:
+        parts = line.split()
+        req, action = parts[:2]
+        app = int(parts[2]) if len(parts) > 2 else 0
+        if action == 'shutdown': break
+        if action == 'install':
+            active.add(app)
+            if app == 1:
+                (root / 'submitted').touch()
+                while not (root / 'ack').exists(): time.sleep(.005)
+        if action == 'cancel': active.discard(app)
+        (root / 'active').write_text(','.join(map(str, sorted(active))))
+        print(f'[steam-host] pufflet2 request-id={req} app-id={app} command-result=0', flush=True)
+    """#
+
+    private func waitForSubmission(in root: URL) async throws -> Bool {
+        let marker = root.appendingPathComponent("submitted")
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !FileManager.default.fileExists(atPath: marker.path), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return FileManager.default.fileExists(atPath: marker.path)
+    }
+
+    @Test func cancellationAfterInstallSubmissionStopsOnlyThatAppAndKeepsPartialFiles() async throws {
+        let (root, runtime, url) = try fixture(Self.delayedAckScript)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
+        let partial = root.appendingPathComponent("partial.bin")
+        try Data("partial content".utf8).write(to: partial)
+        do {
+            try await host.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
+            try await host.install(appID: 2)
+            let install = Task { try await host.install(appID: 1) }
+            let submitted = try await waitForSubmission(in: root)
+            install.cancel()
+            try Data().write(to: root.appendingPathComponent("ack"))
+            await #expect(throws: CancellationError.self) { try await install.value }
+            #expect(submitted)
+            #expect(try String(contentsOf: root.appendingPathComponent("active"), encoding: .utf8) == "2")
+            #expect(try Data(contentsOf: partial) == Data("partial content".utf8))
+            #expect(await host.isActive)
+            try await host.shutdown()
+        } catch {
+            try? await host.shutdown()
+            throw error
+        }
+    }
+
+    @Test func stopDuringFacadeInstallAcknowledgementDoesNotReportItSubmitted() async throws {
+        let (root, runtime, url) = try fixture(Self.delayedAckScript)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root)
+        let actor = SteamSessionHost(paths: paths, hostURL: url, installer: PreparedClient())
+        let facade = SteamHeadlessSession(paths: paths, hostURL: url, sessionHost: actor)
+        let credentials = try credentials()
+        do {
+            let install = Task { try await facade.install(appID: "1", destination: root, library: [], credentials: credentials, runtime: runtime) }
+            let submitted = try await waitForSubmission(in: root)
+            install.cancel()
+            try Data().write(to: root.appendingPathComponent("ack"))
+            await #expect(throws: CancellationError.self) { try await install.value }
+            #expect(submitted)
+            #expect(!facade.hasSubmittedInstall("1"))
+            #expect(try String(contentsOf: root.appendingPathComponent("active"), encoding: .utf8) == "")
+            #expect(facade.takeInstallResults().isEmpty)
+            try await actor.shutdown()
+        } catch {
+            try? await actor.shutdown()
+            throw error
+        }
+    }
+
     private static let script = #"""
     import os, sys
     def emit(req, app, key, value):
@@ -556,4 +682,124 @@ private actor PreparedClient: SteamClientPreparing {
         if action == 'launch': emit(req, app, 'launch-game-running', 1)
         if action == 'shutdown': break
     """#
+
+    // Logs each host's install library and keeps installs outstanding (no
+    // install-result), like a real download that is submitted or paused.
+    private static let libraryScript = #"""
+    import os, sys
+    library = os.environ['MADEIRA_DOCK_INSTALL_LIBRARY']
+    with open('destinations.txt', 'a') as log: log.write(library + '\n')
+    print('[steam-host] pufflet2 request-id=0 app-id=0 session-ready=1', flush=True)
+    for line in sys.stdin:
+        parts = line.split()
+        if parts[1] == 'shutdown': break
+        req, app = parts[0], parts[2]
+        if parts[1] == 'launch':
+            directory = os.environ['MADEIRA_DOCK_REQUEST_DIR'][8:].replace('\\', '/')
+            with open(directory + '/' + req + '.launch') as file: fields = file.read().splitlines()
+            assert fields[4] == library + '\\steamapps\\common\\Fixture'
+        print(f'[steam-host] pufflet2 request-id={req} app-id={app} command-result=0', flush=True)
+        if parts[1] == 'launch':
+            print(f'[steam-host] pufflet2 request-id={req} app-id={app} launch-host-result=0', flush=True)
+    """#
+
+    private func libraryFixture() throws -> (root: URL, runtime: SteamRuntime, url: URL, second: URL, selected: SteamGame, executable: URL) {
+        let (root, runtime, url) = try fixture(Self.libraryScript)
+        let second = root.appendingPathComponent("second library 日本")
+        let selected = game("2", root: second)
+        try FileManager.default.createDirectory(at: selected.folder, withIntermediateDirectories: true)
+        let executable = selected.folder.appendingPathComponent("game.exe")
+        try Data([0]).write(to: executable)
+        return (root, runtime, url, second, selected, executable)
+    }
+    private func hostLibraries(_ runtime: SteamRuntime) throws -> [String] {
+        try String(contentsOf: runtime.installation.prefix.appendingPathComponent("destinations.txt"), encoding: .utf8).split(separator: "\n").map(String.init)
+    }
+
+    @Test func idleHostSwitchesLibrariesForPlayThenInstall() async throws {
+        let (root, runtime, url, second, selected, executable) = try libraryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        let credentials = try credentials()
+        do {
+            try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+            try await host.startGame(selected, option: 0, executable: executable, destination: second, library: [selected], credentials: credentials, runtime: runtime)
+            for await event in host.events {
+                if case let .report(report, _) = event, report.appID == 2, report.key == "launch-host-result" { break }
+            }
+            try await host.startInstall(appID: 3, destination: root, library: [selected], credentials: credentials, runtime: runtime, attempt: UUID())
+            #expect(await installer.calls == 3)
+            try await host.shutdown()
+        } catch {
+            try await host.shutdown()
+            throw error
+        }
+        #expect(try hostLibraries(runtime) == [root, second, root].map(SteamClientInstaller.windowsLibraryRoot(for:)))
+    }
+
+    @Test func submittedOrPausedInstallKeepsItsLibrary() async throws {
+        let (root, runtime, url, second, selected, executable) = try libraryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.startInstall(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime, attempt: UUID())
+        for paused in [false, true] {
+            if paused { try await host.control("pause", appID: 1) }
+            // libraryBusy lets Play offer to wait or restart, and keeps installs queued.
+            for attempt in 0..<2 {
+                do {
+                    if attempt == 0 {
+                        try await host.startGame(selected, option: 0, executable: executable, destination: second, library: [selected], credentials: credentials, runtime: runtime)
+                    } else {
+                        try await host.startInstall(appID: 3, destination: second, library: [], credentials: credentials, runtime: runtime, attempt: UUID())
+                    }
+                    Issue.record("Another library was accepted while Steam had work")
+                } catch SteamSessionHost.Failure.libraryBusy(let appIDs) {
+                    #expect(appIDs == [1])
+                } catch { Issue.record("Unexpected refusal: \(error)") }
+            }
+        }
+        #expect(await installer.calls == 1)
+        #expect(await host.isActive)
+        // The same library still shares the download session.
+        try await host.startInstall(appID: 4, destination: root, library: [], credentials: credentials, runtime: runtime, attempt: UUID())
+        #expect(await installer.calls == 1)
+        try await host.shutdown()
+        #expect(try hostLibraries(runtime) == [SteamClientInstaller.windowsLibraryRoot(for: root)])
+    }
+
+    @Test func anotherLibraryCannotRedirectAReservedInstall() async throws {
+        let (root, runtime, url, second, selected, executable) = try libraryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer)
+        let credentials = try credentials()
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime)
+        await installer.holdConfigurationQueries(true)
+        // Suspends inside reuse validation, between startup and submission.
+        let install = Task { try await host.startInstall(appID: 3, destination: root, library: [], credentials: credentials, runtime: runtime, attempt: UUID()) }
+        var deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while await installer.heldQueryCount < 1, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        await #expect(throws: SteamSessionHost.Failure.self) {
+            try await host.withClientStopped { Issue.record("Uninstall entered a reserved install") }
+        }
+        await #expect(throws: (any Error).self) {
+            try await host.startGame(selected, option: 0, executable: executable, destination: second, library: [selected], credentials: credentials, runtime: runtime)
+        }
+        let other = Task { try await host.startInstall(appID: 4, destination: second, library: [], credentials: credentials, runtime: runtime, attempt: UUID()) }
+        deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while await installer.heldQueryCount < 2, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(await installer.heldQueryCount == 2)
+        await installer.holdConfigurationQueries(false)
+        // The other library decides while the first install is still unsubmitted.
+        await installer.releaseNewestConfigurationQuery()
+        await #expect(throws: SteamSessionHost.Failure.self) { try await other.value }
+        await installer.releaseConfigurationQuery()
+        try await install.value
+        #expect(await installer.calls == 1)
+        try await host.shutdown()
+        #expect(try hostLibraries(runtime) == [SteamClientInstaller.windowsLibraryRoot(for: root)])
+    }
 }

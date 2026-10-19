@@ -11,7 +11,7 @@ nonisolated struct SteamSessionEvent: Equatable, Sendable {
     static let keys: Set<String> = ["session-ready", "session-playing", "session-idle-shutdown", "session-result", "command-result",
         "install-request-result", "install-state", "install-update-state", "install-work-done-kib", "install-work-total-kib",
         "install-verifying", "install-manifest-state", "install-complete", "install-result", "install-paused", "install-paused-playing", "install-user-paused",
-        "launch-option-index", "launch-option-missing", "launch-install-directory-verified", "launch-client-error", "launch-request-submitted",
+        "install-no-progress", "launch-option-index", "launch-option-missing", "launch-install-directory-verified", "launch-client-error", "launch-request-submitted",
         "launch-game-running", "launch-game-ended", "launch-host-result", "launch-discovery-restored", "launch-update-wait",
         "launch-config-wait", "launch-session-wait", "ceg-request", "ceg-result"]
 
@@ -56,13 +56,23 @@ actor SteamSessionHost {
     enum Event: Sendable {
         case preparing(String)
         case running
-        case report(SteamSessionEvent)
+        case report(SteamSessionEvent, installAttempt: UUID? = nil)
         case stopped(String?)
         case attention(String)
     }
     enum Failure: LocalizedError {
         case stopped(String)
-        var errorDescription: String? { switch self { case let .stopped(message): message } }
+        case graphicsBusy(appIDs: [Int])
+        case libraryBusy(appIDs: [Int])
+        case cancellationFailed
+        var errorDescription: String? {
+            switch self {
+            case let .stopped(message): message
+            case .cancellationFailed: "Steam could not confirm that this download stopped. Try Stop again; existing files are kept."
+            case .graphicsBusy: "Steam needs to restart to use this game’s graphics backend. Finish its current downloads or restart Steam support to play. Existing files are kept."
+            case .libraryBusy: "Steam support is busy in another library. Wait for its downloads or game to finish, or restart Steam support. Existing files are kept."
+            }
+        }
     }
     nonisolated let events: AsyncStream<Event>
     private let continuation: AsyncStream<Event>.Continuation
@@ -89,6 +99,8 @@ actor SteamSessionHost {
     private var issued: [Int: Int] = [:]
     private var ongoing = Set<Int>()
     private var installRequests = Set<Int>()
+    private var installAttempts: [Int: UUID] = [:]
+    private var installReservations: [UUID: UInt32] = [:]
     private var failureMessage: String?
     private var accountID: UInt64?
     private var destination: URL?
@@ -118,7 +130,7 @@ actor SteamSessionHost {
     // configuration, startup and launch submission, preventing queued installs
     // or a second Play from entering between these suspended steps.
     func startGame(_ game: SteamGame, option: UInt32, executable: URL, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
-        guard !switchingDisplay, !starting, !preparingSupport, !stopping, !uninstalling,
+        guard !switchingDisplay, !starting, !preparingSupport, !stopping, installReservations.isEmpty, !uninstalling,
               ongoing.subtracting(installRequests).isEmpty else { throw SteamDisplayProfiles.Failure.busy }
         let preference = try SteamDisplayProfiles(paths: paths).preference(for: game.id)
         guard let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
@@ -131,7 +143,7 @@ actor SteamSessionHost {
     }
 
     private func startManaged(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime,
-                              requestedDisplay: SteamDisplayPreference? = nil, graphicsForLaunch: Bool = false) async throws {
+                              requestedDisplay: SteamDisplayPreference? = nil, graphicsForLaunch: Bool = false, installAttempt: UUID? = nil) async throws {
         guard !stopping, !preparingSupport else { throw Failure.stopped("Steam is being prepared or stopped. Try again shortly.") }
         guard !uninstalling else { throw Failure.stopped("Pufflet is uninstalling a game. Try again when it finishes.") }
         let identity = try runtime.identity()
@@ -143,17 +155,23 @@ actor SteamSessionHost {
         if !starting, process != nil, !ready { try await shutdownOwned() }
         let root = destination.resolvingSymlinksInPath()
         if ready {
-            try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
+            try await validateReuse(runtime: runtime, identity: identity, destination: nil, accountID: credentials.steamID)
             guard let observed = displayConfiguration else { throw SteamDisplayProfiles.Failure.invalidSettings }
             let target = try requestedDisplay.flatMap {
                 try SteamDisplayProfiles(paths: paths).target(for: $0, observed: observed)
             }
             let changesDisplay = target.map { $0 != displayConfiguration } ?? false
             let changesGraphics = graphicsForLaunch && self.runtime?.d3dMetal != runtime.d3dMetal
-            if changesDisplay || changesGraphics {
-                guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty else {
+            // Installs use the library fixed at host startup; an idle host can
+            // move to another library, but submitted or paused work keeps it.
+            let changesDestination = self.destination?.standardizedFileURL != root.standardizedFileURL
+            if changesDisplay || changesGraphics || changesDestination {
+                guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty,
+                      installReservations.keys.allSatisfy({ $0 == installAttempt }) else {
                     if changesDisplay { throw SteamDisplayProfiles.Failure.busy }
-                    throw Failure.stopped("Wait for Steam’s current downloads or game to finish before switching graphics backends.")
+                    let appIDs = Array(Set(issued.values)).sorted()
+                    if changesGraphics { throw Failure.graphicsBusy(appIDs: appIDs) }
+                    throw Failure.libraryBusy(appIDs: appIDs)
                 }
                 try await shutdownOwned(notify: false)
             } else { return }
@@ -268,9 +286,10 @@ actor SteamSessionHost {
         }
     }
 
-    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL, accountID: UInt64?, graphicsForLaunch: Bool = false) async throws {
+    // A nil destination defers the library check to the caller's restart decision.
+    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL?, accountID: UInt64?, graphicsForLaunch: Bool = false) async throws {
         guard ready, !stopping, runtimeIdentity == identity,
-              self.destination?.standardizedFileURL == destination.standardizedFileURL,
+              destination == nil || self.destination?.standardizedFileURL == destination?.standardizedFileURL,
               self.accountID == accountID else { throw SteamClientPackages.Failure.activeSession }
         let current = generation
         var setupRuntime = runtime
@@ -335,7 +354,7 @@ actor SteamSessionHost {
         try? await shutdownOwned()
     }
 
-    var isActive: Bool { starting || process != nil || stopping || preparingSupport || ownsPreparedPrefix || switchingDisplay || uninstalling }
+    var isActive: Bool { starting || process != nil || stopping || preparingSupport || ownsPreparedPrefix || switchingDisplay || uninstalling || !installReservations.isEmpty }
 
     /// Runs a file-level uninstall with Valve's client stopped. Uses the same
     /// ownership as Play and installs: refused while any request, download
@@ -343,7 +362,7 @@ actor SteamSessionHost {
     /// first so it can't hold stale install state; and no start, Play or setup can
     /// enter until `body` returns. Valve's client rescans manifests when it next starts.
     func withClientStopped<T: Sendable>(_ body: @Sendable () async throws -> T) async throws -> T {
-        guard !uninstalling, !switchingDisplay, !starting, !preparingSupport, !stopping else {
+        guard !uninstalling, !switchingDisplay, !starting, !preparingSupport, !stopping, installReservations.isEmpty else {
             throw Failure.stopped("Steam is starting or stopping. Try again when it’s ready.")
         }
         guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty else {
@@ -356,9 +375,47 @@ actor SteamSessionHost {
         return try await body()
     }
 
-    func install(appID: UInt32) async throws {
+    // Holds the attempt's reservation across every preparation/reuse suspension
+    // until submission and any cancellation cleanup settle, so a restart cannot
+    // slip in between start and install.
+    func startInstall(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials,
+                      runtime: SteamRuntime, attempt: UUID) async throws {
+        try Task.checkCancellation()
+        guard !uninstalling, !switchingDisplay, installReservations[attempt] == nil, !installReservations.values.contains(appID) else {
+            throw SteamClientPackages.Failure.activeSession
+        }
+        installReservations[attempt] = appID
+        defer { installReservations.removeValue(forKey: attempt) }
+        try await startManaged(appID: appID, destination: destination, library: library, credentials: credentials,
+                               runtime: runtime, installAttempt: attempt)
+        // The host installs into its startup library, so never submit to another.
+        guard self.destination?.standardizedFileURL == destination.resolvingSymlinksInPath().standardizedFileURL else {
+            throw SteamClientPackages.Failure.activeSession
+        }
+        try await install(appID: appID, attempt: attempt)
+    }
+
+    // The acknowledgement wait ignores task cancellation, so a Stop that lands
+    // after submission must cancel the submitted install here.
+    func install(appID: UInt32, attempt: UUID = UUID()) async throws {
         guard !switchingDisplay else { throw SteamDisplayProfiles.Failure.busy }
-        try await command("install \(appID)", app: Int(appID))
+        try await command("install \(appID)", app: Int(appID), installAttempt: attempt)
+        if Task.isCancelled {
+            try await cancelInstall(appID: appID, attempt: attempt)
+            throw CancellationError()
+        }
+    }
+
+    // A finished or retired attempt needs no cancel. Never cancels a newer
+    // install for the same app, including one in a replacement session.
+    func cancelInstall(appID: UInt32, attempt: UUID) async throws {
+        guard let request = installRequests.first(where: { issued[$0] == Int(appID) && installAttempts[$0] == attempt }) else { return }
+        let current = generation
+        do { try await control("cancel", appID: appID) }
+        catch {
+            guard generation == current, installRequests.contains(request) else { return }
+            throw Failure.cancellationFailed
+        }
     }
     func control(_ action: String, appID: UInt32) async throws {
         guard !switchingDisplay else { throw SteamDisplayProfiles.Failure.busy }
@@ -366,7 +423,7 @@ actor SteamSessionHost {
         try await command("\(action) \(appID)", app: Int(appID))
         if action == "cancel" {
             for id in installRequests where issued[id] == Int(appID) {
-                issued.removeValue(forKey: id); ongoing.remove(id); installRequests.remove(id)
+                issued.removeValue(forKey: id); ongoing.remove(id); installRequests.remove(id); installAttempts.removeValue(forKey: id)
             }
         }
     }
@@ -404,12 +461,13 @@ actor SteamSessionHost {
         guard ready, !stopping, nextRequest < Int32.max else { throw Failure.stopped("Steam support is not ready. Try again.") }
         nextRequest += 1; return nextRequest
     }
-    private func command(_ text: String, app: Int, request: Int? = nil) async throws {
+    private func command(_ text: String, app: Int, request: Int? = nil, installAttempt: UUID? = nil) async throws {
+        if installAttempt != nil { try Task.checkCancellation() }
         let id = try request ?? allocateRequest()
         guard ready, !stopping, let input, process?.isRunning == true else { throw Failure.stopped("Steam support stopped. Try again to restart it.") }
         try await withCheckedThrowingContinuation { (waiter: CheckedContinuation<Void, Error>) in
             if text.hasPrefix("install ") || text.hasPrefix("launch ") { ongoing.insert(id) }
-            if text.hasPrefix("install ") { installRequests.insert(id) }
+            if text.hasPrefix("install ") { installRequests.insert(id); installAttempts[id] = installAttempt }
             issued[id] = app
             pending[id] = Pending(app: app, continuation: waiter)
             do { try input.fileHandleForWriting.write(contentsOf: Data("\(id) \(text)\n".utf8)) }
@@ -445,11 +503,12 @@ actor SteamSessionHost {
                 if event.value == 0 { waiter.continuation.resume() }
                 else { waiter.continuation.resume(throwing: Failure.stopped(SteamHostReport().failure(for: event.value))) }
             }
-            continuation.yield(.report(event))
+            continuation.yield(.report(event, installAttempt: installAttempts[event.requestID]))
             if event.key == "launch-host-result" { runtime?.clearDockExecutable() }
             if event.key == "install-result" || event.key == "launch-host-result" ||
                 event.key == "command-result" && (event.value != 0 || !ongoing.contains(event.requestID)) {
                 issued.removeValue(forKey: event.requestID); ongoing.remove(event.requestID); installRequests.remove(event.requestID)
+                installAttempts.removeValue(forKey: event.requestID)
             }
         }
     }
@@ -523,7 +582,7 @@ actor SteamSessionHost {
         reader?.cancel(); reader = nil
         try? input?.fileHandleForWriting.close(); output?.fileHandleForReading.readabilityHandler = nil
         try? output?.fileHandleForReading.close()
-        issued = [:]; ongoing = []; installRequests = []; accountID = nil
+        issued = [:]; ongoing = []; installRequests = []; installAttempts = [:]; accountID = nil
         runtimeIdentity = nil; displayConfiguration = nil; runtime = nil; destination = nil
         ownsPreparedPrefix = false
         input = nil; output = nil; ready = false; starting = false; stopping = false

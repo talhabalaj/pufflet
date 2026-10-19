@@ -10,6 +10,15 @@ nonisolated struct WineProcessIdentity: Equatable, Sendable {
     let image: String
     let prefix: String
 
+    /// Kernel image lookup does not consult LaunchServices, which can block
+    /// while Wine registers a newly launched game with macOS.
+    static func executablePath(_ pid: Int32) -> String? {
+        // PROC_PIDPATHINFO_MAXSIZE is (4 * MAXPATHLEN), a C macro Swift does not import.
+        var bytes = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &bytes, UInt32(bytes.count)) > 0 else { return nil }
+        return String(cString: bytes)
+    }
+
     static func read(_ pid: Int32) -> Self? {
         var info = proc_bsdinfo()
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout.size(ofValue: info))) == MemoryLayout.size(ofValue: info),

@@ -5,6 +5,20 @@ import Testing
 @testable import SteamLibrary
 
 struct GameGraphicsTests {
+    @Test func toolkitAliasesHaveOneRendererIdentity() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-toolkit-alias-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let toolkit = root.appendingPathComponent("toolkit"), alias = root.appendingPathComponent("alias")
+        try FileManager.default.createDirectory(at: toolkit, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: toolkit)
+        let direct = try #require(D3DMetalInstallation.find(in: toolkit, fileExists: { _ in true }))
+        let linked = try #require(D3DMetalInstallation.find(in: alias, fileExists: { _ in true }))
+        #expect(direct == linked)
+        #expect(linked.library.path == toolkit.resolvingSymlinksInPath().path)
+        #expect(D3DMetalInstallation(library: alias) == direct)
+        #expect(D3DMetalInstallation(library: root.appendingPathComponent("different-copy")) != direct)
+    }
+
     @Test func backendSelection() {
         #expect(GraphicsBackend.auto.resolved(importsD3D12: true, hasD3DMetal: true) == .d3dMetal)
         #expect(GraphicsBackend.auto.resolved(importsD3D12: true, hasD3DMetal: false) == .dxmt)

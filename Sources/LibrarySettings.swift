@@ -5,13 +5,16 @@ import SwiftUI
 @Observable final class LibrarySettings {
     private let defaults: UserDefaults
     private static let locationKey = "steamLibraryPath"
+    private static let desktopKey = "desktopSteamPath"
     private(set) var libraryURL: URL?
+    private(set) var desktopSteamURL: URL?
     private(set) var creationError: String?
     let defaultLibraryURL: URL
 
     init(defaults: UserDefaults = .standard, support: URL = AppIdentity.support, home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         defaultLibraryURL = home.appendingPathComponent("Games/" + AppIdentity.dataDirectory, isDirectory: true)
         self.defaults = defaults
+        desktopSteamURL = defaults.string(forKey: Self.desktopKey).map { URL(filePath: $0, directoryHint: .isDirectory) }
         libraryURL = defaults.string(forKey: Self.locationKey).map { URL(filePath: $0, directoryHint: .isDirectory) }
         let legacy = support.deletingLastPathComponent().appendingPathComponent(AppIdentity.legacyDataDirectory).path + "/"
         if let libraryURL, libraryURL.path.hasPrefix(legacy), !FileManager.default.fileExists(atPath: libraryURL.path) {
@@ -49,6 +52,12 @@ import SwiftUI
         libraryURL = root
     }
 
+    func setDesktopSteam(_ selection: URL, managedPrefix: URL) throws {
+        let client = try DesktopSteamClient(root: selection, managedPrefix: managedPrefix)
+        defaults.set(client.root.path, forKey: Self.desktopKey)
+        desktopSteamURL = client.root
+    }
+
     nonisolated static func libraryRoot(for selection: URL) throws -> URL {
         let root = (selection.lastPathComponent.lowercased() == "steamapps" ? selection.deletingLastPathComponent() : selection)
             .standardizedFileURL.resolvingSymlinksInPath()
@@ -65,14 +74,16 @@ import SwiftUI
     }
 }
 
+enum SettingsTab: Hashable { case general, steam, advanced }
+
 struct LibrarySettingsView: View {
     @Bindable var model: LibraryModel
 
     var body: some View {
-        TabView {
-            Tab("General", systemImage: "gearshape") { GeneralSettings(model: model) }
-            Tab("Steam", systemImage: "person.crop.circle") { SteamAccountSettings(model: model) }
-            Tab("Advanced", systemImage: "wrench.and.screwdriver") { AdvancedSettings(model: model) }
+        TabView(selection: $model.settingsTab) {
+            Tab("General", systemImage: "gearshape", value: .general) { GeneralSettings(model: model) }
+            Tab("Steam", systemImage: "person.crop.circle", value: .steam) { SteamAccountSettings(model: model) }
+            Tab("Advanced", systemImage: "wrench.and.screwdriver", value: .advanced) { AdvancedSettings(model: model) }
         }
         .frame(width: 520)
     }
@@ -135,12 +146,28 @@ private struct GeneralSettings: View {
 
 private struct AdvancedSettings: View {
     @Bindable var model: LibraryModel
+    @State private var desktopError: String?
 
     var body: some View {
         Form {
             Section("Windows Support") {
                 LabeledContent("Wine and DXMT", value: model.runtimeSetup.isReady ? "Installed" : "Setup needed")
                 LabeledContent("") { Button("Set Up Pufflet…") { model.showsSetup = true } }
+            }
+            Section("Desktop Steam") {
+                LabeledContent("Windows client") {
+                    HStack {
+                        Text(model.settings.desktopSteamURL?.lastPathComponent ?? "Choose a client")
+                            .help(model.settings.desktopSteamURL?.path ?? "")
+                        Button("Choose…") {
+                            do { try model.chooseDesktopSteamFolder() }
+                            catch { desktopError = error.localizedDescription }
+                        }
+                        .disabled(!model.canChangeLibrary)
+                    }
+                }
+                Text("Choose a complete Windows Steam installation in a separate Wine prefix. Pufflet connects your game library when desktop Steam is closed. Desktop Steam uses its own sign-in.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             Section("Game Porting Toolkit") {
                 ToolkitControls(support: model.graphics)
@@ -155,10 +182,28 @@ private struct AdvancedSettings: View {
             footer: { Text("Verified Wine and DXMT downloads live in Runtimes, separately from your Steam prefix and session files. Games stay in your selected library.") }
         }
         .formStyle(.grouped).scrollDisabled(true).fixedSize(horizontal: false, vertical: true)
+        .alert("Choose Desktop Steam", isPresented: Binding(get: { desktopError != nil }, set: { if !$0 { desktopError = nil } })) {
+            Button("OK", role: .cancel) { desktopError = nil }
+        } message: { Text(desktopError ?? "") }
     }
 }
 
 extension LibraryModel {
+    @discardableResult func chooseDesktopSteamFolder() throws -> Bool {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Desktop Steam"
+        panel.message = "Choose the Steam folder containing steam.exe inside a separate Wine prefix. Install and open Windows Steam in that prefix first."
+        panel.prompt = "Choose Steam"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = settings.desktopSteamURL ?? settings.libraryURL
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        try settings.setDesktopSteam(url, managedPrefix: nativeRuntime.installation.prefix)
+        return true
+    }
+
     /// Shows the folder panel and adopts the chosen Steam library. Returns false if the panel was cancelled.
     @discardableResult func chooseLibraryFolder() throws -> Bool {
         let panel = NSOpenPanel()

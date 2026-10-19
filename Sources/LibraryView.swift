@@ -7,6 +7,7 @@ struct LibraryView: View {
     @FocusState private var searchFocused: Bool
     @State private var columnCount = 4
     @State private var locationError: String?
+    @Environment(\.openSettings) private var openSettings
     private let minimumTileWidth: CGFloat = 140, tileSpacing: CGFloat = 22
 
     var body: some View {
@@ -45,13 +46,26 @@ struct LibraryView: View {
         .alert(errorParts.title, isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             if model.headless.persistentEnabled, let id = model.repairGameID, let entry = model.entries.first(where: { $0.id == id }) {
                 Button("Repair Installation") { model.errorMessage = nil; model.repair(entry) }
-                Button("Open Desktop Steam") { Task { await model.openSteam() } }
+                Button("Open Desktop Steam") { Task { await model.openSteam() } }.disabled(model.headless.isActive || model.hasDownloadWork)
                 Button("Cancel", role: .cancel) { model.errorMessage = nil }
             } else {
                 Button("OK") { model.errorMessage = nil }
-                Button("Open Desktop Steam") { Task { await model.openSteam() } }
+                Button("Open Desktop Steam") { Task { await model.openSteam() } }.disabled(model.headless.isActive || model.hasDownloadWork)
             }
         } message: { Text(errorParts.detail) }
+        .alert("Waiting to Play", isPresented: Binding(get: { model.blockedPlay != nil }, set: { if !$0 { model.blockedPlay = nil } }), presenting: model.blockedPlay) { request in
+            Button("Play When Ready") { model.queueBlockedPlay(request) }
+            if request.requiresRestart {
+                Button("Restart Support and Play") { Task { await model.restartAndPlayBlockedGame(request) } }
+            }
+            Button("Show Downloads") { model.showsDownloads = true }
+            Button("Cancel", role: .cancel) { model.blockedPlay = nil }
+        } message: { _ in Text(model.blockedPlayDetail) }
+        .alert("Choose Desktop Steam", isPresented: Binding(get: { model.desktopSteamSetup != nil }, set: { if !$0 { model.desktopSteamSetup = nil } }), presenting: model.desktopSteamSetup) { action in
+            Button("Choose Steam Folder…") { Task { await model.chooseDesktopSteamAndContinue(action) } }
+            Button("Open Advanced Settings") { model.showDesktopSteamSettings(); openSettings() }
+            Button("Cancel", role: .cancel) { model.desktopSteamSetup = nil }
+        } message: { _ in Text("Desktop Steam needs a complete Windows Steam installation in its own Wine prefix. Your game library holds games, not the Steam client.") }
         .alert("Choose a Steam library", isPresented: Binding(get: { locationError != nil }, set: { if !$0 { locationError = nil } })) {
             Button("OK", role: .cancel) { locationError = nil }
         } message: { Text(locationError ?? "") }
@@ -513,6 +527,14 @@ private struct StatusBar: View {
                 ProgressView().controlSize(.small)
                 Text("Uninstalling \(model.entries.first { $0.id == id }?.name ?? "game")…")
                 Spacer()
+            }
+        } else if let request = model.queuedPlay {
+            bar {
+                Image(systemName: "clock")
+                Text("\(model.games.first { $0.id == request.gameID }?.name ?? "Game") will play when downloads finish. Resume paused downloads to continue.")
+                Spacer()
+                Button("Downloads") { model.showsDownloads = true }.controlSize(.small)
+                Button("Cancel Play") { model.cancelQueuedPlay() }.controlSize(.small)
             }
         } else if let id = model.activeDownloadID, let job = model.downloads.jobs.first(where: { $0.id == id }) {
             bar {

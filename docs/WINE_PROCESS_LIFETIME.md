@@ -28,8 +28,11 @@ A confirmed server exit can still leave clients blocked in native code.
 - A small Windows supervisor starts before the Steam launch host (or desktop
   Steam), acknowledges its initial snapshot, and is singleton **per prefix**.
   It retains Windows process/root handles and creation times while following
-  game ancestry. When a game exits, its observed descendants are ended, including
-  crash handlers; another root/host/service remains alive. Handles prevent PID
+  game ancestry. Launcher exit preserves live gameplay descendants and their
+  helpers. Only exact `UnityCrashHandler32.exe` / `UnityCrashHandler64.exe`
+  descendants are automatically ended after their entire observed process family
+  has exited; another root/host/service remains alive. Unknown and unrecognized
+  family members conservatively keep the family active. Handles prevent PID
   reuse from targeting a replacement process. The supervisor uses no Steam API
   and is ended by the existing prefix stop.
 - After #16 verifies wineserver exit, the same stop method reaps native Wine
@@ -140,3 +143,26 @@ A launch EXE that hands off the actual window to another EXE will require an
 explicitly validated additional allowance; directory-wide promotion is not used.
 Detached launchers, unusual game layouts and games that refuse native Quit need
 separate acceptance evidence. The existing global Steam snapshot is unchanged.
+
+## Launcher handoff regression (2026-10-19)
+
+The previous ancestor-exit policy could terminate a live game when its bootstrap
+exited normally. The guard now retains a family identity (root Windows PID plus
+creation time, backed by a retained handle) beyond the original root's tracked
+slot. All observed non-helper family members must exit before identified crash
+helpers are terminated. Image queries that fail remain unknown and are retried;
+unknown ancestors can provisionally connect a family so delayed classification
+does not split a handoff. A failed snapshot/enumeration or process-inspection/handle-retention failure
+defers automatic helper cleanup and retains exited ancestors for the next retry.
+If the tracking table fills, exited slots are reclaimed but automatic reaping
+is disabled for that guard session because ancestry may have been lost. Unrecognized helpers, uninstallers and processes
+with unproven ancestry are left to the existing prefix shutdown path. An unknown
+ancestor can conservatively extend a family's lifetime to prefix shutdown.
+
+`node --test Tests/ProcessGuard.test.mjs` compiles the actual guard loop against
+synthetic Win32 APIs and checks launcher handoffs, nested/multiple game processes,
+helper lifetime, query retries, snapshot failures and process identity. Duplicated
+mock handles have distinct values and retain their original process object.
+This establishes fixture behavior only: no Wine, authenticated Steam or real-game
+execution is part of this check. The historical real-Wine evidence above predates
+this policy change and does not validate its new handoff behavior.

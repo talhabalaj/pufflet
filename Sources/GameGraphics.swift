@@ -78,6 +78,12 @@ nonisolated enum PEImports {
 nonisolated struct D3DMetalInstallation: Equatable, Sendable {
     let library: URL
 
+    init(library: URL) {
+        self.library = library.resolvingSymlinksInPath().standardizedFileURL
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.library.path == rhs.library.path }
+
     static func find(in selection: URL, fileExists: (String) -> Bool = { FileManager.default.isReadableFile(atPath: $0) }) -> Self? {
         for relative in ["", "redist/lib", "lib", "Contents/Resources/redist/lib", "lib64/apple_gptk"] {
             let lib = selection.appendingPathComponent(relative).standardizedFileURL
