@@ -26,6 +26,8 @@ final class AppUpdater: NSObject, SPUUpdaterDelegate {
     func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem, untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
         guard let model, model.shouldPostponeUpdate else { return false }
         pendingInstall = installHandler
+        // Checking is allowed while Steam is busy; only the relaunch waits.
+        model.message = "The Pufflet update installs when your game, downloads and Steam are finished."
         return true
     }
     func resumePendingInstall() {

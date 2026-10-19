@@ -609,8 +609,12 @@ private actor PreparedClient: SteamClientPreparing {
         try SteamDisplayProfiles(paths: paths).set(.highResolution, for: "2")
         for paused in [false, true] {
             if paused { try await host.control("pause", appID: 1) }
-            await #expect(throws: (any Error).self) {
+            // The refusal names the download so Play can restart on its own when it's paused.
+            do {
                 try await host.startGame(game("2", root: root), option: 0, executable: root.appendingPathComponent("steamapps/common/Fixture/game.exe"), destination: root, library: [], credentials: credentials, runtime: runtime)
+                Issue.record("A different profile must not interrupt a submitted download")
+            } catch SteamSessionHost.Failure.displayBusy(let appIDs) {
+                #expect(appIDs == [1])
             }
             #expect(await installer.calls == 1)
             #expect(await installer.applied.isEmpty)

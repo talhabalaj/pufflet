@@ -106,8 +106,9 @@ struct LibraryCommands: Commands {
         CommandGroup(replacing: .newItem) { }
         ToolbarCommands()
         CommandGroup(after: .appInfo) {
+            // Sparkle's relaunch waits for shouldPostponeUpdate, so checking is always safe.
             Button("Check for Updates…") { AppUpdater.shared.checkForUpdates() }
-                .disabled(!AppUpdater.shared.isAvailable || model.headless.isActive)
+                .disabled(!AppUpdater.shared.isAvailable)
         }
         CommandGroup(after: .textEditing) {
             Button("Find…") { model.searchRequest += 1 }.keyboardShortcut("f").disabled(model.entries.isEmpty)

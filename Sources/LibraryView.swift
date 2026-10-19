@@ -57,11 +57,11 @@ struct LibraryView: View {
                 Button("Open Desktop Steam") { Task { await model.openSteam() } }.disabled(model.headless.isActive || model.hasDownloadWork)
             }
         } message: { Text(errorParts.detail) }
-        .alert("Waiting to Play", isPresented: Binding(get: { model.blockedPlay != nil }, set: { if !$0 { model.blockedPlay = nil } }), presenting: model.blockedPlay) { request in
-            Button("Play When Ready") { model.queueBlockedPlay(request) }
+        .alert(model.blockedPlayTitle, isPresented: Binding(get: { model.blockedPlay != nil }, set: { if !$0 { model.blockedPlay = nil } }), presenting: model.blockedPlay) { request in
             if request.requiresRestart {
-                Button("Restart Support and Play") { Task { await model.restartAndPlayBlockedGame(request) } }
+                Button("Pause Downloads and Play") { Task { await model.restartAndPlayBlockedGame(request) } }
             }
+            Button("Play When Ready") { model.queueBlockedPlay(request) }
             Button("Show Downloads") { model.showsDownloads = true }
             Button("Cancel", role: .cancel) { model.blockedPlay = nil }
         } message: { _ in Text(model.blockedPlayDetail) }
@@ -239,6 +239,9 @@ struct GameMenuItems: View {
         .disabled(game == nil)
         if !inContextMenu || installed != nil {
             Divider()
+            if installed?.isUpdatePending == true, let game {
+                Button("Update") { model.update(game) }.disabled(!model.canUpdate(game))
+            }
             if model.headless.persistentEnabled {
                 Button("Repair Installation…") { if let game { model.repair(game) } }
                     .disabled(installed == nil || !model.canInstall || game.map { model.isPlaying($0) } == true)
@@ -330,6 +333,7 @@ private struct GameTile: View {
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { if model.canStart(game) { model.primaryAction(game) } }
         .accessibilityAction(named: "Get Info") { model.selectedID = game.id; model.showsInspector = true }
+        .accessibilityActions { if model.canUpdate(game) { Button("Update") { model.update(game) } } }
         .task(id: game.id) { artwork = await model.artworkStore.image(appID: game.id, installation: model.installation, kind: .cover) }
     }
 
@@ -356,8 +360,13 @@ private struct GameTile: View {
         } else if let state = model.downloads.jobs.first(where: { $0.id == game.id })?.state, state == .failed {
             Label(state.title, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
         } else if game.installation?.isUpdatePending == true {
-            Text("Update pending")
-                .help("Steam may need to finish updating before this game can launch.")
+            if model.canUpdate(game) {
+                Button("Update", systemImage: "arrow.down.circle") { model.update(game) }
+                    .buttonStyle(.borderless).foregroundStyle(.tint)
+                    .help("Download this game’s update from Steam. Play also updates it first.")
+            } else {
+                Text("Update pending").help("Steam has an update for this game. It downloads when Steam is free.")
+            }
         } else if let status = model.downloadStatus(for: game.id) {
             Text(status)
         } else {
@@ -382,7 +391,7 @@ struct GameDisplaySettings: View {
                 }
             }
         } header: { Text("Display") }
-        footer: { Text("Applies on the next Play. Inherit uses the original settings. A different profile restarts Steam when games and downloads have finished. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.") }
+        footer: { Text("Applies on the next Play. Inherit uses the original settings. A different profile restarts Steam when you press Play; if something is downloading, Pufflet asks first. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.") }
     }
 }
 
@@ -407,7 +416,12 @@ struct GameInspector: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 6)
                 }
                 Section {
-                    LabeledContent("Status", value: status(game))
+                    LabeledContent("Status") {
+                        HStack {
+                            Text(status(game))
+                            if model.canUpdate(game) { Button("Update") { model.update(game) }.controlSize(.small) }
+                        }
+                    }
                     if let installed = game.installation {
                         LabeledContent("Size", value: installed.sizeDescription)
                         LabeledContent("Location") {
@@ -439,7 +453,7 @@ struct GameInspector: View {
                             ForEach(GraphicsBackend.allCases, id: \.self) { Text($0.title).tag($0) }
                         }
                         .disabled(model.isPlaying(game) || model.isLaunching(game))
-                        Text("Auto uses D3DMetal for detected DirectX 12 games when available, and DXMT otherwise. Choose D3DMetal manually for games that select DirectX at runtime.")
+                        Text("Auto uses D3DMetal for games that only support DirectX 12, when it’s set up, and DXMT for everything else, including games that also support DirectX 11. Choose D3DMetal yourself if a game needs DirectX 12 but Auto doesn’t pick it.")
                             .font(.caption).foregroundStyle(.secondary)
                         Button("Set Up Game Porting Toolkit…") { model.showsGraphicsSetup = true }
                     }
@@ -532,10 +546,10 @@ private struct StatusBar: View {
                 Text("Uninstalling \(model.entries.first { $0.id == id }?.name ?? "game")…")
                 Spacer()
             }
-        } else if let request = model.queuedPlay {
+        } else if let status = model.queuedPlayStatus {
             bar {
                 Image(systemName: "clock")
-                Text("\(model.games.first { $0.id == request.gameID }?.name ?? "Game") will play when downloads finish. Resume paused downloads to continue.")
+                Text(status)
                 Spacer()
                 Button("Downloads") { model.showsDownloads = true }.controlSize(.small)
                 Button("Cancel Play") { model.cancelQueuedPlay() }.controlSize(.small)

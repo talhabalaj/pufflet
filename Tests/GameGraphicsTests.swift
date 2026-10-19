@@ -20,11 +20,11 @@ struct GameGraphicsTests {
     }
 
     @Test func backendSelection() {
-        #expect(GraphicsBackend.auto.resolved(importsD3D12: true, hasD3DMetal: true) == .d3dMetal)
-        #expect(GraphicsBackend.auto.resolved(importsD3D12: true, hasD3DMetal: false) == .dxmt)
-        #expect(GraphicsBackend.auto.resolved(importsD3D12: false, hasD3DMetal: true) == .dxmt)
-        #expect(GraphicsBackend.dxmt.resolved(importsD3D12: true, hasD3DMetal: true) == .dxmt)
-        #expect(GraphicsBackend.d3dMetal.resolved(importsD3D12: false, hasD3DMetal: false) == .d3dMetal)
+        #expect(GraphicsBackend.auto.resolved(requiresD3D12: true, hasD3DMetal: true) == .d3dMetal)
+        #expect(GraphicsBackend.auto.resolved(requiresD3D12: true, hasD3DMetal: false) == .dxmt)
+        #expect(GraphicsBackend.auto.resolved(requiresD3D12: false, hasD3DMetal: true) == .dxmt)
+        #expect(GraphicsBackend.dxmt.resolved(requiresD3D12: true, hasD3DMetal: true) == .dxmt)
+        #expect(GraphicsBackend.d3dMetal.resolved(requiresD3D12: false, hasD3DMetal: false) == .d3dMetal)
     }
 
     @Test(arguments: [false, true]) func importsAndDelayImports(_ delay: Bool) {
@@ -40,7 +40,35 @@ struct GameGraphicsTests {
         }
     }
 
-    private func fixture(pe64: Bool, delay: Bool) -> Data {
+    @Test func autoUsesD3DMetalOnlyWhenDirectX12IsTheOnlyRenderer() {
+        #expect(PEImports.requiresD3D12(["d3d12.dll", "dxgi.dll", "kernel32.dll"]))
+        #expect(PEImports.requiresD3D12(["d3d12core.dll"]))
+        // Unity's player and many Unreal builds import both and run D3D11 by default.
+        #expect(!PEImports.requiresD3D12(["d3d11.dll", "d3d12.dll", "dxgi.dll"]))
+        #expect(!PEImports.requiresD3D12(["d3d10_1.dll", "d3d12.dll"]))
+        #expect(!PEImports.requiresD3D12(["d3d11.dll", "dxgi.dll"]))
+        #expect(!PEImports.requiresD3D12(["dxgi.dll"]))
+        #expect(!PEImports.requiresD3D12([]))
+    }
+
+    @Test func rendererImportsIncludeTheLaunchersOwnEngineLibrary() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-pe-imports-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let launcher = root.appendingPathComponent("Game.exe"), engine = root.appendingPathComponent("UnityPlayer.dll")
+        // Imports are lowercase while the file on disk keeps its case, as on Windows.
+        try fixture(pe64: true, delay: false, libraries: ["UnityPlayer.dll", "KERNEL32.dll"]).write(to: launcher)
+        try fixture(pe64: true, delay: true, libraries: ["d3d11.dll", "D3D12.dll", "dxgi.dll"]).write(to: engine)
+        #expect(PEImports.rendererLibraries(at: launcher) == ["unityplayer.dll", "kernel32.dll", "d3d11.dll", "d3d12.dll", "dxgi.dll"])
+        #expect(!PEImports.requiresD3D12(at: launcher))
+        try fixture(pe64: true, delay: false, libraries: ["d3d12.dll", "dxgi.dll"]).write(to: engine)
+        #expect(PEImports.requiresD3D12(at: launcher))
+        // A missing or unreadable sibling only leaves the launcher's own imports.
+        try FileManager.default.removeItem(at: engine)
+        #expect(PEImports.rendererLibraries(at: launcher) == ["unityplayer.dll", "kernel32.dll"])
+    }
+
+    private func fixture(pe64: Bool, delay: Bool, libraries: [String] = ["D3D12.DLL"]) -> Data {
         var data = Data(repeating: 0, count: 1024)
         func put(_ value: UInt32, at offset: Int, count: Int = 4) {
             for index in 0..<count { data[offset + index] = UInt8(truncatingIfNeeded: value >> (index * 8)) }
@@ -49,12 +77,16 @@ struct GameGraphicsTests {
         put(1, at: 0x86, count: 2); put(240, at: 0x94, count: 2)
         put(pe64 ? 0x20b : 0x10b, at: 0x98, count: 2)
         let directory = 0x98 + (pe64 ? 112 : 96) + (delay ? 13 : 1) * 8
-        put(0x1000, at: directory); put(delay ? 64 : 40, at: directory + 4)
+        let stride = delay ? 32 : 20
+        put(0x1000, at: directory); put(UInt32((libraries.count + 1) * stride), at: directory + 4)
         let section = 0x98 + 240
         put(0x1000, at: section + 12); put(512, at: section + 16); put(512, at: section + 20)
-        if delay { put(1, at: 512) }
-        put(0x1080, at: 512 + (delay ? 4 : 12))
-        data.replaceSubrange(640..<650, with: Data("D3D12.DLL\0".utf8))
+        for (index, library) in libraries.enumerated() {
+            let descriptor = 512 + index * stride, name = 640 + index * 24
+            if delay { put(1, at: descriptor) }
+            put(UInt32(0x1000 + name - 512), at: descriptor + (delay ? 4 : 12))
+            data.replaceSubrange(name..<(name + library.utf8.count + 1), with: Data((library + "\0").utf8))
+        }
         return data
     }
 
@@ -94,7 +126,7 @@ struct GameGraphicsTests {
         let sample = URL(filePath: try #require(env["PUFFLET_D3DMETAL_SAMPLE"]))
         let toolkitPath = try #require(env["PUFFLET_D3DMETAL_TOOLKIT"])
         let toolkit = try #require(D3DMetalInstallation.find(in: URL(filePath: toolkitPath)))
-        #expect(PEImports.usesD3D12(at: sample))
+        #expect(PEImports.requiresD3D12(at: sample))
         let paths = SteamClientPaths(support: root)
         try FileManager.default.createDirectory(at: paths.prefix, withIntermediateDirectories: true)
         var runtime = SteamRuntime(installation: SteamInstallation(prefix: paths.prefix,

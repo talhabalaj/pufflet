@@ -4,11 +4,16 @@ import Observation
 
 nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
     enum State: String, Codable, Sendable { case queued, preparing, installing, paused, completed, failed, stopped, interrupted }
+    /// All three use the same Steam install request; Steam verifies files only
+    /// when it sees the game as fully installed, which is what makes a repair.
+    enum Kind: String, Codable, Sendable { case install, update, repair }
     let id: String
     let name: String
     let destination: URL
     var state: State = .queued
     var error: String?
+    /// nil in queues saved before kinds existed: treat as an install.
+    var kind: Kind?
 }
 
 @Observable final class SteamDownloadQueue {
@@ -41,12 +46,13 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
         }
     }
 
-    func enqueue(_ game: OwnedSteamGame, destination: URL) {
+    func enqueue(_ game: OwnedSteamGame, destination: URL, kind: GameDownload.Kind = .install) {
         guard accountKey != nil else { return }
+        let job = GameDownload(id: game.id, name: game.name, destination: destination, kind: kind)
         if let index = jobs.firstIndex(where: { $0.id == game.id }) {
             guard ![.queued, .preparing, .installing, .paused].contains(jobs[index].state) else { return }
-            jobs[index] = GameDownload(id: game.id, name: game.name, destination: destination)
-        } else { jobs.append(GameDownload(id: game.id, name: game.name, destination: destination)) }
+            jobs[index] = job
+        } else { jobs.append(job) }
         save()
     }
 
