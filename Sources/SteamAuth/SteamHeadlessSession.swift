@@ -77,8 +77,9 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         case 61: "Steam could not use the download folder. Reconnect its drive and check Settings."
         case 62: "Steam refused this installation (code \(fields["install-request-result"] ?? code)). Check your license and available disk space."
         case 63: "Steam stopped making progress. Check your connection and free disk space, then retry. Existing files are kept."
-        case 64: "The Steam session disconnected. Sign in again and retry; existing files are kept."
+        case 64: "Steam lost its connection. Retry to reconnect; your sign-in and downloaded files are kept."
         case 65: "Steam returned invalid installation progress. Retry the download."
+        case 70: "Your Steam account signed in somewhere else. Quit Steam or the game on the other computer or app, then retry."
         case 20: "Steam support could not start. Close desktop Steam and try again."
         case 30, 40: "This Steam client build is unsupported. Prepare Steam support again."
         case 33, 34: "Steam could not confirm your session or game license. Check your connection and sign in again."
@@ -327,12 +328,15 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         switch event {
         case let .preparing(text): status = text
         case .running: isActive = true; status = "Steam is ready"
-        case let .stopped(error):
+        case let .stopped(error, disconnected):
+            // An idle session that lost Valve's connection has nothing to retry:
+            // the next Play or download signs in again, so don't interrupt.
+            let idle = !preparing && launchingAppID == nil && playingAppID == nil && submittedInstalls.isEmpty
             isActive = preparing
             if !preparing { launchingAppID = nil }
             playingAppID = nil
-            status = error == nil ? "Ready to play" : "Steam needs attention"
-            if let error { errorMessage = error }
+            status = error == nil ? "Ready to play" : disconnected ? Self.reconnectStatus : "Steam needs attention"
+            if let error, !(disconnected && idle) { errorMessage = error }
             if let error { for id in submittedInstalls.keys { installResults[id] = .some(error) } }
             submittedInstalls = [:]
         case let .attention(error):
@@ -427,6 +431,8 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
             if let process, process.isRunning { process.terminate() }
         }
     }
+
+    static let reconnectStatus = "Steam disconnected. Pufflet reconnects when you play or download."
 
     func takeError() -> String? { defer { errorMessage = nil }; return errorMessage }
 

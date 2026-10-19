@@ -6,6 +6,6 @@ test -x "$compiler"
 "$compiler" -std=c11 -O2 -Wall -Wextra -Werror -Wno-cast-function-type \
     -static -Wl,--strip-all -Wl,--no-insert-timestamp \
     -o "$root/Resources/dockhost.exe" "$root"/Research/Madeira/Dock/src/*.c -ladvapi32
-# Pufflet Dock fork pinned to 3c14dcc3d206fec11fa42d250b4a492fb25cad2a.
+# Pufflet Dock fork pinned to 49e226565891f2cde7e68721f7a4d4e42e0c18b1.
 # Based on upstream 72558e416a390f3669457930f09a389e54f49556.
 # The required GPL/exception and compiler-runtime notices are in Resources/Notices.

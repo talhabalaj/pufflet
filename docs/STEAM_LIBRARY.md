@@ -14,7 +14,7 @@ The grid merges owned metadata with real installed records by App ID. All games 
 
 ## Valve-managed installs
 
-The pinned Dock fork is `3c14dcc3d206fec11fa42d250b4a492fb25cad2a`; its lower-level interface and initial proof are documented in [DOCK_INSTALL_SPIKE.md](DOCK_INSTALL_SPIKE.md). Native Install passes the selected destination to Valve's verified Steam client. There is no custom depot downloader. The destination is registered even when empty. Pufflet preserves existing library registry entries and app manifests; it does not fabricate complete ACFs.
+The pinned Dock fork is `49e226565891f2cde7e68721f7a4d4e42e0c18b1`; its lower-level interface and initial proof are documented in [DOCK_INSTALL_SPIKE.md](DOCK_INSTALL_SPIKE.md). Native Install passes the selected destination to Valve's verified Steam client. There is no custom depot downloader. The destination is registered even when empty. Pufflet preserves existing library registry entries and app manifests; it does not fabricate complete ACFs.
 
 Pufflet submits each install to one persistent Valve session; Valve schedules queued work and shared dependencies. Play uses that same session. The Downloads popover shows queued/preparing/installing/paused/completed/failed/stopped/interrupted states. The displayed byte counter measures **Steam aggregate work**, including verification and installation, rather than network traffic. The optional pre-install size is an approximate public-depot estimate and can differ from Valve's chosen content and dependencies.
 

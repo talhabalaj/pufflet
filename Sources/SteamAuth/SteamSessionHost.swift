@@ -13,7 +13,9 @@ nonisolated struct SteamSessionEvent: Equatable, Sendable {
         "install-verifying", "install-manifest-state", "install-complete", "install-result", "install-paused", "install-paused-playing", "install-user-paused",
         "install-no-progress", "launch-option-index", "launch-option-missing", "launch-install-directory-verified", "launch-client-error", "launch-request-submitted",
         "launch-game-running", "launch-game-ended", "launch-host-result", "launch-discovery-restored", "launch-update-wait",
-        "launch-config-wait", "launch-session-wait", "ceg-request", "ceg-result"]
+        "launch-config-wait", "launch-session-wait", "ceg-request", "ceg-result",
+        // Diagnostics only: why Valve's client went offline (EResult) and how long a blip lasted.
+        "session-connection-result", "session-online-blip"]
 
     static func parse(_ line: Data) -> Self? {
         guard line.count <= 256, let text = String(data: line, encoding: .utf8) else { return nil }
@@ -57,17 +59,23 @@ actor SteamSessionHost {
         case preparing(String)
         case running
         case report(SteamSessionEvent, installAttempt: UUID? = nil)
-        case stopped(String?)
+        /// `disconnected`: Valve's client lost its connection (Dock code 64), not a
+        /// fault in the request; the next start signs in again on its own.
+        case stopped(String?, disconnected: Bool = false)
         case attention(String)
     }
     enum Failure: LocalizedError {
         case stopped(String)
+        /// Dock code 64: Valve's client was offline when asked, or long enough to
+        /// end the session. Nothing was submitted, so the request can be resent.
+        case disconnected
         case graphicsBusy(appIDs: [Int])
         case libraryBusy(appIDs: [Int])
         case cancellationFailed
         var errorDescription: String? {
             switch self {
             case let .stopped(message): message
+            case .disconnected: SteamHostReport().failure(for: 64)
             case .cancellationFailed: "Steam could not confirm that this download stopped. Try Stop again; existing files are kept."
             case .graphicsBusy: "Steam needs to restart to use this game’s graphics backend. Finish its current downloads or restart Steam support to play. Existing files are kept."
             case .libraryBusy: "Steam support is busy in another library. Wait for its downloads or game to finish, or restart Steam support. Existing files are kept."
@@ -111,10 +119,12 @@ actor SteamSessionHost {
     private var ownsPreparedPrefix = false
     private var switchingDisplay = false
     private var uninstalling = false
+    private var disconnected = false
+    private let reconnectDelay: Duration
 
     init(paths: SteamClientPaths = .standard, hostURL: URL? = Bundle.main.url(forResource: "dockhost", withExtension: "exe"),
-         installer: (any SteamClientPreparing)? = nil) {
-        self.paths = paths; self.hostURL = hostURL
+         installer: (any SteamClientPreparing)? = nil, reconnectDelay: Duration = .seconds(3)) {
+        self.paths = paths; self.hostURL = hostURL; self.reconnectDelay = reconnectDelay
         self.installer = installer ?? SteamClientInstaller(paths: paths)
         // Bounded by host rate (64 apps, once/sec). Dropping events would lose
         // completion/acknowledgement, so the reader supplies ordered delivery.
@@ -136,10 +146,24 @@ actor SteamSessionHost {
         guard let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
         switchingDisplay = true
         defer { switchingDisplay = false }
-        try await startManaged(appID: appID, destination: destination, library: library, credentials: credentials, runtime: runtime, requestedDisplay: preference, graphicsForLaunch: true)
-        try await validateReuse(runtime: runtime, identity: runtime.identity(), destination: destination.resolvingSymlinksInPath(), accountID: credentials.steamID, graphicsForLaunch: true)
-        try Task.checkCancellation()
-        try await launchPrepared(game: game, option: option, executable: executable)
+        try await reconnecting {
+            try await startManaged(appID: appID, destination: destination, library: library, credentials: credentials, runtime: runtime, requestedDisplay: preference, graphicsForLaunch: true)
+            try await validateReuse(runtime: runtime, identity: runtime.identity(), destination: destination.resolvingSymlinksInPath(), accountID: credentials.steamID, graphicsForLaunch: true)
+            try Task.checkCancellation()
+            try await launchPrepared(game: game, option: option, executable: executable)
+        }
+    }
+
+    /// Steam's connection to Valve drops for a few seconds now and then (a CM
+    /// reconnect, a network change, sleep). Code 64 means nothing was submitted,
+    /// so resend once after a pause: the host has either reconnected, or ended
+    /// and the retry signs in again on a fresh session.
+    private func reconnecting(_ body: () async throws -> Void) async throws {
+        do { try await body() }
+        catch Failure.disconnected {
+            try await Task.sleep(for: reconnectDelay)
+            try await body()
+        }
     }
 
     private func startManaged(appID: UInt32, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime,
@@ -386,13 +410,15 @@ actor SteamSessionHost {
         }
         installReservations[attempt] = appID
         defer { installReservations.removeValue(forKey: attempt) }
-        try await startManaged(appID: appID, destination: destination, library: library, credentials: credentials,
-                               runtime: runtime, installAttempt: attempt)
-        // The host installs into its startup library, so never submit to another.
-        guard self.destination?.standardizedFileURL == destination.resolvingSymlinksInPath().standardizedFileURL else {
-            throw SteamClientPackages.Failure.activeSession
+        try await reconnecting {
+            try await startManaged(appID: appID, destination: destination, library: library, credentials: credentials,
+                                   runtime: runtime, installAttempt: attempt)
+            // The host installs into its startup library, so never submit to another.
+            guard self.destination?.standardizedFileURL == destination.resolvingSymlinksInPath().standardizedFileURL else {
+                throw SteamClientPackages.Failure.activeSession
+            }
+            try await install(appID: appID, attempt: attempt)
         }
-        try await install(appID: appID, attempt: attempt)
     }
 
     // The acknowledgement wait ignores task cancellation, so a Stop that lands
@@ -501,6 +527,7 @@ actor SteamSessionHost {
             if event.key == "command-result", let waiter = pending[event.requestID], waiter.app == event.appID {
                 pending.removeValue(forKey: event.requestID)
                 if event.value == 0 { waiter.continuation.resume() }
+                else if event.value == 64 { waiter.continuation.resume(throwing: Failure.disconnected) }
                 else { waiter.continuation.resume(throwing: Failure.stopped(SteamHostReport().failure(for: event.value))) }
             }
             continuation.yield(.report(event, installAttempt: installAttempts[event.requestID]))
@@ -516,7 +543,8 @@ actor SteamSessionHost {
         guard self.generation == generation, process != nil, !stopping else { return }
         let report = SteamHostReport.read(from: paths.report)
         let result = report.fields["probe-result"] ?? code
-        let message = expectedExit && result == 0 ? nil : report.failure(for: result == 0 ? 64 : result)
+        // A clean exit nobody asked for is not a Steam disconnect; say so plainly.
+        let message = expectedExit && result == 0 ? nil : result == 0 ? Self.unexpectedExit : report.failure(for: result)
         // A dead host can leave Wine services or games alive. Confirm prefix
         // teardown before permitting another logon in this actor.
         stopping = true; ready = false
@@ -529,6 +557,7 @@ actor SteamSessionHost {
                 return
             }
         }
+        disconnected = result == 64
         reset(error: message)
     }
 
@@ -570,6 +599,8 @@ actor SteamSessionHost {
             throw error
         }
     }
+    static let unexpectedExit = "Steam support stopped unexpectedly. Try again to restart it; existing files are kept."
+
     private func failWaiters(_ error: Error) {
         let starts = startWaiters; startWaiters = []
         let requests = pending.values; pending = [:]
@@ -577,7 +608,8 @@ actor SteamSessionHost {
         for request in requests { request.continuation.resume(throwing: error) }
     }
     private func reset(error: String?, notify: Bool = true) {
-        failWaiters(Failure.stopped(error ?? "Steam support stopped."))
+        let lostConnection = disconnected; disconnected = false
+        failWaiters(lostConnection ? Failure.disconnected : Failure.stopped(error ?? "Steam support stopped."))
         generation = UUID(); process?.terminationHandler = nil; process = nil
         reader?.cancel(); reader = nil
         try? input?.fileHandleForWriting.close(); output?.fileHandleForReading.readabilityHandler = nil
@@ -588,7 +620,7 @@ actor SteamSessionHost {
         input = nil; output = nil; ready = false; starting = false; stopping = false
         try? FileManager.default.removeItem(at: paths.handoff)
         try? FileManager.default.removeItem(at: paths.requests)
-        if notify { continuation.yield(.stopped(error)) }
+        if notify { continuation.yield(.stopped(error, disconnected: lostConnection)) }
     }
     private func prepareRequests() throws {
         let folder = paths.requests
