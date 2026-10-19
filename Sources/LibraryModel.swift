@@ -161,14 +161,11 @@ import os
     func observeRuntime() async {
         logger.info("Native library appeared after \(self.started.duration(to: .now).description, privacy: .public)")
         while !Task.isCancelled {
-            let observed = await SteamRuntime.snapshot(steamExecutable: desktopSteamExecutable)
-            // A Windows path alone cannot distinguish two Wine prefixes.
-            let roots = [installation.runtimeApplication.path + "/", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app").path + "/"]
-            let owned = Set(NSWorkspace.shared.runningApplications.compactMap { application -> Int32? in
-                guard let path = application.bundleURL?.path, roots.contains(where: { path.hasPrefix($0) }) else { return nil }
-                return application.processIdentifier
-            })
-            snapshot = RuntimeSnapshot(processes: observed.processes.filter { owned.contains($0.pid) }, steamExecutable: observed.steamExecutable)
+            // Scope Windows process names to our native Wine runtime images.
+            let roots = [installation.runtimeApplication, FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app")]
+            // Keep ownership discovery off the main actor and out of
+            // LaunchServices: bundleURL can block during a Wine game launch.
+            snapshot = await SteamRuntime.snapshot(steamExecutable: desktopSteamExecutable, runtimeRoots: roots)
             headless.poll()
             if headless.persistentEnabled {
                 finishPersistentDownloads()
@@ -447,10 +444,11 @@ import os
     }
 
     /// Lets the user pick a desktop client, then continues the request that needed it.
-    func chooseDesktopSteamAndContinue() async {
-        guard let action = desktopSteamSetup else { return }
+    func chooseDesktopSteamAndContinue(_ action: DesktopSteamAction, chooseFolder: (() throws -> Bool)? = nil) async {
+        // The alert clears desktopSteamSetup before this asynchronous action runs.
+        // Continue using the request captured by the alert's presenting value.
         desktopSteamSetup = nil
-        do { guard try chooseDesktopSteamFolder() else { return } }
+        do { guard try (chooseFolder?() ?? chooseDesktopSteamFolder()) else { return } }
         catch { errorMessage = error.localizedDescription; return }
         switch action {
         case .open: await openSteam()

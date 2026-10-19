@@ -139,6 +139,13 @@ struct DesktopSteamClientTests {
         await model.openSteam()
         #expect(model.desktopSteamSetup == .open)
         #expect(model.errorMessage == nil && model.phase == .idle && !model.showsSetup)
+        let openRequest = try #require(model.desktopSteamSetup)
+        // SwiftUI dismisses the alert before its Task gets a turn. A cancelled
+        // picker must still be presented, using that captured request.
+        model.desktopSteamSetup = nil
+        var openedPicker = false
+        await model.chooseDesktopSteamAndContinue(openRequest, chooseFolder: { openedPicker = true; return false })
+        #expect(openedPicker && model.errorMessage == nil && model.phase == .idle)
         model.showDesktopSteamSettings()
         #expect(model.desktopSteamSetup == nil && model.settingsTab == .advanced)
         await model.playInDesktopSteam(game)

@@ -29,6 +29,15 @@ nonisolated struct RuntimeSnapshot: Sendable {
         }
     }
 
+    func owned(by roots: [URL], executablePath: (Int32) -> String?) -> Self {
+        let paths = roots.map { $0.standardizedFileURL.resolvingSymlinksInPath().path + "/" }
+        return Self(processes: processes.filter { process in
+            guard let image = executablePath(process.pid) else { return false }
+            let path = URL(filePath: image).standardizedFileURL.resolvingSymlinksInPath().path
+            return paths.contains { path.hasPrefix($0) }
+        }, steamExecutable: steamExecutable)
+    }
+
     static func parse(_ output: String, steamExecutable: String? = nil) -> RuntimeSnapshot {
         RuntimeSnapshot(processes: output.split(separator: "\n").compactMap { line in
             let parts = line.split(maxSplits: 1, whereSeparator: { $0 == " " || $0 == "\t" })
@@ -73,7 +82,7 @@ nonisolated struct SteamRuntime: Sendable {
     }
 
     // Process I/O blocks; do not hold SwiftUI's main actor while inspecting processes.
-    @concurrent static func snapshot(steamExecutable: String? = nil) async -> RuntimeSnapshot {
+    @concurrent static func snapshot(steamExecutable: String? = nil, runtimeRoots: [URL]? = nil) async -> RuntimeSnapshot {
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(filePath: "/bin/ps")
@@ -84,7 +93,8 @@ nonisolated struct SteamRuntime: Sendable {
             try process.run()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
-            return .parse(String(decoding: data, as: UTF8.self), steamExecutable: steamExecutable)
+            let snapshot = RuntimeSnapshot.parse(String(decoding: data, as: UTF8.self), steamExecutable: steamExecutable)
+            return runtimeRoots.map { snapshot.owned(by: $0, executablePath: WineProcessIdentity.executablePath) } ?? snapshot
         } catch { return RuntimeSnapshot(steamExecutable: steamExecutable) }
     }
 

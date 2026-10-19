@@ -3,6 +3,34 @@ import Testing
 @testable import SteamLibrary
 
 struct SteamLibraryTests {
+    @Test func runtimeOwnershipUsesNativeImageInsteadOfWindowsCommandOrAppRegistration() {
+        let root = URL(filePath: "/fixture/Runtime.app")
+        let snapshot = RuntimeSnapshot(processes: [
+            .init(pid: 10, path: "C:\\Steam\\steam.exe"),
+            .init(pid: 11, path: "C:\\Steam\\steam.exe"),
+            .init(pid: 12, path: "C:\\Steam\\steam.exe")
+        ], steamExecutable: "Steam/steam.exe")
+        let owned = snapshot.owned(by: [root]) { pid in
+            switch pid {
+            case 10: "/fixture/Runtime.app/Contents/SharedSupport/wine/bin/wine"
+            case 11: "/fixture/Runtime.app-other/Contents/MacOS/wine"
+            default: nil
+            }
+        }
+        #expect(owned.processes.map(\.pid) == [10])
+        #expect(owned.steamExecutable == snapshot.steamExecutable)
+    }
+
+    @Test func scopedRuntimeSnapshotFindsAnUnregisteredNativeProcess() async throws {
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let executable = try #require(WineProcessIdentity.executablePath(pid))
+        let root = URL(filePath: executable).deletingLastPathComponent()
+        let owned = await SteamRuntime.snapshot(runtimeRoots: [root])
+        #expect(owned.processes.contains { $0.pid == pid })
+        let other = await SteamRuntime.snapshot(runtimeRoots: [root.appendingPathComponent("unrelated")])
+        #expect(!other.processes.contains { $0.pid == pid })
+    }
+
     private let manifest = #"""
     // Steam app manifest
     "AppState"

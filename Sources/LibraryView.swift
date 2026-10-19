@@ -55,11 +55,11 @@ struct LibraryView: View {
             Button("Show Downloads") { model.showsDownloads = true }
             Button("Cancel", role: .cancel) { model.blockedPlay = nil }
         } message: { _ in Text(model.blockedPlayDetail) }
-        .alert("Choose Desktop Steam", isPresented: Binding(get: { model.desktopSteamSetup != nil }, set: { if !$0 { model.desktopSteamSetup = nil } })) {
-            Button("Choose Steam Folder…") { Task { await model.chooseDesktopSteamAndContinue() } }
+        .alert("Choose Desktop Steam", isPresented: Binding(get: { model.desktopSteamSetup != nil }, set: { if !$0 { model.desktopSteamSetup = nil } }), presenting: model.desktopSteamSetup) { action in
+            Button("Choose Steam Folder…") { Task { await model.chooseDesktopSteamAndContinue(action) } }
             Button("Open Advanced Settings") { model.showDesktopSteamSettings(); openSettings() }
             Button("Cancel", role: .cancel) { model.desktopSteamSetup = nil }
-        } message: { Text("Desktop Steam needs a complete Windows Steam installation in its own Wine prefix. Your game library holds games, not the Steam client.") }
+        } message: { _ in Text("Desktop Steam needs a complete Windows Steam installation in its own Wine prefix. Your game library holds games, not the Steam client.") }
         .alert("Choose a Steam library", isPresented: Binding(get: { locationError != nil }, set: { if !$0 { locationError = nil } })) {
             Button("OK", role: .cancel) { locationError = nil }
         } message: { Text(locationError ?? "") }
