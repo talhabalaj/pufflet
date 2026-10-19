@@ -239,6 +239,9 @@ struct GameMenuItems: View {
         .disabled(game == nil)
         if !inContextMenu || installed != nil {
             Divider()
+            if installed?.isUpdatePending == true, let game {
+                Button("Update") { model.update(game) }.disabled(!model.canUpdate(game))
+            }
             if model.headless.persistentEnabled {
                 Button("Repair Installation…") { if let game { model.repair(game) } }
                     .disabled(installed == nil || !model.canInstall || game.map { model.isPlaying($0) } == true)
@@ -330,6 +333,7 @@ private struct GameTile: View {
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { if model.canStart(game) { model.primaryAction(game) } }
         .accessibilityAction(named: "Get Info") { model.selectedID = game.id; model.showsInspector = true }
+        .accessibilityActions { if model.canUpdate(game) { Button("Update") { model.update(game) } } }
         .task(id: game.id) { artwork = await model.artworkStore.image(appID: game.id, installation: model.installation, kind: .cover) }
     }
 
@@ -356,8 +360,13 @@ private struct GameTile: View {
         } else if let state = model.downloads.jobs.first(where: { $0.id == game.id })?.state, state == .failed {
             Label(state.title, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
         } else if game.installation?.isUpdatePending == true {
-            Text("Update pending")
-                .help("Steam may need to finish updating before this game can launch.")
+            if model.canUpdate(game) {
+                Button("Update", systemImage: "arrow.down.circle") { model.update(game) }
+                    .buttonStyle(.borderless).foregroundStyle(.tint)
+                    .help("Download this game’s update from Steam. Play also updates it first.")
+            } else {
+                Text("Update pending").help("Steam has an update for this game. It downloads when Steam is free.")
+            }
         } else if let status = model.downloadStatus(for: game.id) {
             Text(status)
         } else {
@@ -407,7 +416,12 @@ struct GameInspector: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 6)
                 }
                 Section {
-                    LabeledContent("Status", value: status(game))
+                    LabeledContent("Status") {
+                        HStack {
+                            Text(status(game))
+                            if model.canUpdate(game) { Button("Update") { model.update(game) }.controlSize(.small) }
+                        }
+                    }
                     if let installed = game.installation {
                         LabeledContent("Size", value: installed.sizeDescription)
                         LabeledContent("Location") {

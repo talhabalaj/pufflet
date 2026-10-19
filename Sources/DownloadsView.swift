@@ -21,7 +21,8 @@ struct DownloadsView: View {
     private let rowHeight: CGFloat = 60
 
     var body: some View {
-        if model.downloads.jobs.isEmpty {
+        let updates = model.updatableGames
+        if model.downloads.jobs.isEmpty && updates.isEmpty {
             ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle", description: Text("Games you install appear here."))
                 .frame(width: 340, height: 200)
         } else {
@@ -31,22 +32,26 @@ struct DownloadsView: View {
                         .font(.callout).frame(maxWidth: .infinity, alignment: .leading).padding(12)
                     Divider()
                 }
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(model.downloads.jobs) { job in
-                            DownloadRow(job: job, model: model).frame(height: rowHeight)
-                            if job.id != model.downloads.jobs.last?.id { Divider().padding(.leading, 56) }
+                if !model.downloads.jobs.isEmpty {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(model.downloads.jobs) { job in
+                                DownloadRow(job: job, model: model).frame(height: rowHeight)
+                                if job.id != model.downloads.jobs.last?.id { Divider().padding(.leading, 56) }
+                            }
                         }
                     }
+                    // Rows have a fixed height, so the list is as tall as its rows (up to five) instead of collapsing in the popover.
+                    .frame(height: CGFloat(min(model.downloads.jobs.count, 5)) * (rowHeight + 1))
+                    Divider()
                 }
-                // Rows have a fixed height, so the list is as tall as its rows (up to five) instead of collapsing in the popover.
-                .frame(height: CGFloat(min(model.downloads.jobs.count, 5)) * (rowHeight + 1))
-                Divider()
                 HStack {
-                    let pending = model.downloads.jobs.filter { [.queued, .preparing, .installing, .paused].contains($0.state) }.count
-                    Text(pending == 0 ? "No downloads in progress" : pending == 1 ? "1 download in progress or waiting" : "\(pending) downloads in progress or waiting")
-                        .font(.callout).foregroundStyle(.secondary)
+                    Text(summary(updates: updates.count)).font(.callout).foregroundStyle(.secondary)
                     Spacer()
+                    if !updates.isEmpty {
+                        Button("Update All") { model.updateAll() }
+                            .help("Download Steam updates for " + ListFormatter.localizedString(byJoining: updates.map(\.name)))
+                    }
                     Button("Clear") { model.downloads.clearFinished() }
                         .disabled(!model.downloads.hasFinished)
                         .help("Remove finished and stopped downloads from this list")
@@ -55,6 +60,13 @@ struct DownloadsView: View {
             }
             .frame(width: 380)
         }
+    }
+
+    private func summary(updates: Int) -> String {
+        let pending = model.downloads.jobs.filter { [.queued, .preparing, .installing, .paused].contains($0.state) }.count
+        if pending > 0 { return pending == 1 ? "1 download in progress or waiting" : "\(pending) downloads in progress or waiting" }
+        if updates > 0 { return updates == 1 ? "1 game has an update" : "\(updates) games have updates" }
+        return "No downloads in progress"
     }
 }
 
@@ -98,7 +110,7 @@ private struct DownloadRow: View {
         switch job.state {
         case .preparing, .installing, .paused:
             Text(model.downloadActivityStatus(for: job))
-        case .queued: Text("Waiting")
+        case .queued: Text(job.kind == .update ? "Waiting to update" : "Waiting")
         case .completed: Text(model.downloadStatus(for: job.id) ?? job.state.title)
         case .failed, .stopped, .interrupted:
             if let error = job.error {

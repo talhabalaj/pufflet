@@ -140,6 +140,42 @@ import Testing
         #expect(model.blockedPlayDetail.contains("they continue afterwards and keep their progress"))
     }
 
+    @Test func updatePendingGamesOfferUpdateUntilQueued() throws {
+        let (model, root, defaults, suite) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        var outdated = game(root); outdated.isUpdatePending = true
+        var current = game(root, id: "20")
+        model.games = [outdated, current]
+        #expect(model.updatableGames.map(\.id) == ["10"])
+        model.downloads.enqueue(.init(id: "10", name: "Fixture", estimatedBytes: 1), destination: root, kind: .update)
+        // Queued, it's no longer offered; Downloads shows it as an update, not a repair.
+        #expect(model.updatableGames.isEmpty)
+        #expect(model.downloads.jobs.first?.kind == .update)
+        model.downloads.update("10", state: .completed)
+        #expect(model.downloadStatus(for: "10") == "Updated")
+        current.isUpdatePending = true; model.games = [outdated, current]
+        model.downloads.enqueue(.init(id: "20", name: "Other", estimatedBytes: 1), destination: root, kind: .repair)
+        #expect(model.downloadStatus(for: "20") == "Queued")
+    }
+
+    @Test func downloadKindSurvivesRelaunchAndOldQueuesStillLoad() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-queue-type-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let queue = SteamDownloadQueue(root: root); queue.activate(account: 1)
+        queue.enqueue(.init(id: "10", name: "Update", estimatedBytes: 1), destination: root, kind: .update)
+        queue.enqueue(.init(id: "20", name: "Install", estimatedBytes: 1), destination: root)
+        let restored = SteamDownloadQueue(root: root); restored.activate(account: 1)
+        #expect(restored.jobs.map(\.kind) == [.update, .install])
+        // Queues saved before kinds existed have no "kind" key.
+        let legacy = try JSONEncoder().encode(GameDownload(id: "30", name: "Legacy", destination: root))
+        #expect(!String(decoding: legacy, as: UTF8.self).contains("\"kind\""))
+        #expect(try JSONDecoder().decode(GameDownload.self, from: legacy).kind == nil)
+    }
+
+    private func game(_ root: URL, id: String) -> SteamGame {
+        .init(id: id, name: "Fixture \(id)", installDirectory: "Fixture\(id)", bytes: 1, folder: root.appendingPathComponent("steamapps/common/Fixture\(id)"))
+    }
+
     private func game(_ root: URL) -> SteamGame {
         .init(id: "10", name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: root.appendingPathComponent("steamapps/common/Fixture"))
     }

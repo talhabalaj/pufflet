@@ -199,7 +199,8 @@ import os
             if let request = queuedPlay, let game = takeQueuedPlayIfReady() {
                 // Play starts later; if a download or launch took over meanwhile, keep waiting.
                 Task {
-                    if canPlay { await play(game) } else if queuedPlay == nil { queuedPlay = request }
+                    // The update this Play waited for may leave Steam's flag set; launch anyway.
+                    if canPlay { await play(game, updatesFirst: false) } else if queuedPlay == nil { queuedPlay = request }
                 }
             }
             if case let .launching(id) = phase,
@@ -232,7 +233,9 @@ import os
 
     /// - Parameter restartsAutomatically: restart Steam support without asking when
     ///   the only downloads in the way are already paused or still queued.
-    func play(_ game: SteamGame, restartsAutomatically: Bool = true) async {
+    /// - Parameter updatesFirst: queue a pending Steam update and start the game
+    ///   when it finishes, instead of asking Steam to launch an outdated game.
+    func play(_ game: SteamGame, restartsAutomatically: Bool = true, updatesFirst: Bool = true) async {
         guard phase == .idle else { return }
         cancelQueuedPlay()
         blockedPlay = nil
@@ -247,6 +250,14 @@ import os
         }
         if downloads.jobs.contains(where: { $0.id == game.id && [.queued, .preparing, .installing, .paused].contains($0.state) }) {
             offerPlayAfterDownloads(game, blockingAppIDs: [game.id], requiresRestart: false)
+            return
+        }
+        if updatesFirst, game.isUpdatePending, let entry = entries.first(where: { $0.id == game.id }), canUpdate(entry) {
+            update(entry, showingDownloads: false)
+            guard isPending(entry) else { return }
+            offerPlayAfterDownloads(game, blockingAppIDs: [game.id], requiresRestart: false)
+            queueBlockedPlay()
+            message = "Updating \(game.name). It starts when the update finishes."
             return
         }
         guard canPlay, requireRuntime() else { return }
@@ -585,14 +596,40 @@ import os
     }
 
     func repair(_ entry: LibraryGame) {
-        guard headless.persistentEnabled, canInstall, !isSubmittingDownload(entry.id), !isPlaying(entry),
-              let destination = settings.libraryURL, let game = entry.installation else { return }
-        guard account.accountName != nil else { showsAccount = true; return }
-        guard requireRuntime() else { return }
-        downloads.enqueue(.init(id: game.id, name: game.name, estimatedBytes: game.bytes), destination: destination)
+        guard enqueueInstalled(entry, kind: .repair) else { return }
         repairGameID = nil
-        startNextDownload()
         showsDownloads = true
+    }
+
+    /// Whether `entry` has a Steam update Pufflet can download now.
+    func canUpdate(_ entry: LibraryGame) -> Bool {
+        entry.installation?.isUpdatePending == true && headless.persistentEnabled && canInstall
+            && !isPending(entry) && !isPlaying(entry) && !isSubmittingDownload(entry.id)
+    }
+
+    /// Installed games with a Steam update waiting, for Update All.
+    var updatableGames: [LibraryGame] { entries.filter(canUpdate) }
+
+    /// Queues Steam's update in Downloads. Steam sees an outdated game as not
+    /// fully installed, so this downloads the update without a full verify.
+    func update(_ entry: LibraryGame, showingDownloads: Bool = true) {
+        guard canUpdate(entry), enqueueInstalled(entry, kind: .update) else { return }
+        if showingDownloads { showsDownloads = true }
+    }
+
+    func updateAll() {
+        for entry in updatableGames { update(entry, showingDownloads: false) }
+    }
+
+    /// Queues the install request that brings an installed game's files up to date.
+    private func enqueueInstalled(_ entry: LibraryGame, kind: GameDownload.Kind) -> Bool {
+        guard headless.persistentEnabled, canInstall, !isSubmittingDownload(entry.id), !isPlaying(entry),
+              let destination = settings.libraryURL, let game = entry.installation else { return false }
+        guard account.accountName != nil else { showsAccount = true; return false }
+        guard requireRuntime() else { return false }
+        downloads.enqueue(.init(id: game.id, name: game.name, estimatedBytes: game.bytes), destination: destination, kind: kind)
+        startNextDownload()
+        return true
     }
 
     /// Why `entry` can't be uninstalled right now, or nil when it can. Removing a
@@ -729,7 +766,7 @@ import os
             let installed = games.contains { $0.id == id && $0.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath() == job.destination.resolvingSymlinksInPath() }
             if failure == nil && installed {
                 downloads.update(id, state: .completed)
-                message = "Installed \(job.name)"
+                message = "\(job.kind == .update ? "Updated" : job.kind == .repair ? "Repaired" : "Installed") \(job.name)"
             } else {
                 downloads.update(id, state: .failed, error: failure ?? "Steam did not confirm a complete installation. Retry to continue existing files.")
             }
@@ -834,7 +871,8 @@ import os
 
     func downloadStatus(for id: String) -> String? {
         downloads.jobs.first { $0.id == id }.map { job in
-            job.state == .completed && !games.contains { $0.id == id } ? "Files missing" : job.state.title
+            job.state == .completed && !games.contains { $0.id == id } ? "Files missing"
+                : job.state == .completed && job.kind == .update ? "Updated" : job.state.title
         }
     }
 
@@ -850,6 +888,7 @@ import os
         if !headless.persistentEnabled { return bytes ?? headless.status }
         if let waiting = report.installWaitStatus { return waiting }
         if report.fields["install-verifying"] == 1 { return "Verifying and restoring game files…" }
+        if job.kind == .update, bytes == nil { return "Steam is downloading the update…" }
         return bytes ?? report.installStatus
     }
 
