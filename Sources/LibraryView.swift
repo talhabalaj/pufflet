@@ -10,10 +10,10 @@ struct LibraryView: View {
     @Environment(\.openSettings) private var openSettings
     /// Tiles keep one width so opening the inspector, which animates the content width,
     /// moves whole columns instead of stretching and shrinking every cover each frame.
-    static let tileWidth: CGFloat = 160, tileSpacing: CGFloat = 22, gridPadding: CGFloat = 24
+    nonisolated static let tileWidth: CGFloat = 160, tileSpacing: CGFloat = 22, gridPadding: CGFloat = 24
 
     /// The column count of an adaptive grid with fixed-width tiles, which arrow keys use to move between rows.
-    static func columnCount(width: CGFloat) -> Int {
+    nonisolated static func columnCount(width: CGFloat) -> Int {
         max(1, Int((width - 2 * gridPadding + tileSpacing) / (tileWidth + tileSpacing)))
     }
 
