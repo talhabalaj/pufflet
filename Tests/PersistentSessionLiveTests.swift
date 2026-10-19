@@ -327,9 +327,12 @@ import Testing
             try await quitGame(small)
             try stage("finished")
             try await model.shutdownSession()
+            try await model.nativeRuntime.stopPrivatePrefix(expectedPrefix: model.nativeRuntime.installation.prefix)
         } catch {
             try? stage("failed")
             try? await model.shutdownSession()
+            // Teardown must not depend on the session: stop this exact prefix even if shutdown failed.
+            try? await model.nativeRuntime.stopPrivatePrefix(expectedPrefix: model.nativeRuntime.installation.prefix)
             throw error
         }
     }
