@@ -87,6 +87,8 @@
 		B4A900000000000000000004 /* DesktopSteamClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A900000000000000000003 /* DesktopSteamClientTests.swift */; };
 		5AFE00000000000000000002 /* SteamGameUninstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AFE00000000000000000001 /* SteamGameUninstaller.swift */; };
 		5AFE00000000000000000004 /* SteamGameUninstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AFE00000000000000000003 /* SteamGameUninstallerTests.swift */; };
+		3A7E00000000000000000002 /* WakeLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7E00000000000000000001 /* WakeLock.swift */; };
+		3A7E00000000000000000004 /* WakeLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7E00000000000000000003 /* WakeLockTests.swift */; };
 
 /* End PBXBuildFile section */
 
@@ -183,6 +185,8 @@
 		B4A900000000000000000003 /* DesktopSteamClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopSteamClientTests.swift; sourceTree = "<group>"; };
 		5AFE00000000000000000001 /* SteamGameUninstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamGameUninstaller.swift; sourceTree = "<group>"; };
 		5AFE00000000000000000003 /* SteamGameUninstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamGameUninstallerTests.swift; sourceTree = "<group>"; };
+		3A7E00000000000000000001 /* WakeLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeLock.swift; sourceTree = "<group>"; };
+		3A7E00000000000000000003 /* WakeLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeLockTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -308,6 +312,7 @@
 				B3A900000000000000000001 /* LibraryPlayTests.swift */,
 				B4A900000000000000000003 /* DesktopSteamClientTests.swift */,
 				5AFE00000000000000000003 /* SteamGameUninstallerTests.swift */,
+				3A7E00000000000000000003 /* WakeLockTests.swift */,
 				1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */,
 				D0916B831D45D0C23DFE3A0C /* SteamSessionHostTests.swift */,
 				FEBF788ADF92630C119E1249 /* WineProcessCleanupTests.swift */,
@@ -385,6 +390,7 @@
 				1F43311BF155C4EBBC6751AC /* WineProcessIdentity.swift */,
 				D3D120000000000000000001 /* GameGraphics.swift */,
 				5AFE00000000000000000001 /* SteamGameUninstaller.swift */,
+				3A7E00000000000000000001 /* WakeLock.swift */,
 
 				D302A1907DAE6F4B7086422B /* SteamAuth */,
 				52BAA39798466C4ED9D4A755 /* SteamCatalogue */,
@@ -552,6 +558,7 @@
 				B3A900000000000000000002 /* LibraryPlayTests.swift in Sources */,
 				B4A900000000000000000004 /* DesktopSteamClientTests.swift in Sources */,
 				5AFE00000000000000000004 /* SteamGameUninstallerTests.swift in Sources */,
+				3A7E00000000000000000004 /* WakeLockTests.swift in Sources */,
 				FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */,
 				10975662770F555CA9D0991D /* SteamSessionHostTests.swift in Sources */,
 				FFD2DE4BA31FBE25F4C7A573 /* WineProcessCleanupTests.swift in Sources */,
@@ -608,6 +615,7 @@
 				0B76DD5091FBEC8A898F27D8 /* SteamRuntime.swift in Sources */,
 				D3D120000000000000000002 /* GameGraphics.swift in Sources */,
 				5AFE00000000000000000002 /* SteamGameUninstaller.swift in Sources */,
+				3A7E00000000000000000002 /* WakeLock.swift in Sources */,
 				CC59B1A5372C0EB45684D59C /* SteamSession.swift in Sources */,
 				CB5E91BED3A190DD11EB4998 /* SteamSessionHost.swift in Sources */,
 				2A2C09FAC615425F0CE05D14 /* WineProcessIdentity.swift in Sources */,
