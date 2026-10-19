@@ -69,7 +69,9 @@ actor SteamSessionHost {
         /// Dock code 64: Valve's client was offline when asked, or long enough to
         /// end the session. Nothing was submitted, so the request can be resent.
         case disconnected
+        /// A restart is needed to play, and these apps' downloads or requests hold the session.
         case graphicsBusy(appIDs: [Int])
+        case displayBusy(appIDs: [Int])
         case libraryBusy(appIDs: [Int])
         case cancellationFailed
         var errorDescription: String? {
@@ -77,8 +79,9 @@ actor SteamSessionHost {
             case let .stopped(message): message
             case .disconnected: SteamHostReport().failure(for: 64)
             case .cancellationFailed: "Steam could not confirm that this download stopped. Try Stop again; existing files are kept."
-            case .graphicsBusy: "Steam needs to restart to use this game’s graphics backend. Finish its current downloads or restart Steam support to play. Existing files are kept."
-            case .libraryBusy: "Steam support is busy in another library. Wait for its downloads or game to finish, or restart Steam support. Existing files are kept."
+            case .graphicsBusy: "Steam has to restart to use this game’s graphics setting. Pause your downloads or let them finish, then press Play again. Downloaded files are kept."
+            case .displayBusy: "Steam has to restart to use this game’s display setting. Pause your downloads or let them finish, then press Play again. Downloaded files are kept."
+            case .libraryBusy: "Steam is busy with another library. Pause its downloads or let them finish, then try again. Downloaded files are kept."
             }
         }
     }
@@ -192,8 +195,8 @@ actor SteamSessionHost {
             if changesDisplay || changesGraphics || changesDestination {
                 guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty,
                       installReservations.keys.allSatisfy({ $0 == installAttempt }) else {
-                    if changesDisplay { throw SteamDisplayProfiles.Failure.busy }
                     let appIDs = Array(Set(issued.values)).sorted()
+                    if changesDisplay { throw Failure.displayBusy(appIDs: appIDs) }
                     if changesGraphics { throw Failure.graphicsBusy(appIDs: appIDs) }
                     throw Failure.libraryBusy(appIDs: appIDs)
                 }

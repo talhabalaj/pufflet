@@ -9,14 +9,65 @@ import Testing
         let game = game(root)
         model.games = [game]
         model.downloads.enqueue(.init(id: "20", name: "Other game", estimatedBytes: 1), destination: root)
+        model.downloads.update("20", state: .installing)
         model.offerPlayAfterDownloads(game, blockingAppIDs: ["20"], requiresRestart: true)
         model.queueBlockedPlay()
-        #expect(model.takeQueuedPlayIfReady() == nil)
-        model.downloads.update("20", state: .paused)
         #expect(model.takeQueuedPlayIfReady() == nil)
         model.downloads.update("20", state: .completed)
         #expect(model.takeQueuedPlayIfReady()?.id == "10")
         #expect(model.takeQueuedPlayIfReady() == nil)
+    }
+
+    @Test func restartPlayWhenReadyStopsWaitingOnceOnlyPausedDownloadsRemain() throws {
+        let (model, root, defaults, suite) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        let game = game(root); model.games = [game]
+        for id in ["20", "30"] { model.downloads.enqueue(.init(id: id, name: id, estimatedBytes: 1), destination: root) }
+        model.downloads.update("20", state: .installing); model.downloads.update("30", state: .paused)
+        model.offerPlayAfterDownloads(game, blockingAppIDs: ["20", "30"], requiresRestart: true)
+        model.queueBlockedPlay()
+        #expect(model.takeQueuedPlayIfReady() == nil)
+        // Play then restarts on its own: the paused download costs nothing.
+        model.downloads.update("20", state: .paused)
+        #expect(model.takeQueuedPlayIfReady()?.id == "10")
+    }
+
+    @Test func restartsWithoutAskingOnlyWhenNothingIsDownloading() throws {
+        let (model, root, defaults, suite) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        for id in ["20", "30", "40"] { model.downloads.enqueue(.init(id: id, name: id, estimatedBytes: 1), destination: root) }
+        model.downloads.update("20", state: .paused)
+        model.downloads.update("40", state: .installing)
+        #expect(model.onlyWaiting(["20"]))
+        #expect(model.onlyWaiting(["20", "30"]))
+        #expect(!model.onlyWaiting(["20", "40"]))
+        // An app the queue doesn't know (a launch, another library) or no named app at all: ask.
+        #expect(!model.onlyWaiting(["20", "50"]))
+        #expect(!model.onlyWaiting([]))
+        model.downloads.update("40", state: .preparing)
+        #expect(!model.onlyWaiting(["40"]))
+    }
+
+    @Test func restartRefusalsMapToTheirReason() {
+        #expect(LibraryModel.restartBlock(SteamSessionHost.Failure.graphicsBusy(appIDs: [1]))?.1 == .graphics)
+        #expect(LibraryModel.restartBlock(SteamSessionHost.Failure.displayBusy(appIDs: [2]))?.0 == [2])
+        #expect(LibraryModel.restartBlock(SteamSessionHost.Failure.libraryBusy(appIDs: []))?.1 == .library)
+        #expect(LibraryModel.restartBlock(SteamDisplayProfiles.Failure.busy) == nil)
+    }
+
+    @Test func playWhenReadyResumesTheGamesOwnPausedDownload() async throws {
+        let (model, root, defaults, suite) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        let game = game(root); model.games = [game]
+        model.downloads.enqueue(.init(id: "10", name: "Fixture", estimatedBytes: 1), destination: root)
+        model.downloads.update("10", state: .paused)
+        model.offerPlayAfterDownloads(game, blockingAppIDs: ["10"], requiresRestart: false)
+        #expect(model.blockedPlayDetail.contains("Play When Ready resumes it"))
+        model.queueBlockedPlay()
+        for _ in 0..<50 where model.downloads.jobs.first?.state == .paused { try await Task.sleep(for: .milliseconds(20)) }
+        // No host request survives here, so resuming puts it back in the queue.
+        #expect(model.downloads.jobs.first?.state == .queued)
+        #expect(model.queuedPlayStatus == "Fixture will start when its download finishes.")
     }
 
     @Test func cancelledFailedOrReplacedAccountCannotReplayQueuedPlay() throws {
@@ -80,10 +131,13 @@ import Testing
         let (model, root, defaults, suite) = try fixture()
         defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
         let game = game(root); model.games = [game]
-        model.offerPlayAfterDownloads(game, blockingAppIDs: [], requiresRestart: true, forLibrary: true)
-        #expect(model.blockedPlayDetail.contains("this game’s library"))
+        model.offerPlayAfterDownloads(game, blockingAppIDs: [], requiresRestart: true, reason: .library)
+        #expect(model.blockedPlayDetail.hasPrefix("Fixture is in a different library from your downloads, so Steam has to restart."))
+        #expect(model.blockedPlayTitle == "Pause Downloads to Play Fixture?")
         model.offerPlayAfterDownloads(game, blockingAppIDs: [], requiresRestart: true)
-        #expect(model.blockedPlayDetail.contains("graphics backend"))
+        #expect(model.blockedPlayDetail.contains("different graphics settings"))
+        model.offerPlayAfterDownloads(game, blockingAppIDs: [], requiresRestart: true, reason: .display)
+        #expect(model.blockedPlayDetail.contains("they continue afterwards and keep their progress"))
     }
 
     private func game(_ root: URL) -> SteamGame {

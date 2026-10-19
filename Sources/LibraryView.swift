@@ -57,11 +57,11 @@ struct LibraryView: View {
                 Button("Open Desktop Steam") { Task { await model.openSteam() } }.disabled(model.headless.isActive || model.hasDownloadWork)
             }
         } message: { Text(errorParts.detail) }
-        .alert("Waiting to Play", isPresented: Binding(get: { model.blockedPlay != nil }, set: { if !$0 { model.blockedPlay = nil } }), presenting: model.blockedPlay) { request in
-            Button("Play When Ready") { model.queueBlockedPlay(request) }
+        .alert(model.blockedPlayTitle, isPresented: Binding(get: { model.blockedPlay != nil }, set: { if !$0 { model.blockedPlay = nil } }), presenting: model.blockedPlay) { request in
             if request.requiresRestart {
-                Button("Restart Support and Play") { Task { await model.restartAndPlayBlockedGame(request) } }
+                Button("Pause Downloads and Play") { Task { await model.restartAndPlayBlockedGame(request) } }
             }
+            Button("Play When Ready") { model.queueBlockedPlay(request) }
             Button("Show Downloads") { model.showsDownloads = true }
             Button("Cancel", role: .cancel) { model.blockedPlay = nil }
         } message: { _ in Text(model.blockedPlayDetail) }
@@ -382,7 +382,7 @@ struct GameDisplaySettings: View {
                 }
             }
         } header: { Text("Display") }
-        footer: { Text("Applies on the next Play. Inherit uses the original settings. A different profile restarts Steam when games and downloads have finished. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.") }
+        footer: { Text("Applies on the next Play. Inherit uses the original settings. A different profile restarts Steam when you press Play; if something is downloading, Pufflet asks first. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.") }
     }
 }
 
@@ -532,10 +532,10 @@ private struct StatusBar: View {
                 Text("Uninstalling \(model.entries.first { $0.id == id }?.name ?? "game")…")
                 Spacer()
             }
-        } else if let request = model.queuedPlay {
+        } else if let status = model.queuedPlayStatus {
             bar {
                 Image(systemName: "clock")
-                Text("\(model.games.first { $0.id == request.gameID }?.name ?? "Game") will play when downloads finish. Resume paused downloads to continue.")
+                Text(status)
                 Spacer()
                 Button("Downloads") { model.showsDownloads = true }.controlSize(.small)
                 Button("Cancel Play") { model.cancelQueuedPlay() }.controlSize(.small)

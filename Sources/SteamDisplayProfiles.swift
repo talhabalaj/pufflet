@@ -44,7 +44,7 @@ nonisolated struct SteamDisplayProfiles: Sendable {
             switch self {
             case .invalidSettings: "Saved display preferences could not be read. Restore the preferences file before launching."
             case .unsupportedFallback: "Per-game display settings require Pufflet’s managed Steam session. Choose Inherit to use desktop Steam or the legacy launcher."
-            case .busy: "This display setting needs a Steam restart. Finish the running game and submitted downloads first; paused downloads must finish or be cancelled."
+            case .busy: "Steam is busy starting a game or download. Try again in a moment."
             }
         }
     }
