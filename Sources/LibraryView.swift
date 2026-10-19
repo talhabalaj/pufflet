@@ -484,11 +484,20 @@ struct GameInspector: View {
             }
             .formStyle(.grouped)
             .task(id: game.id) { artwork = await model.artworkStore.image(appID: game.id, installation: model.installation, kind: .cover) }
-            .task(id: AvailableSpaceRequest(gameID: game.id, library: model.settings.libraryURL)) {
+            .onChange(of: model.settings.libraryURL) { availableBytes = nil }
+            .task(id: AvailableSpaceRequest(gameID: game.id, library: model.settings.libraryURL,
+                                           isInstalled: game.installation != nil, isPresented: model.showsInspector)) {
                 // Keep the last value while refreshing so the row doesn't flicker between games.
+                guard model.showsInspector else { return }
                 guard let library = model.settings.libraryURL else { availableBytes = nil; return }
                 guard game.installation == nil else { return }
-                availableBytes = await Self.availableBytes(at: library)
+                while !Task.isCancelled {
+                    let bytes = await Self.availableBytes(at: library)
+                    guard !Task.isCancelled else { return }
+                    availableBytes = bytes
+                    // Downloads and other apps can change free space while this game stays selected.
+                    do { try await Task.sleep(for: .seconds(5)) } catch { return }
+                }
             }
         } else {
             ContentUnavailableView("No Game Selected", systemImage: "info.circle", description: Text("Select a game to see its details."))
@@ -513,7 +522,12 @@ struct GameInspector: View {
         }
     }
 
-    private struct AvailableSpaceRequest: Equatable { let gameID: String; let library: URL? }
+    private struct AvailableSpaceRequest: Equatable {
+        let gameID: String
+        let library: URL?
+        let isInstalled: Bool
+        let isPresented: Bool
+    }
 
     @concurrent private static func availableBytes(at library: URL) async -> Int64? {
         try? library.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage
