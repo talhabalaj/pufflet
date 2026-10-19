@@ -132,7 +132,7 @@ private struct GeneralSettings: View {
                     .onChange(of: automaticDownloads) { AppUpdater.shared.automaticallyDownloads = automaticDownloads }
                     .disabled(!automaticChecks)
                 LabeledContent("") {
-                    Button("Check Now") { AppUpdater.shared.checkForUpdates() }.disabled(model.headless.isActive)
+                    Button("Check Now") { AppUpdater.shared.checkForUpdates() }
                 }
             }
             .disabled(!AppUpdater.shared.isAvailable)

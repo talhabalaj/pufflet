@@ -64,3 +64,18 @@ test('every live Steam snapshot recognizes the configured desktop client', async
   assert.match(model, /snapshot = await SteamRuntime\.snapshot\(steamExecutable: desktopSteamExecutable, runtimeRoots: roots\)/,
     'The scoped model snapshot must keep the configured client executable');
 });
+
+test('manual update checks stay available while Steam support runs', async () => {
+  // The persistent session keeps Steam support active almost all the time.
+  // Checking must stay enabled; Sparkle's relaunch waits on shouldPostponeUpdate.
+  const [app, settings, updater] = await Promise.all([
+    readFile(new URL('../Sources/SteamLibraryApp.swift', import.meta.url), 'utf8'),
+    readFile(new URL('../Sources/LibrarySettings.swift', import.meta.url), 'utf8'),
+    readFile(new URL('../Sources/AppUpdater.swift', import.meta.url), 'utf8'),
+  ]);
+  const menu = app.match(/Button\("Check for Updates…"\)[^\n]*\n[^\n]*/)?.[0];
+  const checkNow = settings.match(/Button\("Check Now"\)[^\n]*/)?.[0];
+  assert.ok(menu && checkNow);
+  assert.ok(!/headless/.test(menu) && !/headless/.test(checkNow), 'Update checks must not wait for Steam support to stop');
+  assert.ok(/shouldPostponeRelaunchForUpdate[\s\S]*model\.shouldPostponeUpdate/.test(updater), 'The relaunch must stay postponed during activity');
+});
