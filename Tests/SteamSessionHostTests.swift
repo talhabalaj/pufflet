@@ -242,6 +242,44 @@ private actor PreparedClient: SteamClientPreparing {
         #expect(facade.takeError() == nil)
     }
 
+    @Test func restartForPlayKeepsADownloadThatFinishedDuringTeardown() async throws {
+        // App 1 finishes as the host shuts down; app 2 is cut off and reports a failure.
+        let script = #"""
+        import sys, time
+        def emit(req, app, key, value):
+            print(f'[steam-host] pufflet2 request-id={req} app-id={app} {key}={value}', flush=True)
+        emit(0, 0, 'session-ready', 1)
+        installs = {}
+        for line in sys.stdin:
+            parts = line.split()
+            req, action = parts[0], parts[1]
+            if action == 'shutdown':
+                for key in ('install-complete', 'install-state', 'install-manifest-state'):
+                    emit(installs[1], 1, key, 1 if key == 'install-complete' else 4)
+                emit(installs[1], 1, 'install-result', 0)
+                emit(installs[2], 2, 'install-result', 3)
+                time.sleep(0.3)
+                break
+            installs[int(parts[2])] = req
+            emit(req, parts[2], 'command-result', 0)
+        """#
+        let (root, runtime, url) = try fixture(script); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = SteamClientPaths(support: root)
+        let actor = SteamSessionHost(paths: paths, hostURL: url, installer: PreparedClient())
+        let facade = SteamHeadlessSession(paths: paths, hostURL: url, sessionHost: actor)
+        do {
+            for id in ["1", "2"] { try await facade.install(appID: id, destination: root, library: [], credentials: credentials(), runtime: runtime) }
+            try await facade.restartForPlay()
+            let results = facade.takeInstallResults()
+            #expect(results.keys.sorted() == ["1"])
+            #expect(results["1"] == .some(nil))
+            #expect(!facade.hasSubmittedInstall("1") && !facade.hasSubmittedInstall("2"))
+        } catch {
+            try? await actor.shutdown()
+            throw error
+        }
+    }
+
     @Test func failedPrefixTeardownRetainsOwnershipUntilRetrySucceeds() async throws {
         let (root, runtime, url) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
         let actor = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())

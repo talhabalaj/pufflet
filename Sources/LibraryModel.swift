@@ -309,9 +309,13 @@ import os
 
     func takeQueuedPlayIfReady() -> SteamGame? {
         guard let request = queuedPlay else { return nil }
-        guard request.accountKey == downloads.accountKey, request.library == settings.libraryURL?.resolvingSymlinksInPath(),
-              let game = games.first(where: { $0.id == request.gameID }) else {
+        guard request.accountKey == downloads.accountKey, request.library == settings.libraryURL?.resolvingSymlinksInPath() else {
             queuedPlay = nil
+            return nil
+        }
+        guard let game = games.first(where: { $0.id == request.gameID }) else {
+            queuedPlay = nil
+            errorMessage = "Play cancelled because the game is no longer in your library. Refresh the library, then try Play again."
             return nil
         }
         if downloads.jobs.contains(where: { request.blockingAppIDs.contains($0.id) && [.failed, .stopped, .interrupted].contains($0.state) }) {
@@ -341,6 +345,7 @@ import os
         phase = .preparingSupport; isRestartingForPlay = true
         do {
             try await headless.restartForPlay()
+            finishPersistentDownloads()
             for job in downloads.jobs where [.preparing, .installing].contains(job.state) { downloads.update(job.id, state: .queued) }
             activeDownloadID = nil
             phase = .idle; isRestartingForPlay = false

@@ -395,7 +395,9 @@ nonisolated struct SteamHostReport: Equatable, Sendable {
         // cannot clear the replacement session's submitted installs.
         try await sessionHost.shutdown(notify: false)
         receive(.stopped(nil))
-        installReports = [:]; installResults = [:]
+        // Keep downloads that finished during teardown so they are not requeued and
+        // re-verified; failures from the forced stop are dropped and the job resumes.
+        installReports = [:]; installResults = installResults.filter { $0.value == nil }
     }
 
     func shutdown(runtime: SteamRuntime) async throws {

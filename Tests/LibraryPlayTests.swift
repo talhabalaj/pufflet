@@ -51,6 +51,18 @@ import Testing
         #expect(model.takeQueuedPlayIfReady()?.id == "10")
     }
 
+    @Test func queuedPlayForAGameThatLeftTheLibraryExplainsWhy() throws {
+        let (model, root, defaults, suite) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        let game = game(root); model.games = [game]
+        model.offerPlayAfterDownloads(game, blockingAppIDs: [], requiresRestart: true)
+        model.queueBlockedPlay()
+        model.games = []
+        #expect(model.takeQueuedPlayIfReady() == nil)
+        #expect(model.queuedPlay == nil)
+        #expect(model.errorMessage?.contains("no longer in your library") == true)
+    }
+
     @Test func libraryRestartOfferExplainsTheLibrary() throws {
         let (model, root, defaults, suite) = try fixture()
         defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
