@@ -7,26 +7,37 @@ nonisolated struct WindowsProcess: Equatable, Sendable {
     let path: String
 }
 
-nonisolated struct RuntimeSnapshot: Sendable {
-    var processes: [WindowsProcess] = []
+nonisolated struct RuntimeSnapshot: Equatable, Sendable {
+    var processes: [WindowsProcess] { didSet { paths = Self.normalized(processes) } }
     /// The configured desktop client's executable relative to its drive, for
     /// example `Games\SteamClient\steam.exe`. The default `Steam` folder still matches.
-    var steamExecutable: String? = nil
+    var steamExecutable: String?
+    /// Lowercased backslash paths, parallel to `processes`. Every tile asks
+    /// `process(for:)`, so normalize once per poll rather than once per lookup.
+    private var paths: [String]
+
+    init(processes: [WindowsProcess] = [], steamExecutable: String? = nil) {
+        self.processes = processes
+        self.steamExecutable = steamExecutable
+        paths = Self.normalized(processes)
+    }
+
+    private static func normalized(_ processes: [WindowsProcess]) -> [String] {
+        processes.map { $0.path.replacingOccurrences(of: "/", with: "\\").lowercased() }
+    }
 
     var steam: WindowsProcess? {
         let configured = steamExecutable.map { "\\" + $0.replacingOccurrences(of: "/", with: "\\").trimmingCharacters(in: CharacterSet(charactersIn: "\\")).lowercased() }
-        return processes.first {
-            let path = $0.path.replacingOccurrences(of: "/", with: "\\").lowercased()
-            return path.hasSuffix("\\steam\\steam.exe") || configured.map(path.hasSuffix) == true
-        }
+        return paths.firstIndex { path in
+            path.hasSuffix("\\steam\\steam.exe") || configured.map(path.hasSuffix) == true
+        }.map { processes[$0] }
     }
 
     func process(for game: SteamGame) -> WindowsProcess? {
         let root = "\\steamapps\\common\\\(game.installDirectory)\\".lowercased()
-        return processes.first {
-            let path = $0.path.replacingOccurrences(of: "/", with: "\\").lowercased()
-            return path.contains(root) && !path.contains("crashhandler") && !path.contains("unins")
-        }
+        return paths.firstIndex { path in
+            path.contains(root) && !path.contains("crashhandler") && !path.contains("unins")
+        }.map { processes[$0] }
     }
 
     func owned(by roots: [URL], executablePath: (Int32) -> String?) -> Self {

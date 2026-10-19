@@ -61,7 +61,7 @@ test('every live Steam snapshot recognizes the configured desktop client', async
   for (const [call, argument] of calls) {
     assert.match(argument, /steamExecutable:/, `${call} must pass the configured client executable`);
   }
-  assert.match(model, /snapshot = await SteamRuntime\.snapshot\(steamExecutable: desktopSteamExecutable, runtimeRoots: roots\)/,
+  assert.match(model, /let current = await SteamRuntime\.snapshot\(steamExecutable: desktopSteamExecutable, runtimeRoots: roots\)\s*\n\s*if current != snapshot \{ snapshot = current \}/,
     'The scoped model snapshot must keep the configured client executable');
 });
 

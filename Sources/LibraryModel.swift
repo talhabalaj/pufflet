@@ -76,7 +76,16 @@ import os
     /// A measured uninstall awaiting confirmation.
     var uninstallRequest: UninstallRequest?
     private(set) var uninstallingID: String?
-    var entries: [LibraryGame] { LibraryGame.merge(installed: games, owned: ownedLibrary.games) }
+    /// Views read this many times per update, so the merge and sort run only when a source list changes.
+    var entries: [LibraryGame] {
+        let installed = games, owned = ownedLibrary.games
+        if let cached = mergedEntries, cached.installed == installed, cached.owned == owned { return cached.entries }
+        let merged = LibraryGame.merge(installed: installed, owned: owned)
+        mergedEntries = (installed, owned, merged)
+        return merged
+    }
+    @ObservationIgnored private var mergedEntries: (installed: [SteamGame], owned: [OwnedSteamGame], entries: [LibraryGame])?
+    @ObservationIgnored private var filteredEntries: (entries: [LibraryGame], filter: Filter, search: String, games: [LibraryGame])?
     var showsAccount = false
     var games: [SteamGame] = []
     var selectedID: String?
@@ -98,7 +107,11 @@ import os
     var selectedEntry: LibraryGame? { entries.first { $0.id == selectedID } }
     var playingGame: SteamGame? { games.first(where: isPlaying) }
     var filteredGames: [LibraryGame] {
-        entries.filter { (filter == .all || $0.installation != nil) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
+        let entries = entries, filter = filter, search = search
+        if let cached = filteredEntries, cached.entries == entries, cached.filter == filter, cached.search == search { return cached.games }
+        let games = entries.filter { (filter == .all || $0.installation != nil) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
+        filteredEntries = (entries, filter, search, games)
+        return games
     }
     var runtime: SteamRuntime {
         SteamRuntime(installation: installation,
@@ -182,7 +195,9 @@ import os
             let roots = [installation.runtimeApplication, FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app")]
             // Keep ownership discovery off the main actor and out of
             // LaunchServices: bundleURL can block during a Wine game launch.
-            snapshot = await SteamRuntime.snapshot(steamExecutable: desktopSteamExecutable, runtimeRoots: roots)
+            // Every tile observes the snapshot; assigning an unchanged one would redraw the grid each poll.
+            let current = await SteamRuntime.snapshot(steamExecutable: desktopSteamExecutable, runtimeRoots: roots)
+            if current != snapshot { snapshot = current }
             headless.poll()
             if headless.persistentEnabled {
                 finishPersistentDownloads()
@@ -223,11 +238,17 @@ import os
     func isLaunching(_ game: SteamGame) -> Bool { phase == .launching(game.id) }
     func isPlaying(_ game: SteamGame) -> Bool { headless.playingAppID == game.id || snapshot.process(for: game) != nil }
 
+    /// The inspector's picker reads this several times per redraw; only `setDisplayPreference` writes the file.
     func displayPreference(for appID: String) -> SteamDisplayPreference {
         _ = displayRevision
-        return (try? SteamDisplayProfiles(paths: paths).preference(for: appID)) ?? .inherit
+        if let cached = displayPreferences[appID] { return cached }
+        let preference = (try? SteamDisplayProfiles(paths: paths).preference(for: appID)) ?? .inherit
+        displayPreferences[appID] = preference
+        return preference
     }
+    @ObservationIgnored private var displayPreferences: [String: SteamDisplayPreference] = [:]
     func setDisplayPreference(_ preference: SteamDisplayPreference, for appID: String) {
+        displayPreferences = [:]
         do {
             try SteamDisplayProfiles(paths: paths).set(preference, for: appID)
             displayRevision += 1

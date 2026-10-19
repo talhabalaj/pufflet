@@ -8,7 +8,14 @@ struct LibraryView: View {
     @State private var columnCount = 4
     @State private var locationError: String?
     @Environment(\.openSettings) private var openSettings
-    private let minimumTileWidth: CGFloat = 140, tileSpacing: CGFloat = 22
+    /// Tiles keep one width so opening the inspector, which animates the content width,
+    /// moves whole columns instead of stretching and shrinking every cover each frame.
+    nonisolated static let tileWidth: CGFloat = 160, tileSpacing: CGFloat = 22, gridPadding: CGFloat = 24
+
+    /// The column count of an adaptive grid with fixed-width tiles, which arrow keys use to move between rows.
+    nonisolated static func columnCount(width: CGFloat) -> Int {
+        max(1, Int((width - 2 * gridPadding + tileSpacing) / (tileWidth + tileSpacing)))
+    }
 
     var body: some View {
         Group {
@@ -132,20 +139,22 @@ struct LibraryView: View {
             } else { ContentUnavailableView.search(text: model.search) }
         } else {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumTileWidth, maximum: 180), spacing: tileSpacing, alignment: .top)],
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.tileWidth, maximum: Self.tileWidth), spacing: Self.tileSpacing, alignment: .top)],
                           alignment: .leading, spacing: 26) {
                     ForEach(model.filteredGames) { game in
                         GameTile(game: game, model: model, selected: model.selectedID == game.id, emphasized: gridFocused)
-                            .onTapGesture(count: 2) { if model.canStart(game) { model.primaryAction(game) } }
-                            // Select on the first click without waiting out the double-click interval.
-                            .simultaneousGesture(TapGesture().onEnded { model.selectedID = game.id; gridFocused = true })
+                            // One gesture, like Finder: every click selects immediately, and the second
+                            // click of a double-click also plays. No double-tap recognizer to wait on.
+                            .onTapGesture {
+                                model.selectedID = game.id; gridFocused = true
+                                if NSApp.currentEvent?.clickCount == 2, model.canStart(game) { model.primaryAction(game) }
+                            }
                             .contextMenu { GameMenuItems(game: game, model: model, inContextMenu: true) }
                     }
                 }
-                .padding(24)
-                .onGeometryChange(for: Int.self) {
-                    max(1, Int(($0.size.width - 48 + tileSpacing) / (minimumTileWidth + tileSpacing)))
-                } action: { columnCount = $0 }
+                .padding(Self.gridPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: Int.self) { Self.columnCount(width: $0.size.width) } action: { columnCount = $0 }
             }
             .focusable()
             .focused($gridFocused)
@@ -171,25 +180,7 @@ struct LibraryView: View {
                 .help("Show all your games, or only the ones installed on this Mac")
             }
         }
-        ToolbarItem(id: "downloads", placement: .primaryAction) {
-            let active = model.activeDownloadID.flatMap { id in model.downloads.jobs.first { $0.id == id } }
-            Button { model.showsDownloads.toggle() } label: {
-                if let active, let work = model.downloadProgress(for: active.id) {
-                    Label {
-                        Text("Downloads")
-                    } icon: {
-                        Gauge(value: Double(work.done), in: 0...Double(work.total)) { Text("Downloads") }
-                            currentValueLabel: { Image(systemName: "arrow.down") }
-                            .gaugeStyle(.accessoryCircularCapacity).tint(.accentColor)
-                            .scaleEffect(0.42).frame(width: 22, height: 22)
-                    }
-                } else {
-                    Label("Downloads", systemImage: "arrow.down.circle")
-                }
-            }
-            .help(active.map { "Downloading \($0.name)" } ?? "Show downloads")
-            .popover(isPresented: $model.showsDownloads, arrowEdge: .bottom) { DownloadsView(model: model) }
-        }
+        ToolbarItem(id: "downloads", placement: .primaryAction) { DownloadsToolbarButton(model: model) }
         ToolbarItem(id: "info", placement: .primaryAction) {
             if !model.entries.isEmpty {
                 Button("Get Info", systemImage: "info.circle") { model.showsInspector.toggle() }
@@ -214,6 +205,32 @@ struct LibraryView: View {
 
     private func chooseLibrary() {
         do { try model.chooseLibraryFolder() } catch { locationError = error.localizedDescription }
+    }
+}
+
+/// Its own view so download progress, which changes every second, redraws only this button
+/// rather than the whole library body, toolbar and inspector.
+private struct DownloadsToolbarButton: View {
+    @Bindable var model: LibraryModel
+
+    var body: some View {
+        let active = model.activeDownloadID.flatMap { id in model.downloads.jobs.first { $0.id == id } }
+        Button { model.showsDownloads.toggle() } label: {
+            if let active, let work = model.downloadProgress(for: active.id) {
+                Label {
+                    Text("Downloads")
+                } icon: {
+                    Gauge(value: Double(work.done), in: 0...Double(work.total)) { Text("Downloads") }
+                        currentValueLabel: { Image(systemName: "arrow.down") }
+                        .gaugeStyle(.accessoryCircularCapacity).tint(.accentColor)
+                        .scaleEffect(0.42).frame(width: 22, height: 22)
+                }
+            } else {
+                Label("Downloads", systemImage: "arrow.down.circle")
+            }
+        }
+        .help(active.map { "Downloading \($0.name)" } ?? "Show downloads")
+        .popover(isPresented: $model.showsDownloads, arrowEdge: .bottom) { DownloadsView(model: model) }
     }
 }
 
@@ -398,6 +415,8 @@ struct GameDisplaySettings: View {
 struct GameInspector: View {
     @Bindable var model: LibraryModel
     @State private var artwork: NSImage?
+    /// Read off the main actor: a volume query can stall a selection change.
+    @State private var availableBytes: Int64?
 
     var body: some View {
         if let game = model.selectedEntry {
@@ -437,9 +456,8 @@ struct GameInspector: View {
                             if let library = model.settings.libraryURL { folderLabel(library).help(library.path) }
                             else { Text("Choose a download folder in Settings") }
                         }
-                        if let available = model.settings.libraryURL.flatMap({ try? $0.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]) })?
-                            .volumeAvailableCapacityForImportantUsage {
-                            LabeledContent("Available", value: ByteCountFormatter.string(fromByteCount: available, countStyle: .file))
+                        if let availableBytes {
+                            LabeledContent("Available", value: ByteCountFormatter.string(fromByteCount: availableBytes, countStyle: .file))
                         }
                     }
                 }
@@ -480,6 +498,21 @@ struct GameInspector: View {
             }
             .formStyle(.grouped)
             .task(id: game.id) { artwork = await model.artworkStore.image(appID: game.id, installation: model.installation, kind: .cover) }
+            .onChange(of: model.settings.libraryURL) { availableBytes = nil }
+            .task(id: AvailableSpaceRequest(gameID: game.id, library: model.settings.libraryURL,
+                                           isInstalled: game.installation != nil, isPresented: model.showsInspector)) {
+                // Keep the last value while refreshing so the row doesn't flicker between games.
+                guard model.showsInspector else { return }
+                guard let library = model.settings.libraryURL else { availableBytes = nil; return }
+                guard game.installation == nil else { return }
+                while !Task.isCancelled {
+                    let bytes = await Self.availableBytes(at: library)
+                    guard !Task.isCancelled else { return }
+                    availableBytes = bytes
+                    // Downloads and other apps can change free space while this game stays selected.
+                    do { try await Task.sleep(for: .seconds(5)) } catch { return }
+                }
+            }
         } else {
             ContentUnavailableView("No Game Selected", systemImage: "info.circle", description: Text("Select a game to see its details."))
         }
@@ -501,6 +534,17 @@ struct GameInspector: View {
             .buttonStyle(.glassProminent).controlSize(.large)
             .disabled(game.installation == nil ? !model.canInstall : !model.canStart(game))
         }
+    }
+
+    private struct AvailableSpaceRequest: Equatable {
+        let gameID: String
+        let library: URL?
+        let isInstalled: Bool
+        let isPresented: Bool
+    }
+
+    @concurrent private static func availableBytes(at library: URL) async -> Int64? {
+        try? library.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage
     }
 
     private func status(_ game: LibraryGame) -> String {
