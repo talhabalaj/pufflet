@@ -90,6 +90,7 @@ import os
     private var nativeLaunch = false
     private let logger = Logger(subsystem: AppIdentity.bundleID, category: "Launcher")
     private let started = ContinuousClock.now
+    let wakeLock = WakeLock()
 
     var selectedEntry: LibraryGame? { entries.first { $0.id == selectedID } }
     var playingGame: SteamGame? { games.first(where: isPlaying) }
@@ -172,6 +173,7 @@ import os
 
     func observeRuntime() async {
         logger.info("Native library appeared after \(self.started.duration(to: .now).description, privacy: .public)")
+        defer { wakeLock.release() }
         while !Task.isCancelled {
             // Scope Windows process names to our native Wine runtime images.
             let roots = [installation.runtimeApplication, FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app")]
@@ -209,6 +211,7 @@ import os
                 self.launchDeadline = nil
                 errorMessage = "The game has not opened yet. Open Steam to check for an update or sign-in prompt."
             }
+            wakeLock.hold(PowerAssertionRequest.desired(for: powerActivity))
             do { try await Task.sleep(for: .seconds(2)) } catch { return }
         }
     }

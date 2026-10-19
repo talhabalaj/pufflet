@@ -107,4 +107,40 @@ struct WakeLockTests {
         lock = nil
         #expect(fake.live.isEmpty && fake.events.last == .release(1))
     }
+
+    @Test @MainActor func modelActivityFollowsLaunchPlayExitAndDownloads() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-wake-test-" + UUID().uuidString)
+        let suite = "WakeLockTests." + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        let paths = SteamClientPaths(support: root)
+        let queue = SteamDownloadQueue(root: root.appendingPathComponent("Queue")); queue.activate(account: 1)
+        let model = LibraryModel(settings: LibrarySettings(defaults: defaults, support: root, home: root),
+            headless: SteamHeadlessSession(paths: paths), ownedLibrary: SteamOwnedLibrary(cache: root.appendingPathComponent("Owned")),
+            downloads: queue, paths: paths, graphics: GraphicsSupport(defaults: defaults))
+        model.games = [.init(id: "10", name: "Hades", installDirectory: "Hades", bytes: 1, folder: root.appendingPathComponent("steamapps/common/Hades"))]
+        #expect(model.powerActivity == Activity())
+
+        model.phase = .launching("10")
+        #expect(model.powerActivity.game == "Hades")
+        // Desktop Steam or Pufflet's session: either way the game's process is in our runtime.
+        model.phase = .idle
+        model.snapshot = RuntimeSnapshot(processes: [.init(pid: 42, path: #"C:\Steam\steamapps\common\Hades\Hades.exe"#)])
+        #expect(PowerAssertionRequest.desired(for: model.powerActivity) == .init(kind: .display, name: "Pufflet: Hades is running"))
+        // Exit or crash: the next poll sees no process and no launch.
+        model.snapshot = RuntimeSnapshot()
+        #expect(model.powerActivity.game == nil)
+
+        model.downloads.enqueue(.init(id: "20", name: "Celeste", estimatedBytes: 1), destination: root)
+        #expect(model.powerActivity.download == nil)
+        model.downloads.update("20", state: .installing)
+        #expect(model.powerActivity.download == "Celeste")
+        model.downloads.update("20", state: .paused)
+        #expect(model.powerActivity.download == nil)
+
+        #expect(model.settings.keepsDisplayAwake)
+        model.settings.keepsDisplayAwake = false
+        #expect(!LibrarySettings(defaults: defaults, support: root, home: root).keepsDisplayAwake)
+        #expect(!model.powerActivity.keepsDisplayAwake)
+    }
 }

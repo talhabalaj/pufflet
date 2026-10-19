@@ -6,14 +6,17 @@ import SwiftUI
     private let defaults: UserDefaults
     private static let locationKey = "steamLibraryPath"
     private static let desktopKey = "desktopSteamPath"
+    private static let displayAwakeKey = "keepsDisplayAwakeWhilePlaying"
     private(set) var libraryURL: URL?
     private(set) var desktopSteamURL: URL?
     private(set) var creationError: String?
+    var keepsDisplayAwake: Bool { didSet { defaults.set(keepsDisplayAwake, forKey: Self.displayAwakeKey) } }
     let defaultLibraryURL: URL
 
     init(defaults: UserDefaults = .standard, support: URL = AppIdentity.support, home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         defaultLibraryURL = home.appendingPathComponent("Games/" + AppIdentity.dataDirectory, isDirectory: true)
         self.defaults = defaults
+        keepsDisplayAwake = defaults.object(forKey: Self.displayAwakeKey) as? Bool ?? true
         desktopSteamURL = defaults.string(forKey: Self.desktopKey).map { URL(filePath: $0, directoryHint: .isDirectory) }
         libraryURL = defaults.string(forKey: Self.locationKey).map { URL(filePath: $0, directoryHint: .isDirectory) }
         let legacy = support.deletingLastPathComponent().appendingPathComponent(AppIdentity.legacyDataDirectory).path + "/"
@@ -124,6 +127,11 @@ private struct GeneralSettings: View {
                 }
             } footer: {
                 Text("New downloads go to this library. Choose an existing Steam library to use its games in place, or create a new folder.")
+            }
+            Section {
+                Toggle("Keep display awake while playing", isOn: Bindable(model.settings).keepsDisplayAwake)
+            } footer: {
+                Text("Controllers don't count as activity to macOS. Your Mac still sleeps when you close the lid or choose Sleep.")
             }
             Section("Updates") {
                 Toggle("Check for updates automatically", isOn: $automaticChecks)

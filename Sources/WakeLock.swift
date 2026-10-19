@@ -85,3 +85,13 @@ nonisolated final class WakeLock {
 
     deinit { if let id { backend.release(id) } }
 }
+
+extension LibraryModel {
+    /// Read every poll, so a missed exit, crash, failed launch or session stop still releases the assertion.
+    var powerActivity: PowerAssertionRequest.Activity {
+        var gameID = playingGame?.id ?? headless.playingAppID
+        if gameID == nil, case let .launching(id) = phase { gameID = id }
+        return .init(game: gameID.map { id in entries.first { $0.id == id }?.name ?? "A game" },
+                     download: downloads.active?.name, keepsDisplayAwake: settings.keepsDisplayAwake)
+    }
+}

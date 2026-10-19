@@ -51,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateLater
     }
 
+    func applicationWillTerminate(_ notification: Notification) { model?.wakeLock.release() }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
