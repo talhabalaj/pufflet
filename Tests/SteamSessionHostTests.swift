@@ -135,6 +135,111 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.shutdown()
     }
 
+    // Dock answers 64 when a command arrives while Valve's client is offline,
+    // and ends the session with 64 when it stays offline. Both are a dropped
+    // connection, not a bad sign-in, and nothing was submitted, so resend once.
+    private static let offlineOnceScript = #"""
+    import os, sys
+    def emit(req, app, key, value):
+        print(f'[steam-host] pufflet2 request-id={req} app-id={app} {key}={value}', flush=True)
+    emit(0, 0, 'session-ready', 1)
+    mode = os.environ['MADEIRA_STEAM_HOST_APPID']
+    first = not os.path.exists('offline-once')
+    for line in sys.stdin:
+        parts = line.split()
+        req, action = int(parts[0]), parts[1]
+        if action == 'shutdown': break
+        app = int(parts[2])
+        with open('commands.txt', 'a') as log: log.write(action + '\n')
+        if first and not os.path.exists('offline-once'):
+            open('offline-once', 'w').close()
+            if mode == '2': os._exit(64)        # Session ended: offline for too long.
+            emit(req, app, 'command-result', 64) # Offline at the moment of the command.
+            continue
+        emit(req, app, 'command-result', 0)
+        if mode == '3':
+            emit(req, app, 'install-result', 0)
+            sys.stdout.flush(); os._exit(64)    # Idle again, then the connection drops.
+        if mode == '4': os._exit(64)            # Drops while the download is running.
+    """#
+
+    @Test func commandRefusedWhileOfflineIsResentOnTheSameSession() async throws {
+        let (root, runtime, url) = try fixture(Self.offlineOnceScript); defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer, reconnectDelay: .milliseconds(50))
+        try await host.startInstall(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime, attempt: UUID())
+        #expect(await installer.calls == 1)
+        #expect(try String(contentsOf: runtime.installation.prefix.appendingPathComponent("commands.txt"), encoding: .utf8) == "install\ninstall\n")
+        try await host.shutdown()
+    }
+
+    @Test func sessionThatLostSteamSignsInAgainAndResubmits() async throws {
+        let (root, runtime, url) = try fixture(Self.offlineOnceScript); defer { try? FileManager.default.removeItem(at: root) }
+        let installer = PreparedClient()
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: installer, reconnectDelay: .milliseconds(50))
+        try await host.startInstall(appID: 2, destination: root, library: [], credentials: credentials(), runtime: runtime, attempt: UUID())
+        #expect(await installer.calls == 2)
+        #expect(await host.isActive)
+        try await host.shutdown()
+    }
+
+    @Test func persistentDisconnectStillFailsWithRecoveryCopy() async throws {
+        let script = #"""
+        import sys
+        print('[steam-host] pufflet2 request-id=0 app-id=0 session-ready=1', flush=True)
+        for line in sys.stdin:
+            parts = line.split()
+            if parts[1] == 'shutdown': break
+            print(f'[steam-host] pufflet2 request-id={parts[0]} app-id={parts[2]} command-result=64', flush=True)
+        """#
+        let (root, runtime, url) = try fixture(script); defer { try? FileManager.default.removeItem(at: root) }
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient(), reconnectDelay: .milliseconds(50))
+        do {
+            try await host.startInstall(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime, attempt: UUID())
+            Issue.record("An offline client must not report the install as submitted")
+        } catch SteamSessionHost.Failure.disconnected {
+            let text = SteamSessionHost.Failure.disconnected.localizedDescription
+            #expect(text.hasPrefix("Steam lost its connection. Retry"))
+            #expect(!text.contains("Sign in again"))
+            #expect(SteamHostReport().failure(for: 70).contains("signed in somewhere else"))
+        }
+        try await host.shutdown()
+    }
+
+    @Test func idleDisconnectDoesNotInterruptButRunningDownloadDoes() async throws {
+        for (mode, interrupts) in [(UInt32(3), false), (4, true)] {
+            let (root, runtime, url) = try fixture(Self.offlineOnceScript); defer { try? FileManager.default.removeItem(at: root) }
+            // Skip the first-command refusal: this case is about the drop afterwards.
+            try Data().write(to: runtime.installation.prefix.appendingPathComponent("offline-once"))
+            let paths = SteamClientPaths(support: root)
+            let host = SteamSessionHost(paths: paths, hostURL: url, installer: PreparedClient(), reconnectDelay: .milliseconds(50))
+            let session = SteamHeadlessSession(paths: paths, hostURL: url, persistentEnabled: true, sessionHost: host)
+            try await session.install(appID: String(mode), destination: root, library: [], credentials: credentials(), runtime: runtime)
+            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+            while session.status != SteamHeadlessSession.reconnectStatus, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(50)) }
+            #expect(session.status == SteamHeadlessSession.reconnectStatus)
+            #expect(await !host.isActive)
+            let error = session.takeError()
+            #expect((error != nil) == interrupts)
+            if interrupts { #expect(session.takeInstallResults()[String(mode)] == .some(SteamHostReport().failure(for: 64))) }
+        }
+    }
+
+    @Test func unexpectedCleanExitIsNotCalledADisconnect() async throws {
+        let script = #"""
+        print('[steam-host] pufflet2 request-id=0 app-id=0 session-ready=1', flush=True)
+        """#
+        let (root, runtime, url) = try fixture(script); defer { try? FileManager.default.removeItem(at: root) }
+        let host = SteamSessionHost(paths: .init(support: root), hostURL: url, installer: PreparedClient())
+        try await host.start(appID: 1, destination: root, library: [], credentials: credentials(), runtime: runtime)
+        for await event in host.events {
+            guard case let .stopped(message, disconnected) = event else { continue }
+            #expect(message == SteamSessionHost.unexpectedExit)
+            #expect(!disconnected)
+            break
+        }
+    }
+
     private func fixture(_ script: String? = nil) throws -> (URL, SteamRuntime, URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-session-test-" + UUID().uuidString)
         let wine = root.appendingPathComponent("runtime/Contents/SharedSupport/wine/bin")

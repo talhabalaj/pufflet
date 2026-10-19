@@ -43,8 +43,12 @@ struct LibraryView: View {
             Button("Uninstall", role: .destructive) { Task { await model.uninstall(request) } }
             Button("Cancel", role: .cancel) { model.uninstallRequest = nil }
         } message: { request in Text(Self.uninstallMessage(request)) }
-        .alert(errorParts.title, isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
-            if model.headless.persistentEnabled, let id = model.repairGameID, let entry = model.entries.first(where: { $0.id == id }) {
+        .alert(errorParts.title, isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil; model.retryPlayID = nil } })) {
+            if let id = model.retryPlayID, let entry = model.entries.first(where: { $0.id == id }) {
+                // A lost connection is Steam's, not the account's: Retry signs in again on its own.
+                Button("Retry") { model.errorMessage = nil; model.retryPlayID = nil; Task { await model.play(entry) } }
+                Button("Cancel", role: .cancel) { model.errorMessage = nil; model.retryPlayID = nil }
+            } else if model.headless.persistentEnabled, let id = model.repairGameID, let entry = model.entries.first(where: { $0.id == id }) {
                 Button("Repair Installation") { model.errorMessage = nil; model.repair(entry) }
                 Button("Open Desktop Steam") { Task { await model.openSteam() } }.disabled(model.headless.isActive || model.hasDownloadWork)
                 Button("Cancel", role: .cancel) { model.errorMessage = nil }

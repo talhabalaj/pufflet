@@ -83,6 +83,8 @@ import os
     var errorMessage: String?
     private var displayRevision = 0
     var repairGameID: String?
+    /// Set when Play failed because Steam lost its connection; the alert offers Retry.
+    var retryPlayID: String?
     var search = ""
     private var launchDeadline: ContinuousClock.Instant?
     private var nativeLaunch = false
@@ -229,7 +231,7 @@ import os
         guard phase == .idle else { return }
         cancelQueuedPlay()
         blockedPlay = nil
-        errorMessage = nil; repairGameID = nil
+        errorMessage = nil; repairGameID = nil; retryPlayID = nil
         if let process = snapshot.process(for: game),
            let application = NSRunningApplication(processIdentifier: process.pid),
            application.bundleURL?.path.contains("/wine/") == true {
@@ -294,6 +296,7 @@ import os
                 offerPlayAfterDownloads(game, blockingAppIDs: appIDs.map(String.init), requiresRestart: true, forLibrary: true)
             } else { errorMessage = error.localizedDescription }
             if case SteamLaunchConfiguration.ConfigurationError.missingExecutable = error { repairGameID = game.id }
+            if case SteamSessionHost.Failure.disconnected = error { retryPlayID = game.id }
             logger.error("Game launch failed: \(error.localizedDescription)")
             startNextDownload()
         }
