@@ -197,7 +197,13 @@ actor SteamClientInstaller: SteamClientPreparing {
                 }
             }
         }
-        if entries["0"] == nil { entries["0"] = .object(["path": .string(SteamClientPackages.windowsRoot)]) }
+        if entries["0"] == nil {
+            let drive = prefix.appendingPathComponent("drive_c").standardizedFileURL.path + "/"
+            let clientPath = client.standardizedFileURL.path
+            guard clientPath.hasPrefix(drive) else { throw SteamClientPackages.Failure.conflict }
+            let windowsPath = "C:\\" + clientPath.dropFirst(drive.count).replacingOccurrences(of: "/", with: "\\")
+            entries["0"] = .object(["path": .string(windowsPath)])
+        }
         var mapping: [String: String] = [:]
         for root in roots.sorted(by: { $0.path < $1.path }) {
             let windowsRoot = windowsLibraryRoot(for: root)

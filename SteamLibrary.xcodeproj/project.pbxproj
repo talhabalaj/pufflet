@@ -50,6 +50,7 @@
 		8ADFFFB310113FB796BCD5C4 /* dock-notices.txt in Resources */ = {isa = PBXBuildFile; fileRef = 299C2C8C97DA67A4E02FCAB3 /* dock-notices.txt */; };
 		8B0A5AFEC38068A162398A09 /* SteamAuthenticationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */; };
 		8EDC11A3AB6D0C3B000879B4 /* LibrarySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */; };
+		B4A900000000000000000002 /* DesktopSteamClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A900000000000000000001 /* DesktopSteamClient.swift */; };
 		9521894709089B8E37E913F0 /* SteamLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEF834B1E4819021AEFD6FB /* SteamLog.swift */; };
 		957BD590E0A4E01EFB1E6715 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC651981AD6BA4DEBC13C677 /* AppUpdater.swift */; };
 		9BC3E96C362DCDB795A3F09C /* OwnedLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DC1AB38B97D6B7635148E92 /* OwnedLibraryTests.swift */; };
@@ -83,6 +84,7 @@
 		D3D120000000000000000002 /* GameGraphics.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D120000000000000000001 /* GameGraphics.swift */; };
 		D3D120000000000000000004 /* GameGraphicsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D120000000000000000003 /* GameGraphicsTests.swift */; };
 		B3A900000000000000000002 /* LibraryPlayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A900000000000000000001 /* LibraryPlayTests.swift */; };
+		B4A900000000000000000004 /* DesktopSteamClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A900000000000000000003 /* DesktopSteamClientTests.swift */; };
 
 /* End PBXBuildFile section */
 
@@ -129,6 +131,7 @@
 		5442B64F5FAA5B43B7D3717E /* SteamArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamArtworkStore.swift; sourceTree = "<group>"; };
 		546AF6304774AF1764B15223 /* SteamHeadlessSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamHeadlessSession.swift; sourceTree = "<group>"; };
 		5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySettings.swift; sourceTree = "<group>"; };
+		B4A900000000000000000001 /* DesktopSteamClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopSteamClient.swift; sourceTree = "<group>"; };
 		5C6D4C7B3E1397FB778A5F7B /* runtime-download-server.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "runtime-download-server.py"; sourceTree = "<group>"; };
 		5D448ADB7697FDDE057B199D /* SteamAuthenticationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamAuthenticationTests.swift; sourceTree = "<group>"; };
 		5F106E48207FE519F2B0EBCE /* AppIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentity.swift; sourceTree = "<group>"; };
@@ -175,6 +178,7 @@
 		D3D120000000000000000001 /* GameGraphics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameGraphics.swift; sourceTree = "<group>"; };
 		D3D120000000000000000003 /* GameGraphicsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameGraphicsTests.swift; sourceTree = "<group>"; };
 		B3A900000000000000000001 /* LibraryPlayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPlayTests.swift; sourceTree = "<group>"; };
+		B4A900000000000000000003 /* DesktopSteamClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopSteamClientTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -298,6 +302,7 @@
 				BF4FBADC9A91EFF9455B36FC /* SteamLaunchConfigurationTests.swift */,
 				D3D120000000000000000003 /* GameGraphicsTests.swift */,
 				B3A900000000000000000001 /* LibraryPlayTests.swift */,
+				B4A900000000000000000003 /* DesktopSteamClientTests.swift */,
 				1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */,
 				D0916B831D45D0C23DFE3A0C /* SteamSessionHostTests.swift */,
 				FEBF788ADF92630C119E1249 /* WineProcessCleanupTests.swift */,
@@ -356,6 +361,7 @@
 				ADD9094685A0DE3CB4D5F705 /* DownloadsView.swift */,
 				23581EFB5B56953D9A88D959 /* LibraryModel.swift */,
 				5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */,
+				B4A900000000000000000001 /* DesktopSteamClient.swift */,
 				249413E5C7E6FCFED178256F /* LibraryView.swift */,
 				4CF4BBE4C86611A07C882A2C /* RuntimeArchive.swift */,
 				79D7B53DA3C534CB4715787F /* RuntimeArtifact.swift */,
@@ -538,6 +544,7 @@
 				4B87276E079B2758A15DEA27 /* SteamLaunchConfigurationTests.swift in Sources */,
 				D3D120000000000000000004 /* GameGraphicsTests.swift in Sources */,
 				B3A900000000000000000002 /* LibraryPlayTests.swift in Sources */,
+				B4A900000000000000000004 /* DesktopSteamClientTests.swift in Sources */,
 				FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */,
 				10975662770F555CA9D0991D /* SteamSessionHostTests.swift in Sources */,
 				FFD2DE4BA31FBE25F4C7A573 /* WineProcessCleanupTests.swift in Sources */,
@@ -555,6 +562,7 @@
 				4C34EB3345280F8FD9E808A7 /* DownloadsView.swift in Sources */,
 				B5C457FDE8DAEEBD63D3CA21 /* LibraryModel.swift in Sources */,
 				8EDC11A3AB6D0C3B000879B4 /* LibrarySettings.swift in Sources */,
+				B4A900000000000000000002 /* DesktopSteamClient.swift in Sources */,
 				4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */,
 				6307397C6CAC9E5E760B2EE5 /* LicenseListBox.swift in Sources */,
 				7231C6CF42BFCED2F259443D /* OwnedSteamGame.swift in Sources */,

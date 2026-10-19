@@ -7,6 +7,7 @@ struct LibraryView: View {
     @FocusState private var searchFocused: Bool
     @State private var columnCount = 4
     @State private var locationError: String?
+    @Environment(\.openSettings) private var openSettings
     private let minimumTileWidth: CGFloat = 140, tileSpacing: CGFloat = 22
 
     var body: some View {
@@ -54,6 +55,11 @@ struct LibraryView: View {
             Button("Show Downloads") { model.showsDownloads = true }
             Button("Cancel", role: .cancel) { model.blockedPlay = nil }
         } message: { _ in Text(model.blockedPlayDetail) }
+        .alert("Choose Desktop Steam", isPresented: Binding(get: { model.desktopSteamSetup != nil }, set: { if !$0 { model.desktopSteamSetup = nil } })) {
+            Button("Choose Steam Folder…") { Task { await model.chooseDesktopSteamAndContinue() } }
+            Button("Open Advanced Settings") { model.showDesktopSteamSettings(); openSettings() }
+            Button("Cancel", role: .cancel) { model.desktopSteamSetup = nil }
+        } message: { Text("Desktop Steam needs a complete Windows Steam installation in its own Wine prefix. Your game library holds games, not the Steam client.") }
         .alert("Choose a Steam library", isPresented: Binding(get: { locationError != nil }, set: { if !$0 { locationError = nil } })) {
             Button("OK", role: .cancel) { locationError = nil }
         } message: { Text(locationError ?? "") }

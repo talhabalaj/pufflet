@@ -85,6 +85,20 @@ import os
                      dockBridge: runtime.dockBridge,
                      logDirectory: paths.support.standardizedFileURL == AppIdentity.support.standardizedFileURL ? nil : paths.support.appendingPathComponent("Logs"))
     }
+    enum DesktopSteamAction: Equatable { case open, play(String) }
+    /// A desktop Steam request waiting for the user to choose a client.
+    var desktopSteamSetup: DesktopSteamAction?
+    var settingsTab = SettingsTab.general
+    /// The chosen desktop client, if it is still complete. The content library is never a client.
+    var desktopSteam: DesktopSteamClient? {
+        settings.desktopSteamURL.flatMap { try? DesktopSteamClient(root: $0, managedPrefix: nativeRuntime.installation.prefix) }
+    }
+    /// The chosen client's steam.exe relative to drive_c, for recognizing its process.
+    var desktopSteamExecutable: String? { desktopSteam?.windowsExecutable }
+    /// Uses the same Wine app as `runtime`, so `observeRuntime` still owns its processes.
+    private func desktopRuntime(_ client: DesktopSteamClient) -> SteamRuntime {
+        SteamRuntime(installation: client.installation(using: installation), dockBridge: runtime.dockBridge)
+    }
 
     init(settings: LibrarySettings = LibrarySettings(), headless: SteamHeadlessSession = SteamHeadlessSession(),
          ownedLibrary: SteamOwnedLibrary = SteamOwnedLibrary(), downloads: SteamDownloadQueue = SteamDownloadQueue(), paths: SteamClientPaths = .standard,
@@ -226,7 +240,7 @@ import os
                 phase = .launching(game.id)
                 message = "Closing desktop Steam…"
                 launchDeadline = ContinuousClock.now.advanced(by: .seconds(25))
-                try await runtime.send(["-shutdown"])
+                try await (desktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"])
                 for _ in 0..<20 {
                     if await SteamRuntime.snapshot().steam == nil { break }
                     try await Task.sleep(for: .seconds(1))
@@ -323,7 +337,9 @@ import os
     @concurrent private static func importsD3D12(_ executable: URL) async -> Bool { PEImports.usesD3D12(at: executable) }
 
     func playInDesktopSteam(_ game: SteamGame) async {
-        guard phase == .idle, !headless.isActive, !hasDownloadWork, requireRuntime() else { return }
+        guard phase == .idle, !headless.isActive, !hasDownloadWork else { return }
+        guard let client = desktopSteam else { desktopSteamSetup = .play(game.id); return }
+        guard requireRuntime() else { return }
         // Desktop Steam may already own its launch environment. Apply per-game
         // renderer choices only through our managed Play session.
         if graphics.backend(for: game.id) != .dxmt {
@@ -342,7 +358,10 @@ import os
         launchDeadline = ContinuousClock.now.advanced(by: .seconds(90))
         do {
             try SteamDisplayProfiles(paths: paths).requireFallbackSupport(for: game.id)
-            await suspendCatalogue(); try await runtime.send(["-silent", "-applaunch", game.id])
+            await suspendCatalogue()
+            let desktop = desktopRuntime(client)
+            try await client.connectLibraries(games, destination: settings.libraryURL, runtime: desktop)
+            try await desktop.send(["-silent", "-applaunch", game.id])
         }
         catch { phase = .idle; launchDeadline = nil; errorMessage = error.localizedDescription }
     }
@@ -366,17 +385,40 @@ import os
             errorMessage = "Close the running game before opening desktop Steam."
             return
         }
+        guard let client = desktopSteam else { desktopSteamSetup = .open; return }
         guard requireRuntime() else { return }
         phase = .openingSteam
         defer { phase = .idle }
-        do { await suspendCatalogue(); try await runtime.send(["steam://open/main"]) }
+        do {
+            await suspendCatalogue()
+            let desktop = desktopRuntime(client)
+            try await client.connectLibraries(games, destination: settings.libraryURL, runtime: desktop)
+            try await desktop.send(["steam://open/main"])
+        }
         catch { errorMessage = error.localizedDescription }
     }
 
     func quitSteam() async {
         guard snapshot.steam != nil, !games.contains(where: isPlaying) else { return }
-        do { try await runtime.send(["-shutdown"]) }
+        do { try await (desktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"]) }
         catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Lets the user pick a desktop client, then continues the request that needed it.
+    func chooseDesktopSteamAndContinue() async {
+        guard let action = desktopSteamSetup else { return }
+        desktopSteamSetup = nil
+        do { guard try chooseDesktopSteamFolder() else { return } }
+        catch { errorMessage = error.localizedDescription; return }
+        switch action {
+        case .open: await openSteam()
+        case let .play(id): if let game = games.first(where: { $0.id == id }) { await playInDesktopSteam(game) }
+        }
+    }
+
+    func showDesktopSteamSettings() {
+        desktopSteamSetup = nil
+        settingsTab = .advanced
     }
 
     func isLaunching(_ entry: LibraryGame) -> Bool { phase == .launching(entry.id) }
