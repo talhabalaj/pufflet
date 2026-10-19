@@ -24,12 +24,12 @@ final class AppUpdater: NSObject, SPUUpdaterDelegate {
     }
     func checkForUpdates() { controller?.checkForUpdates(nil) }
     func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem, untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
-        guard let model, model.headless.isActive || model.phase != .idle || model.runtimeSetup.isBusy else { return false }
+        guard let model, model.shouldPostponeUpdate else { return false }
         pendingInstall = installHandler
         return true
     }
     func resumePendingInstall() {
-        guard let model, !model.headless.isActive, model.phase == .idle, !model.runtimeSetup.isBusy, let install = pendingInstall else { return }
+        guard let model, !model.shouldPostponeUpdate, let install = pendingInstall else { return }
         pendingInstall = nil
         install()
     }

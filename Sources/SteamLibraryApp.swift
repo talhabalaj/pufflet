@@ -71,10 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Window("Library", id: "library") {
             LibraryView(model: model)
                 .onAppear { delegate.model = model; AppUpdater.shared.start(model: model) }
-                .onChange(of: model.headless.isActive) { AppUpdater.shared.resumePendingInstall() }
-                .onChange(of: model.hasDownloadWork) { AppUpdater.shared.resumePendingInstall() }
-                .onChange(of: model.runtimeSetup.isBusy) { AppUpdater.shared.resumePendingInstall() }
-                .onChange(of: model.phase) { AppUpdater.shared.resumePendingInstall() }
+                .onChange(of: model.shouldPostponeUpdate) { AppUpdater.shared.resumePendingInstall() }
         }
         .defaultSize(width: 900, height: 570)
         .windowResizability(.contentMinSize)

@@ -48,6 +48,12 @@ import os
     var hasDownloadWork: Bool { downloads.hasPendingWork || activeDownloadID != nil || isStoppingDownload }
     var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil }
     var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil }
+    /// Any work an app relaunch would interrupt, including desktop Steam and its games in our runtime.
+    var shouldPostponeUpdate: Bool {
+        headless.isActive || phase != .idle || runtimeSetup.isBusy || hasDownloadWork
+            || queuedPlay != nil || blockedPlay != nil || isRestartingForPlay
+            || snapshot.steam != nil || games.contains(where: isPlaying)
+    }
     var canPlay: Bool {
         phase == .idle && downloadTask == nil && !isStoppingDownload && !runtimeSetup.isBusy && (headless.persistentEnabled ? !headless.hasLaunchWork : !hasDownloadWork && !headless.isActive)
     }
@@ -148,14 +154,14 @@ import os
     func observeRuntime() async {
         logger.info("Native library appeared after \(self.started.duration(to: .now).description, privacy: .public)")
         while !Task.isCancelled {
-            let observed = await SteamRuntime.snapshot()
+            let observed = await SteamRuntime.snapshot(steamExecutable: desktopSteamExecutable)
             // A Windows path alone cannot distinguish two Wine prefixes.
             let roots = [installation.runtimeApplication.path + "/", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Steam DXMT.app").path + "/"]
             let owned = Set(NSWorkspace.shared.runningApplications.compactMap { application -> Int32? in
                 guard let path = application.bundleURL?.path, roots.contains(where: { path.hasPrefix($0) }) else { return nil }
                 return application.processIdentifier
             })
-            snapshot = RuntimeSnapshot(processes: observed.processes.filter { owned.contains($0.pid) })
+            snapshot = RuntimeSnapshot(processes: observed.processes.filter { owned.contains($0.pid) }, steamExecutable: observed.steamExecutable)
             headless.poll()
             if headless.persistentEnabled {
                 finishPersistentDownloads()
@@ -241,11 +247,12 @@ import os
                 message = "Closing desktop Steam…"
                 launchDeadline = ContinuousClock.now.advanced(by: .seconds(25))
                 try await (desktopSteam.map(desktopRuntime) ?? runtime).send(["-shutdown"])
+                let executable = desktopSteamExecutable
                 for _ in 0..<20 {
-                    if await SteamRuntime.snapshot().steam == nil { break }
+                    if await SteamRuntime.snapshot(steamExecutable: executable).steam == nil { break }
                     try await Task.sleep(for: .seconds(1))
                 }
-                guard await SteamRuntime.snapshot().steam == nil else {
+                guard await SteamRuntime.snapshot(steamExecutable: executable).steam == nil else {
                     throw SteamError.authenticationFailed("Close desktop Steam before starting a game with your native Steam account.")
                 }
             }
@@ -434,6 +441,7 @@ import os
         guard phase == .idle, !hasDownloadWork, !headless.isActive else { return }
         let previous = catalogueTask
         previous?.cancel()
+        let executable = desktopSteamExecutable
         catalogueTask = Task {
             await ownedLibrary.suspend()
             await previous?.value
@@ -442,7 +450,7 @@ import os
                 let credentials = try SteamKeychain().load()
                 ownedLibrary.activate(credentials)
                 downloads.activate(account: credentials?.isUsable() == true ? credentials?.steamID : nil, resumePending: headless.persistentEnabled)
-                guard !Task.isCancelled, await SteamRuntime.snapshot().steam == nil else { return }
+                guard !Task.isCancelled, await SteamRuntime.snapshot(steamExecutable: executable).steam == nil else { return }
                 await ownedLibrary.refresh()
                 if headless.persistentEnabled { startNextDownload() }
             } catch { errorMessage = error.localizedDescription }
