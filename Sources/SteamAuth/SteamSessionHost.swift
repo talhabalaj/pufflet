@@ -63,12 +63,14 @@ actor SteamSessionHost {
     enum Failure: LocalizedError {
         case stopped(String)
         case graphicsBusy(appIDs: [Int])
+        case libraryBusy(appIDs: [Int])
         case cancellationFailed
         var errorDescription: String? {
             switch self {
             case let .stopped(message): message
             case .cancellationFailed: "Steam could not confirm that this download stopped. Try Stop again; existing files are kept."
             case .graphicsBusy: "Steam needs to restart to use this game’s graphics backend. Finish its current downloads or restart Steam support to play. Existing files are kept."
+            case .libraryBusy: "Steam support is busy in another library. Wait for its downloads or game to finish, or restart Steam support. Existing files are kept."
             }
         }
     }
@@ -165,8 +167,9 @@ actor SteamSessionHost {
                 guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty,
                       installReservations.keys.allSatisfy({ $0 == installAttempt }) else {
                     if changesDisplay { throw SteamDisplayProfiles.Failure.busy }
-                    if !changesGraphics { throw Failure.stopped("Wait for Steam’s current downloads or game to finish before using another library. Existing files are kept.") }
-                    throw Failure.graphicsBusy(appIDs: Array(Set(issued.values)).sorted())
+                    let appIDs = Array(Set(issued.values)).sorted()
+                    if changesGraphics { throw Failure.graphicsBusy(appIDs: appIDs) }
+                    throw Failure.libraryBusy(appIDs: appIDs)
                 }
                 try await shutdownOwned(notify: false)
             } else { return }

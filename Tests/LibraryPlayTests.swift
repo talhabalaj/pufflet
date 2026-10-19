@@ -37,6 +37,30 @@ import Testing
         #expect(model.errorMessage?.contains("needs attention") == true)
     }
 
+    @Test func playWhenReadyWaitsOnlyForItsOwnDownload() throws {
+        let (model, root, defaults, suite) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        let game = game(root); model.games = [game]
+        for id in ["10", "20"] { model.downloads.enqueue(.init(id: id, name: id, estimatedBytes: 1), destination: root) }
+        model.downloads.update("20", state: .paused)
+        model.offerPlayAfterDownloads(game, blockingAppIDs: ["10"], requiresRestart: false)
+        model.queueBlockedPlay()
+        #expect(model.takeQueuedPlayIfReady() == nil)
+        model.downloads.update("10", state: .completed)
+        // Another game's paused download no longer holds Play forever.
+        #expect(model.takeQueuedPlayIfReady()?.id == "10")
+    }
+
+    @Test func libraryRestartOfferExplainsTheLibrary() throws {
+        let (model, root, defaults, suite) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
+        let game = game(root); model.games = [game]
+        model.offerPlayAfterDownloads(game, blockingAppIDs: [], requiresRestart: true, forLibrary: true)
+        #expect(model.blockedPlayDetail.contains("this game’s library"))
+        model.offerPlayAfterDownloads(game, blockingAppIDs: [], requiresRestart: true)
+        #expect(model.blockedPlayDetail.contains("graphics backend"))
+    }
+
     private func game(_ root: URL) -> SteamGame {
         .init(id: "10", name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: root.appendingPathComponent("steamapps/common/Fixture"))
     }

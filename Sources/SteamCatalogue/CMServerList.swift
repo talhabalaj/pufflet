@@ -32,6 +32,9 @@ actor CMServerList {
     private var lastFetched: Date?
     private let cacheKey = "swiftsteam_cm_servers_websocket"
     private let staleInterval: TimeInterval = 3600
+    /// A cached list stands in only until the directory answers again.
+    private let cachedStaleInterval: TimeInterval = 60
+    private var listFromCache = false
 
     // MARK: - Public API
 
@@ -75,12 +78,14 @@ actor CMServerList {
     func refreshServerList() async throws {
         try Task.checkCancellation()
         let availableServers: [CMServer]
+        let fromCache: Bool
         do {
             let freshServers = try await fetchServerList()
             guard !freshServers.isEmpty else {
                 throw SteamError.noServersAvailable
             }
             availableServers = freshServers
+            fromCache = false
         } catch {
             // Cancellation must never turn into a successful cached connection.
             try Task.checkCancellation()
@@ -91,18 +96,20 @@ actor CMServerList {
                 throw error
             }
             availableServers = cached
+            fromCache = true
         }
         try Task.checkCancellation()
         servers = availableServers
         lastFetched = Date()
-        cacheServerList()
+        listFromCache = fromCache
+        if !fromCache { cacheServerList() }
     }
 
     // MARK: - Private
 
     private var isListStale: Bool {
         guard let lastFetched else { return true }
-        return Date().timeIntervalSince(lastFetched) > staleInterval
+        return Date().timeIntervalSince(lastFetched) > (listFromCache ? cachedStaleInterval : staleInterval)
     }
 
     /// Fetch WebSocket CM server list from Steam Web API

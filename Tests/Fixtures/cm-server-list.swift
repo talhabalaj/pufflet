@@ -156,6 +156,23 @@ nonisolated final class DirectoryProtocol: URLProtocol, @unchecked Sendable {
             check(false, "new actor ignored replacement cache: \(error)")
         }
 
+        // A cached stand-in is retried after a minute; a directory answer lasts an hour.
+        try seed()
+        DirectoryProtocol.configure(.failure(.cannotFindHost))
+        let offline = CMServerList()
+        check(try await offline.getServer().host == cachedHost, "offline actor lost cache")
+        let offlineRequests = DirectoryProtocol.requestCount
+        await offline.ageForFixture(30)
+        _ = try await offline.getServer()
+        check(DirectoryProtocol.requestCount == offlineRequests, "cached list retried the directory too soon")
+        DirectoryProtocol.configure(.response(200, freshBody))
+        await offline.ageForFixture(61)
+        check(try await offline.getServer().host == "fresh.steamserver.net", "cached list kept after the directory recovered")
+        let onlineRequests = DirectoryProtocol.requestCount
+        await offline.ageForFixture(61)
+        _ = try await offline.getServer()
+        check(DirectoryProtocol.requestCount == onlineRequests, "fresh list treated as a cached stand-in")
+
         // Both a cancellation error and actual cancellation must escape fallback.
         try seed()
         DirectoryProtocol.configure(.failure(.cancelled))

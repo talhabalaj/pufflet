@@ -21,7 +21,8 @@ test('CM discovery falls back to validated cache without swallowing cancellation
       if (destination === 'CMServerList.swift') {
         // Age only the copied actor's timestamp to exercise the real stale path
         // without waiting an hour or adding a production testing API.
-        contents += '\nextension CMServerList { func expireForFixture() { lastFetched = Date(timeIntervalSinceNow: -3601) } }\n';
+        contents += '\nextension CMServerList { func expireForFixture() { lastFetched = Date(timeIntervalSinceNow: -3601) }\n'
+          + '  func ageForFixture(_ seconds: TimeInterval) { lastFetched = Date(timeIntervalSinceNow: -seconds) } }\n';
       }
       await writeFile(join(temporary, destination), contents);
     }

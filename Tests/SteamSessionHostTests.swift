@@ -677,11 +677,18 @@ private actor PreparedClient: SteamClientPreparing {
         try await host.startInstall(appID: 1, destination: root, library: [], credentials: credentials, runtime: runtime, attempt: UUID())
         for paused in [false, true] {
             if paused { try await host.control("pause", appID: 1) }
-            await #expect(throws: SteamSessionHost.Failure.self) {
-                try await host.startGame(selected, option: 0, executable: executable, destination: second, library: [selected], credentials: credentials, runtime: runtime)
-            }
-            await #expect(throws: SteamSessionHost.Failure.self) {
-                try await host.startInstall(appID: 3, destination: second, library: [], credentials: credentials, runtime: runtime, attempt: UUID())
+            // libraryBusy lets Play offer to wait or restart, and keeps installs queued.
+            for attempt in 0..<2 {
+                do {
+                    if attempt == 0 {
+                        try await host.startGame(selected, option: 0, executable: executable, destination: second, library: [selected], credentials: credentials, runtime: runtime)
+                    } else {
+                        try await host.startInstall(appID: 3, destination: second, library: [], credentials: credentials, runtime: runtime, attempt: UUID())
+                    }
+                    Issue.record("Another library was accepted while Steam had work")
+                } catch SteamSessionHost.Failure.libraryBusy(let appIDs) {
+                    #expect(appIDs == [1])
+                } catch { Issue.record("Unexpected refusal: \(error)") }
             }
         }
         #expect(await installer.calls == 1)

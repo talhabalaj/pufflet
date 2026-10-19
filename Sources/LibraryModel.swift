@@ -41,10 +41,13 @@ import os
         let library: URL?
         let blockingAppIDs: [String]
         let requiresRestart: Bool
+        var restartsForLibrary = false
     }
     var blockedPlay: PendingPlay?
     private(set) var queuedPlay: PendingPlay?
     private(set) var isRestartingForPlay = false
+    /// Steam support is serving a game from another library; queued installs wait for it to end.
+    private(set) var downloadsWaitForLibrary = false
     var hasDownloadWork: Bool { downloads.hasPendingWork || activeDownloadID != nil || isStoppingDownload }
     var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil }
     var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil }
@@ -175,7 +178,9 @@ import os
                 if let error = headless.takeError() { errorMessage = error }
                 if !headless.isActive { phase = .idle; nativeLaunch = false }
             }
-            if let game = takeQueuedPlayIfReady() { await play(game) }
+            // Play can take minutes; the loop must keep finishing downloads meanwhile.
+            if downloadsWaitForLibrary, !headless.hasLaunchWork, phase == .idle { downloadsWaitForLibrary = false; startNextDownload() }
+            if let game = takeQueuedPlayIfReady() { Task { await play(game) } }
             if case let .launching(id) = phase,
                let game = games.first(where: { $0.id == id }), snapshot.process(for: game) != nil {
                 phase = .idle
@@ -269,6 +274,8 @@ import os
             launchDeadline = nil
             if case let SteamSessionHost.Failure.graphicsBusy(appIDs) = error {
                 offerPlayAfterDownloads(game, blockingAppIDs: appIDs.map(String.init), requiresRestart: true)
+            } else if case let SteamSessionHost.Failure.libraryBusy(appIDs) = error {
+                offerPlayAfterDownloads(game, blockingAppIDs: appIDs.map(String.init), requiresRestart: true, forLibrary: true)
             } else { errorMessage = error.localizedDescription }
             if case SteamLaunchConfiguration.ConfigurationError.missingExecutable = error { repairGameID = game.id }
             logger.error("Game launch failed: \(error.localizedDescription)")
@@ -276,17 +283,19 @@ import os
         }
     }
 
-    func offerPlayAfterDownloads(_ game: SteamGame, blockingAppIDs: [String], requiresRestart: Bool) {
+    func offerPlayAfterDownloads(_ game: SteamGame, blockingAppIDs: [String], requiresRestart: Bool, forLibrary: Bool = false) {
         blockedPlay = PendingPlay(gameID: game.id, accountKey: downloads.accountKey,
-            library: settings.libraryURL?.resolvingSymlinksInPath(), blockingAppIDs: blockingAppIDs, requiresRestart: requiresRestart)
+            library: settings.libraryURL?.resolvingSymlinksInPath(), blockingAppIDs: blockingAppIDs, requiresRestart: requiresRestart,
+            restartsForLibrary: forLibrary)
     }
 
     var blockedPlayDetail: String {
         guard let request = blockedPlay else { return "" }
         let jobs = downloads.jobs.filter { request.blockingAppIDs.contains($0.id) }
         let status = jobs.map { "\($0.name): \(downloadActivityStatus(for: $0))" }.joined(separator: "\n")
+        let reason = request.restartsForLibrary ? "play from this game’s library" : "apply this game’s saved graphics backend"
         let explanation = request.requiresRestart
-            ? "Steam support needs to restart to apply this game’s saved graphics backend. Play when downloads finish, or restart support now and resume downloads afterward. Existing files are kept."
+            ? "Steam support needs to restart to \(reason). Play when downloads finish, or restart support now and resume downloads afterward. Existing files are kept."
             : "This game’s download or update must finish before Play. Paused downloads must be resumed first."
         return status.isEmpty ? explanation : explanation + "\n\n" + status
     }
@@ -309,7 +318,11 @@ import os
             queuedPlay = nil; errorMessage = "Play cancelled because a download needs attention. Check Downloads, then try Play again."
             return nil
         }
-        guard !hasDownloadWork, canPlay else { return nil }
+        // A restart needs the host free of all installs; otherwise only this game's
+        // own download blocks Play, and other games keep downloading alongside it.
+        let waiting = request.requiresRestart ? hasDownloadWork
+            : downloads.jobs.contains { request.blockingAppIDs.contains($0.id) && [.queued, .preparing, .installing, .paused].contains($0.state) }
+        guard !waiting, canPlay else { return nil }
         queuedPlay = nil
         return game
     }
@@ -337,6 +350,10 @@ import os
         } catch {
             phase = .idle; isRestartingForPlay = false
             errorMessage = error.localizedDescription
+            // The host may have survived; apply Stop and Pause made during the restart.
+            for job in downloads.jobs where [.stopped, .paused].contains(job.state) && headless.hasSubmittedInstall(job.id) {
+                await controlDownload(job.state == .stopped ? "cancel" : "pause", job: job)
+            }
             startNextDownload()
         }
     }
@@ -502,7 +519,8 @@ import os
 
     func startNextDownload() {
         if case .launching = phase { return }
-        guard phase != .preparingSupport, downloads.storageError == nil, downloadTask == nil, !isStoppingDownload, runtimeSetup.isReady, !runtimeSetup.isBusy,
+        guard phase != .preparingSupport, downloads.storageError == nil, downloadTask == nil, !isStoppingDownload, !downloadsWaitForLibrary,
+              runtimeSetup.isReady, !runtimeSetup.isBusy,
               headless.persistentEnabled || (activeDownloadID == nil && !headless.isActive && phase == .idle),
               let job = downloads.next else { return }
         activeDownloadID = job.id
@@ -525,6 +543,11 @@ import os
                     // Steam may still be downloading; keep the controls instead of claiming it stopped.
                     downloads.update(job.id, state: .installing)
                     errorMessage = error.localizedDescription
+                } else if case SteamSessionHost.Failure.libraryBusy = error, !isStoppingDownload,
+                          downloads.jobs.first(where: { $0.id == job.id })?.state == .preparing {
+                    // Not a download failure: retry once the other library's game ends.
+                    downloads.update(job.id, state: .queued)
+                    downloadsWaitForLibrary = true
                 } else if !isStoppingDownload, downloads.jobs.first(where: { $0.id == job.id })?.state != .stopped {
                     downloads.update(job.id, state: .failed, error: error.localizedDescription)
                     downloads.stopWaiting()
@@ -566,7 +589,14 @@ import os
     }
 
     func controlDownload(_ action: String, job: GameDownload) async {
-        guard !isRestartingForPlay, let job = downloads.jobs.first(where: { $0.id == job.id }) else { return }
+        guard let job = downloads.jobs.first(where: { $0.id == job.id }) else { return }
+        // The restart forgets every host install and requeues only preparing or
+        // installing jobs, so Stop and Pause during it are recorded locally.
+        if isRestartingForPlay {
+            if action == "cancel" { downloads.update(job.id, state: .stopped) }
+            else if action == "pause", [.preparing, .installing].contains(job.state) { downloads.update(job.id, state: .paused) }
+            return
+        }
         // A paused job retained across an explicit renderer restart has no host request yet.
         if action == "resume", job.state == .paused, !headless.hasSubmittedInstall(job.id) {
             downloads.update(job.id, state: .queued); startNextDownload()
