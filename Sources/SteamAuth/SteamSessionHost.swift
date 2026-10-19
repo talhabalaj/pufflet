@@ -151,17 +151,21 @@ actor SteamSessionHost {
         if !starting, process != nil, !ready { try await shutdownOwned() }
         let root = destination.resolvingSymlinksInPath()
         if ready {
-            try await validateReuse(runtime: runtime, identity: identity, destination: root, accountID: credentials.steamID)
+            try await validateReuse(runtime: runtime, identity: identity, destination: nil, accountID: credentials.steamID)
             guard let observed = displayConfiguration else { throw SteamDisplayProfiles.Failure.invalidSettings }
             let target = try requestedDisplay.flatMap {
                 try SteamDisplayProfiles(paths: paths).target(for: $0, observed: observed)
             }
             let changesDisplay = target.map { $0 != displayConfiguration } ?? false
             let changesGraphics = graphicsForLaunch && self.runtime?.d3dMetal != runtime.d3dMetal
-            if changesDisplay || changesGraphics {
+            // Installs use the library fixed at host startup; an idle host can
+            // move to another library, but submitted or paused work keeps it.
+            let changesDestination = self.destination?.standardizedFileURL != root.standardizedFileURL
+            if changesDisplay || changesGraphics || changesDestination {
                 guard pending.isEmpty, ongoing.isEmpty, installRequests.isEmpty,
                       installReservations.keys.allSatisfy({ $0 == installAttempt }) else {
                     if changesDisplay { throw SteamDisplayProfiles.Failure.busy }
+                    if !changesGraphics { throw Failure.stopped("Wait for Steam’s current downloads or game to finish before using another library. Existing files are kept.") }
                     throw Failure.graphicsBusy(appIDs: Array(Set(issued.values)).sorted())
                 }
                 try await shutdownOwned(notify: false)
@@ -277,9 +281,10 @@ actor SteamSessionHost {
         }
     }
 
-    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL, accountID: UInt64?, graphicsForLaunch: Bool = false) async throws {
+    // A nil destination defers the library check to the caller's restart decision.
+    private func validateReuse(runtime: SteamRuntime, identity: SteamRuntime.Identity, destination: URL?, accountID: UInt64?, graphicsForLaunch: Bool = false) async throws {
         guard ready, !stopping, runtimeIdentity == identity,
-              self.destination?.standardizedFileURL == destination.standardizedFileURL,
+              destination == nil || self.destination?.standardizedFileURL == destination?.standardizedFileURL,
               self.accountID == accountID else { throw SteamClientPackages.Failure.activeSession }
         let current = generation
         var setupRuntime = runtime
@@ -359,6 +364,10 @@ actor SteamSessionHost {
         defer { installReservations.removeValue(forKey: attempt) }
         try await startManaged(appID: appID, destination: destination, library: library, credentials: credentials,
                                runtime: runtime, installAttempt: attempt)
+        // The host installs into its startup library, so never submit to another.
+        guard self.destination?.standardizedFileURL == destination.resolvingSymlinksInPath().standardizedFileURL else {
+            throw SteamClientPackages.Failure.activeSession
+        }
         try await install(appID: appID, attempt: attempt)
     }
 
