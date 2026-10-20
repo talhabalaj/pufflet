@@ -673,7 +673,8 @@ import os
         errorMessage = nil
         do {
             try await epicLauncher.play(game, folder: folder, account: epic, runtimeApplication: application,
-                                        dockBridge: runtime.dockBridge, graphics: graphics)
+                                        dockBridge: runtime.dockBridge, graphics: graphics,
+                                        display: displayPreference(for: entry.id).configuration)
         } catch EpicLauncher.Failure.needsToolkit {
             showsGraphicsSetup = true
         } catch {

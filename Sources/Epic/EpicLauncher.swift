@@ -70,8 +70,10 @@ nonisolated enum EpicLaunch {
         }
     }
 
+    /// - Parameter display: the game's display profile; nil uses the prefix's
+    ///   defaults (standard resolution, 96 DPI).
     func play(_ game: EpicInstalledGame, folder: URL, account: EpicAccount, api: EpicAPI = EpicAPI(),
-              runtimeApplication: URL, dockBridge: URL, graphics: GraphicsSupport) async throws {
+              runtimeApplication: URL, dockBridge: URL, graphics: GraphicsSupport, display: SteamDisplayConfiguration? = nil) async throws {
         guard let id = game.gameID?.description else { return }
         if let playingID { throw Failure.busy(playingID == id ? game.title : "your other Epic game") }
         guard launchingID == nil else { return }
@@ -88,6 +90,7 @@ nonisolated enum EpicLaunch {
             ? graphics.installation : nil
 
         try await preparePrefix(runtime)
+        try await applyDisplay(display ?? Self.defaultDisplay, runtime: runtime)
         status = "Signing in to Epic…"
         let token = try await account.accessToken()
         guard let accountID = account.accountID else { throw EpicError.signedOut }
@@ -145,6 +148,25 @@ nonisolated enum EpicLaunch {
             throw error
         }
         FileManager.default.createFile(atPath: marker.path, contents: Data("1\n".utf8))
+    }
+
+    static let defaultDisplay = SteamDisplayConfiguration(retinaValue: "n", dpi: 96)
+
+    /// Writes the display profile while the prefix is stopped (no Epic game is
+    /// running here). The last applied profile is recorded so an unchanged one
+    /// costs nothing.
+    private func applyDisplay(_ configuration: SteamDisplayConfiguration, runtime: SteamRuntime) async throws {
+        let record = prefix.appendingPathComponent(".pufflet-epic-display-v1.json")
+        if let data = try? Data(contentsOf: record), (try? JSONDecoder().decode(SteamDisplayConfiguration.self, from: data)) == configuration { return }
+        status = "Applying display settings…"
+        try? FileManager.default.removeItem(at: record)
+        do {
+            try await runtime.applyDisplayConfiguration(configuration)
+        } catch {
+            try? await runtime.stopPrivatePrefix(expectedPrefix: prefix)
+            throw error
+        }
+        try JSONEncoder().encode(configuration).write(to: record, options: .atomic)
     }
 
     func returnToGame() -> Bool {

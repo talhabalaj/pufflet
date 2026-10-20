@@ -417,6 +417,7 @@ private struct GameTile: View {
 
 struct GameDisplaySettings: View {
     @Binding var selection: SteamDisplayPreference
+    var store: GameStore = .steam
 
     var body: some View {
         Section {
@@ -430,7 +431,12 @@ struct GameDisplaySettings: View {
                 }
             }
         } header: { Text("Display") }
-        footer: { Text("Applies on the next Play. Inherit uses the original settings. A different profile restarts Steam when you press Play; if something is downloading, Pufflet asks first. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.") }
+        footer: {
+            switch store {
+            case .steam: Text("Applies on the next Play. Inherit uses the original settings. A different profile restarts Steam when you press Play; if something is downloading, Pufflet asks first. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.")
+            case .epic: Text("Applies on the next Play. Inherit uses Standard. High resolution renders at your Mac’s full Retina resolution; choose the matching resolution inside the game. 192 DPI may enlarge older interfaces.")
+            }
+        }
     }
 }
 
@@ -495,6 +501,10 @@ struct GameInspector: View {
                     }
                 }
                 if game.store == .epic, game.epicInstallation != nil {
+                    GameDisplaySettings(selection: Binding(
+                        get: { model.displayPreference(for: game.id) },
+                        set: { model.setDisplayPreference($0, for: game.id) }), store: .epic)
+                        .disabled(model.isPlaying(game) || model.isLaunching(game))
                     Section("Graphics") {
                         Picker("Graphics backend", selection: Binding(get: { model.graphics.backend(for: game.id) },
                             set: { model.graphics.setBackend($0, for: game.id) })) {

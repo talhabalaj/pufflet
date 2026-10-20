@@ -231,8 +231,9 @@ Unsupported games are listed with a label and cannot be installed.
 - One downloads list for every store. A store filter is not built yet.
 - Onboarding accepts either account: Steam, Epic or both. Steam support is
   only required once a Steam account is signed in.
-- Installed Epic games have the per-game graphics backend setting. Display
-  profiles are Steam-only for now.
+- Installed Epic games have the per-game graphics backend and display profile
+  settings. The display profile is written to the Epic prefix before Play when
+  it differs from the last one applied; Inherit means Standard.
 
 ## Rollout
 
