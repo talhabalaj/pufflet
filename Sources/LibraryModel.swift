@@ -22,8 +22,17 @@ import os
     var steamSupportReady = false
     let artworkStore = SteamArtworkStore()
     let account: SteamAccount
-    /// Epic sign-in and library, behind `EpicAccount.isEnabled`. See docs/STORES.md.
-    let epic = EpicAccount()
+    /// Epic sign-in, library and downloads. See docs/STORES.md.
+    let epic: EpicAccount
+    let epicDownloads: EpicDownloads
+    private(set) var epicInstalled: [EpicInstalledGame] = []
+    @ObservationIgnored private var epicRevision = 0
+    var epicUninstallRequest: EpicUninstallRequest?
+    struct EpicUninstallRequest: Identifiable, Equatable {
+        let game: EpicInstalledGame
+        let bytes: Int64
+        var id: String { game.gameID?.description ?? game.appName }
+    }
     let headless: SteamHeadlessSession
     let ownedLibrary: SteamOwnedLibrary
     let downloads: SteamDownloadQueue
@@ -54,13 +63,15 @@ import os
     /// Steam support is serving a game from another library; queued installs wait for it to end.
     private(set) var downloadsWaitForLibrary = false
     var hasDownloadWork: Bool { downloads.hasPendingWork || activeDownloadID != nil || isStoppingDownload }
-    var canChangeLibrary: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil && uninstallingID == nil }
+    var canChangeLibrary: Bool {
+        !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil && uninstallingID == nil && !epicDownloads.hasPendingWork
+    }
     var canManageAccount: Bool { !headless.isActive && phase == .idle && !hasDownloadWork && queuedPlay == nil && uninstallingID == nil }
     /// Any work an app relaunch would interrupt, including desktop Steam and its games in our runtime.
     var shouldPostponeUpdate: Bool {
         headless.isActive || phase != .idle || runtimeSetup.isBusy || hasDownloadWork
             || queuedPlay != nil || blockedPlay != nil || isRestartingForPlay
-            || snapshot.steam != nil || games.contains(where: isPlaying) || uninstallingID != nil
+            || snapshot.steam != nil || games.contains(where: isPlaying) || uninstallingID != nil || epicDownloads.hasPendingWork
     }
     var canPlay: Bool {
         phase == .idle && downloadTask == nil && !isStoppingDownload && !runtimeSetup.isBusy && uninstallingID == nil
@@ -81,12 +92,15 @@ import os
     /// Views read this many times per update, so the merge and sort run only when a source list changes.
     var entries: [LibraryGame] {
         let installed = games, owned = ownedLibrary.games
-        if let cached = mergedEntries, cached.installed == installed, cached.owned == owned { return cached.entries }
-        let merged = LibraryGame.merge(installed: installed, owned: owned)
-        mergedEntries = (installed, owned, merged)
+        let epicOwned = epic.games, epicInstalled = epicInstalled
+        if let cached = mergedEntries, cached.installed == installed, cached.owned == owned,
+           cached.epicOwned == epicOwned, cached.epicInstalled == epicInstalled { return cached.entries }
+        let merged = LibraryGame.merge(installed: installed, owned: owned, epicOwned: epicOwned, epicInstalled: epicInstalled)
+        mergedEntries = (installed, owned, epicOwned, epicInstalled, merged)
         return merged
     }
-    @ObservationIgnored private var mergedEntries: (installed: [SteamGame], owned: [OwnedSteamGame], entries: [LibraryGame])?
+    @ObservationIgnored private var mergedEntries: (installed: [SteamGame], owned: [OwnedSteamGame], epicOwned: [EpicOwnedGame],
+                                                    epicInstalled: [EpicInstalledGame], entries: [LibraryGame])?
     @ObservationIgnored private var filteredEntries: (entries: [LibraryGame], filter: Filter, search: String, games: [LibraryGame])?
     var showsAccount = false
     var games: [SteamGame] = []
@@ -111,7 +125,7 @@ import os
     var filteredGames: [LibraryGame] {
         let entries = entries, filter = filter, search = search
         if let cached = filteredEntries, cached.entries == entries, cached.filter == filter, cached.search == search { return cached.games }
-        let games = entries.filter { (filter == .all || $0.installation != nil) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
+        let games = entries.filter { (filter == .all || $0.isInstalled) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
         filteredEntries = (entries, filter, search, games)
         return games
     }
@@ -149,15 +163,25 @@ import os
          graphics: GraphicsSupport = GraphicsSupport()) {
         self.paths = paths
         account = SteamAccount(paths: paths)
+        let epic = EpicAccount()
+        self.epic = epic
+        epicDownloads = EpicDownloads(account: epic)
         self.settings = settings; self.headless = headless; self.ownedLibrary = ownedLibrary; self.downloads = downloads
         self.graphics = graphics
         refreshLibrary()
     }
 
     var readyToPlay: Bool { settings.libraryURL != nil && runtimeSetup.isReady && account.accountName != nil && steamSupportReady }
+    /// Setup is complete with either store: Steam needs its support prepared, Epic does not.
+    var isSetUp: Bool {
+        guard settings.libraryURL != nil, runtimeSetup.isReady else { return false }
+        if account.accountName != nil { return steamSupportReady }
+        return epic.isSignedIn
+    }
 
     func beginSetup() async {
         account.refresh()
+        epic.refresh(); epicAccountChanged()
         graphics.refresh()
         await runtimeSetup.check()
         if runtimeSetup.isReady, !headless.isActive {
@@ -177,10 +201,12 @@ import os
     }
 
     func refreshLibrary() {
-        guard settings.libraryURL != nil else {
-            games = []; selectedID = nil; errorMessage = nil
+        guard let library = settings.libraryURL else {
+            games = []; epicInstalled = []; selectedID = nil; errorMessage = nil
             return
         }
+        let found = EpicInstallStore(library: library).installed()
+        if found != epicInstalled { epicInstalled = found }
         do {
             games = try installation.library()
             errorMessage = nil
@@ -201,6 +227,7 @@ import os
             let current = await SteamRuntime.snapshot(steamExecutable: desktopSteamExecutable, runtimeRoots: roots)
             if current != snapshot { snapshot = current }
             headless.poll()
+            if epicDownloads.revision != epicRevision { epicRevision = epicDownloads.revision; refreshLibrary() }
             if headless.persistentEnabled {
                 finishPersistentDownloads()
                 if let error = headless.takeError() { errorMessage = error }
@@ -574,6 +601,60 @@ import os
     }
 
     func isLaunching(_ entry: LibraryGame) -> Bool { phase == .launching(entry.id) }
+
+    // MARK: Epic
+
+    /// Loads the signed-in Epic account's queue and library.
+    func epicAccountChanged() {
+        guard epic.isSignedIn else {
+            // Signed out: stop this account's downloads before forgetting its queue.
+            Task { await epicDownloads.stopAll(); epicDownloads.activate() }
+            return
+        }
+        epicDownloads.activate()
+        Task { await epic.refreshLibrary() }
+    }
+
+    func artwork(for id: String, kind: SteamArtworkKind) async -> NSImage? {
+        guard let game = GameID(id), game.store == .epic else { return await artworkStore.image(appID: id, installation: installation, kind: kind) }
+        guard let owned = epic.games.first(where: { $0.id == id }), let url = kind == .cover ? owned.coverURL : owned.heroURL else { return nil }
+        return await artworkStore.image(url: url, key: game.fileComponent + "-" + kind.rawValue)
+    }
+
+    func epicFolder(_ entry: LibraryGame) -> URL? {
+        guard let game = entry.epicInstallation, let library = settings.libraryURL else { return nil }
+        return EpicInstallStore(library: library).folder(for: game)
+    }
+
+    private func epicJob(_ id: String) -> GameDownload? { epicDownloads.jobs.first { $0.id == id } }
+
+    func requestEpicUninstall(_ entry: LibraryGame) async {
+        if let reason = uninstallBlockReason(entry) { errorMessage = reason; return }
+        guard let game = entry.epicInstallation, let folder = epicFolder(entry) else { return }
+        let bytes = await Task.detached { EpicInstallStore.size(of: folder) }.value
+        epicUninstallRequest = EpicUninstallRequest(game: game, bytes: bytes)
+    }
+
+    func uninstallEpic(_ request: EpicUninstallRequest) async {
+        epicUninstallRequest = nil
+        guard let entry = entries.first(where: { $0.id == request.id }), entry.epicInstallation == request.game, let library = settings.libraryURL else {
+            errorMessage = "\(request.game.title) changed while you were deciding. Refresh your library and try again."
+            return
+        }
+        if let reason = uninstallBlockReason(entry) { errorMessage = reason; return }
+        uninstallingID = request.id; errorMessage = nil; message = nil
+        defer { uninstallingID = nil }
+        let store = EpicInstallStore(library: library), game = request.game
+        do {
+            let freed = try await Task.detached { try store.uninstall(game) }.value
+            epicDownloads.queue.removeFinished(request.id)
+            refreshLibrary()
+            message = "Uninstalled \(game.title) and freed \(ByteCountFormatter.string(fromByteCount: freed, countStyle: .file))"
+        } catch {
+            refreshLibrary()
+            errorMessage = "\(game.title) could not be fully uninstalled. \(error.localizedDescription)"
+        }
+    }
     func isPlaying(_ entry: LibraryGame) -> Bool { entry.installation.map(isPlaying) ?? false }
     func play(_ entry: LibraryGame) async { if let game = entry.installation { await play(game) } }
 
@@ -616,6 +697,12 @@ import os
     }
 
     func install(_ entry: LibraryGame) {
+        if entry.store == .epic {
+            guard let game = entry.epic, !entry.isInstalled, !isPending(entry), let library = settings.libraryURL else { return }
+            epicDownloads.enqueue(game, library: library)
+            if let error = epicDownloads.errorMessage { errorMessage = error; epicDownloads.errorMessage = nil }
+            return
+        }
         guard canInstall, !isSubmittingDownload(entry.id), entry.installation == nil, let owned = entry.owned, let destination = settings.libraryURL else { return }
         guard account.accountName != nil else { showsAccount = true; return }
         guard requireRuntime() else { return }
@@ -664,6 +751,12 @@ import os
     /// game stops Valve's client, so any running game or download blocks it.
     func uninstallBlockReason(_ entry: LibraryGame) -> String? {
         let name = entry.name
+        if entry.store == .epic {
+            guard entry.epicInstallation != nil else { return "\(name) isn’t installed." }
+            if uninstallingID != nil { return "Pufflet is already uninstalling a game. Wait for it to finish." }
+            if isPending(entry) { return "\(name) has a download in progress. Stop it in Downloads before uninstalling the game." }
+            return nil
+        }
         guard let game = entry.installation else { return "\(name) isn’t installed." }
         if uninstallingID != nil { return "Pufflet is already uninstalling a game. Wait for it to finish." }
         if queuedPlay != nil || blockedPlay != nil || isRestartingForPlay { return "Cancel queued Play before uninstalling a game." }
@@ -898,13 +991,17 @@ import os
     }
 
     func downloadStatus(for id: String) -> String? {
-        downloads.jobs.first { $0.id == id }.map { job in
+        if let job = epicJob(id) {
+            return job.state == .completed && !epicInstalled.contains { $0.gameID?.description == id } ? "Files missing" : job.state.title
+        }
+        return downloads.jobs.first { $0.id == id }.map { job in
             job.state == .completed && !games.contains { $0.id == id } ? "Files missing"
                 : job.state == .completed && job.kind == .update ? "Updated" : job.state.title
         }
     }
 
     func downloadActivityStatus(for job: GameDownload) -> String {
+        if GameID(job.id)?.store == .epic { return epicDownloads.activityStatus(for: job) }
         guard [.preparing, .installing, .paused].contains(job.state) else { return job.state.title }
         let report = headless.persistentEnabled ? headless.installReports[job.id] ?? SteamHostReport() : headless.report
         let bytes = report.installWork.map {
@@ -923,14 +1020,21 @@ import os
     /// Plays an installed game. A game that isn't installed opens Get Info instead,
     /// so its download size and free space are visible before anything is downloaded.
     func primaryAction(_ entry: LibraryGame) {
+        if entry.store == .epic {
+            // Epic games can't be played yet; Play stays disabled. See docs/STORES.md.
+            selectedID = entry.id; showsInspector = true
+            return
+        }
         if entry.installation == nil { selectedID = entry.id; showsInspector = true } else { Task { await play(entry) } }
     }
 
     func isPending(_ entry: LibraryGame) -> Bool {
-        downloads.jobs.contains { $0.id == entry.id && [.queued, .preparing, .installing, .paused].contains($0.state) }
+        if entry.store == .epic { return epicJob(entry.id).map { [.queued, .preparing, .installing, .paused].contains($0.state) } ?? false }
+        return downloads.jobs.contains { $0.id == entry.id && [.queued, .preparing, .installing, .paused].contains($0.state) }
     }
 
     func canStart(_ entry: LibraryGame) -> Bool {
+        if entry.store == .epic { return !entry.isInstalled && !isPending(entry) && settings.libraryURL != nil }
         if isPlaying(entry) { return true }
         if isLaunching(entry) { return false }
         if isPending(entry) { return entry.installation != nil && phase == .idle && !isRestartingForPlay }
@@ -938,6 +1042,7 @@ import os
     }
 
     func downloadProgress(for id: String) -> (done: Int64, total: Int64)? {
+        if GameID(id)?.store == .epic { return epicDownloads.fraction(for: id) }
         guard let job = downloads.jobs.first(where: { $0.id == id }), [.preparing, .installing, .paused].contains(job.state) else { return nil }
         let report = headless.persistentEnabled ? headless.installReports[id] ?? SteamHostReport() : headless.report
         return report.installWork

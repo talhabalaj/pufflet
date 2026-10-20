@@ -6,9 +6,13 @@ struct RuntimeOnboardingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var locationError: String?
     @State private var showsAccount = false
+    @State private var showsEpicSignIn = false
 
+    /// Either account is enough; Steam support is only needed once a Steam account is signed in.
+    private var epicOnly: Bool { model.epic.isSignedIn && model.account.accountName == nil }
     private var steps: [Bool] {
-        [model.settings.libraryURL != nil, model.runtimeSetup.isReady, model.account.accountName != nil, model.readyToPlay,
+        [model.settings.libraryURL != nil, model.runtimeSetup.isReady, model.account.accountName != nil || epicOnly,
+         model.readyToPlay || (epicOnly && model.runtimeSetup.isReady && model.settings.libraryURL != nil),
          model.graphics.skipped || model.graphics.installation != nil]
     }
     private var currentStep: Int? { steps.firstIndex(of: false) }
@@ -62,22 +66,31 @@ struct RuntimeOnboardingView: View {
                     }
                 }
                 Divider().padding(.leading, 38)
-                step(2, "Steam Account") {
-                    Text(model.account.accountName.map { "Signed in as \($0)." } ?? "Sign in to see the Windows games you own.")
-                } accessory: {
-                    if model.account.accountName == nil {
-                        Button("Sign In…") { showsAccount = true }.buttonStyle(.borderedProminent)
+                step(2, "Accounts") {
+                    Text("Sign in to Steam, Epic Games or both to see the Windows games you own.")
+                    HStack {
+                        Text(model.account.accountName.map { "Steam: \($0)" } ?? "Steam: not signed in")
+                        Spacer()
+                        if model.account.accountName == nil { Button("Sign In to Steam…") { showsAccount = true }.controlSize(.small) }
                     }
-                }
+                    HStack {
+                        Text(model.epic.displayName.map { "Epic Games: \($0)" } ?? "Epic Games: not signed in")
+                        Spacer()
+                        if !model.epic.isSignedIn { Button("Sign In to Epic Games…") { showsEpicSignIn = true }.controlSize(.small) }
+                    }
+                    if let error = model.epic.errorMessage { Text(error).foregroundStyle(.red) }
+                } accessory: { EmptyView() }
                 Divider().padding(.leading, 38)
                 step(3, "Steam Support") {
                     Text(model.steamSupportReady ? "Steam support is prepared. Choose a game and press Play."
-                         : model.headless.isActive ? model.headless.status : "Prepare Valve’s verified Steam components and your private Windows prefix.")
+                         : model.headless.isActive ? model.headless.status
+                         : epicOnly ? "Only needed for Steam games. You can prepare it later."
+                         : "Prepare Valve’s verified Steam components and your private Windows prefix.")
                     if let error = model.errorMessage { Text(error).foregroundStyle(.red) }
                 } accessory: {
                     if model.headless.isActive {
                         ProgressView().controlSize(.small)
-                    } else if !model.steamSupportReady {
+                    } else if !model.steamSupportReady && !epicOnly {
                         Button("Prepare") { Task { await model.prepareSteamSupport() } }
                             .buttonStyle(.borderedProminent)
                             .disabled(!model.runtimeSetup.isReady || model.settings.libraryURL == nil)
@@ -98,12 +111,13 @@ struct RuntimeOnboardingView: View {
             HStack {
                 Spacer()
                 Button("Continue Later") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Open Library") { dismiss() }.keyboardShortcut(.defaultAction).disabled(!model.readyToPlay || !steps[4])
+                Button("Open Library") { dismiss() }.keyboardShortcut(.defaultAction).disabled(!model.isSetUp || !steps[4])
             }
         }
         .padding(22).frame(width: 560)
         .fixedSize(horizontal: false, vertical: true)
         .sheet(isPresented: $showsAccount, onDismiss: { model.account.refresh() }) { SteamAccountView(account: model.account, sessionActive: !model.canManageAccount) }
+        .sheet(isPresented: $showsEpicSignIn) { EpicSignInSheet(account: model.epic) }
         .interactiveDismissDisabled(model.runtimeSetup.isBusy)
     }
 

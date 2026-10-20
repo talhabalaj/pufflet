@@ -39,6 +39,7 @@ struct LibraryView: View {
         .sheet(isPresented: $model.showsSetup) { RuntimeOnboardingView(model: model) }
         .sheet(isPresented: $model.showsGraphicsSetup) { GamePortingToolkitSetup(support: model.graphics) }
         .onChange(of: model.account.accountName) { model.accountChanged() }
+        .onChange(of: model.epic.accountID) { model.epicAccountChanged() }
         .onChange(of: model.searchRequest) { searchFocused = true }
         .sheet(isPresented: $model.showsAccount) { SteamAccountView(account: model.account, sessionActive: !model.canManageAccount) }
         .confirmationDialog("Sign out of Steam?", isPresented: $model.confirmsSignOut) {
@@ -50,6 +51,14 @@ struct LibraryView: View {
             Button("Uninstall", role: .destructive) { Task { await model.uninstall(request) } }
             Button("Cancel", role: .cancel) { model.uninstallRequest = nil }
         } message: { request in Text(Self.uninstallMessage(request)) }
+        .confirmationDialog("Uninstall “\(model.epicUninstallRequest?.game.title ?? "")”?",
+                            isPresented: Binding(get: { model.epicUninstallRequest != nil }, set: { if !$0 { model.epicUninstallRequest = nil } }),
+                            presenting: model.epicUninstallRequest) { request in
+            Button("Uninstall", role: .destructive) { Task { await model.uninstallEpic(request) } }
+            Button("Cancel", role: .cancel) { model.epicUninstallRequest = nil }
+        } message: { request in
+            Text("This frees \(ByteCountFormatter.string(fromByteCount: request.bytes, countStyle: .file)) by deleting the game’s folder. You can reinstall it from your library at any time.")
+        }
         .alert(errorParts.title, isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil; model.retryPlayID = nil } })) {
             if let id = model.retryPlayID, let entry = model.entries.first(where: { $0.id == id }) {
                 // A lost connection is Steam's, not the account's: Retry signs in again on its own.
@@ -92,7 +101,7 @@ struct LibraryView: View {
 
     private var subtitle: String {
         guard !model.entries.isEmpty else { return "" }
-        let installed = model.entries.filter { $0.installation != nil }.count
+        let installed = model.entries.filter(\.isInstalled).count
         return "\(model.entries.count) games, \(installed) installed"
     }
 
@@ -104,26 +113,27 @@ struct LibraryView: View {
     }
 
     @ViewBuilder private var emptyLibrary: some View {
-        if model.ownedLibrary.isRefreshing {
+        if model.ownedLibrary.isRefreshing || (model.epic.isBusy && model.epic.games.isEmpty) {
             ContentUnavailableView {
                 Label("Loading Your Games", systemImage: "gamecontroller")
-            } description: { Text("Pufflet is getting the Windows games you own from Steam.") }
-        } else if model.account.accountName == nil {
+            } description: { Text("Pufflet is getting the Windows games you own.") }
+        } else if model.account.accountName == nil && !model.epic.isSignedIn {
             ContentUnavailableView {
                 Label("Sign In to See Your Games", systemImage: "gamecontroller")
             } description: {
-                Text("Pufflet shows the Windows games you own on Steam. You can also use a Steam library folder you already have.")
+                Text("Pufflet shows the Windows games you own on Steam and Epic Games. You can also use a Steam library folder you already have.")
             } actions: {
                 Button("Sign In to Steam…") { model.showsAccount = true }.buttonStyle(.borderedProminent).controlSize(.large)
+                Button("Sign In to Epic Games…") { model.settingsTab = .epic; openSettings() }.controlSize(.large)
                 Button("Choose Library Folder…", action: chooseLibrary).controlSize(.large).disabled(!model.canChangeLibrary)
             }
         } else {
             ContentUnavailableView {
                 Label("No Games to Show", systemImage: "gamecontroller")
             } description: {
-                Text("Pufflet didn’t find any Windows games in your Steam account or library folder.")
+                Text("Pufflet didn’t find any Windows games in your accounts or library folder.")
             } actions: {
-                Button("Refresh Library") { model.refresh() }.controlSize(.large)
+                Button("Refresh Library") { model.refresh(); Task { await model.epic.refreshLibrary() } }.controlSize(.large)
                 Button("Choose Library Folder…", action: chooseLibrary).controlSize(.large).disabled(!model.canChangeLibrary)
             }
         }
@@ -215,6 +225,7 @@ private struct DownloadsToolbarButton: View {
 
     var body: some View {
         let active = model.activeDownloadID.flatMap { id in model.downloads.jobs.first { $0.id == id } }
+            ?? model.epicDownloads.activeID.flatMap { id in model.epicDownloads.jobs.first { $0.id == id } }
         Button { model.showsDownloads.toggle() } label: {
             if let active, let work = model.downloadProgress(for: active.id) {
                 Label {
@@ -242,19 +253,26 @@ struct GameMenuItems: View {
 
     var body: some View {
         let installed = game?.installation
-        Button(primaryTitle) { if let game { model.primaryAction(game) } }
+        let folder = installed?.folder ?? game.flatMap(model.epicFolder)
+        Button(primaryTitle) { if let game { if game.store == .epic { model.install(game) } else { model.primaryAction(game) } } }
             .keyboardShortcut(inContextMenu ? nil : KeyboardShortcut("o"))
             .disabled(game.map { !model.canStart($0) } ?? true)
-        Button("Show in Finder") { if let installed { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: installed.folder.path) } }
+        Button("Show in Finder") { if let folder { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path) } }
             .keyboardShortcut(inContextMenu ? nil : KeyboardShortcut("r", modifiers: [.command, .shift]))
-            .disabled(installed == nil)
+            .disabled(folder == nil)
         Button("Get Info") {
             guard let game else { return }
             if inContextMenu { model.selectedID = game.id; model.showsInspector = true } else { model.showsInspector.toggle() }
         }
         .keyboardShortcut(inContextMenu ? nil : KeyboardShortcut("i"))
         .disabled(game == nil)
-        if !inContextMenu || installed != nil {
+        if let game, game.store == .epic {
+            if game.epicInstallation != nil {
+                Divider()
+                Button("Uninstall…", role: .destructive) { Task { await model.requestEpicUninstall(game) } }
+                    .disabled(model.uninstallingID != nil)
+            }
+        } else if !inContextMenu || installed != nil {
             Divider()
             if installed?.isUpdatePending == true, let game {
                 Button("Update") { model.update(game) }.disabled(!model.canUpdate(game))
@@ -277,7 +295,7 @@ struct GameMenuItems: View {
         guard let game else { return "Play" }
         if model.isPlaying(game) { return "Return to Game" }
         if model.isLaunching(game) { return "Launching…" }
-        if game.installation != nil { return "Play" }
+        if game.isInstalled { return "Play" }
         return model.isPending(game) ? "Downloading…" : "Install…"
     }
 }
@@ -318,17 +336,20 @@ private struct GameTile: View {
             .overlay(alignment: .bottomLeading) {
                 if hovering, model.canStart(game) {
                     let playing = model.isPlaying(game)
-                    Button(playing ? "Return to Game" : game.installation == nil ? "Install" : "Play",
-                           systemImage: playing ? "arrow.up.forward" : game.installation == nil ? "arrow.down" : "play.fill") {
+                    Button(playing ? "Return to Game" : !game.isInstalled ? "Install" : "Play",
+                           systemImage: playing ? "arrow.up.forward" : !game.isInstalled ? "arrow.down" : "play.fill") {
                         model.selectedID = game.id
-                        if game.installation == nil { model.install(game) } else { model.primaryAction(game) }
+                        if !game.isInstalled { model.install(game) } else { model.primaryAction(game) }
                     }
                     .labelStyle(.iconOnly).font(.title3)
                     .buttonStyle(.glassProminent).buttonBorderShape(.circle).controlSize(.extraLarge)
-                    .disabled(game.installation == nil && !model.canInstall)
-                    .help(playing ? "Return to \(game.name)" : game.installation == nil ? "Install \(game.name)" : "Play \(game.name)")
+                    .disabled(!game.isInstalled && game.store == .steam && !model.canInstall)
+                    .help(playing ? "Return to \(game.name)" : !game.isInstalled ? "Install \(game.name)" : "Play \(game.name)")
                     .padding(8)
                 }
+            }
+            .overlay(alignment: .topTrailing) {
+                if game.store == .epic { StoreBadge(store: .epic).padding(8) }
             }
             .padding(4)
             .background(selected ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 11))
@@ -352,7 +373,7 @@ private struct GameTile: View {
         .accessibilityAction { if model.canStart(game) { model.primaryAction(game) } }
         .accessibilityAction(named: "Get Info") { model.selectedID = game.id; model.showsInspector = true }
         .accessibilityActions { if model.canUpdate(game) { Button("Update") { model.update(game) } } }
-        .task(id: game.id) { artwork = await model.artworkStore.image(appID: game.id, installation: model.installation, kind: .cover) }
+        .task(id: game.id) { artwork = await model.artwork(for: game.id, kind: .cover) }
     }
 
     private var statusText: String {
@@ -360,7 +381,7 @@ private struct GameTile: View {
         if model.isPlaying(game) { return "Playing" }
         if model.isLaunching(game) { return "Launching" }
         if game.installation?.isUpdatePending == true { return "Update pending" }
-        return model.downloadStatus(for: game.id) ?? (game.installation == nil ? "Not installed" : "Installed")
+        return model.downloadStatus(for: game.id) ?? (!game.isInstalled ? "Not installed" : "Installed")
     }
 
     @ViewBuilder private var status: some View {
@@ -375,7 +396,7 @@ private struct GameTile: View {
                 ProgressView(value: Double(work.done), total: Double(work.total)).controlSize(.mini)
                 Text((Double(work.done) / Double(work.total)).formatted(.percent.precision(.fractionLength(0)))).monospacedDigit()
             }
-        } else if let state = model.downloads.jobs.first(where: { $0.id == game.id })?.state, state == .failed {
+        } else if let state = (model.downloads.jobs + model.epicDownloads.jobs).first(where: { $0.id == game.id })?.state, state == .failed {
             Label(state.title, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
         } else if game.installation?.isUpdatePending == true {
             if model.canUpdate(game) {
@@ -389,7 +410,7 @@ private struct GameTile: View {
             Text(status)
         } else {
             // Most of a library isn't installed, so only "Installed" is called out. The space is kept so rows line up.
-            Text(game.installation == nil ? " " : "Installed")
+            Text(!game.isInstalled ? " " : "Installed")
         }
     }
 }
@@ -429,6 +450,9 @@ struct GameInspector: View {
                         .accessibilityHidden(true)
                         Text(game.name).font(.title3.weight(.semibold)).multilineTextAlignment(.center)
                         primaryButton(game)
+                        if game.epicInstallation != nil {
+                            Text("Playing Epic games in Pufflet is coming soon.").font(.caption).foregroundStyle(.secondary)
+                        }
                         if model.isLaunching(game) {
                             Text(model.message ?? "Starting…").font(.caption).foregroundStyle(.secondary)
                         }
@@ -442,7 +466,14 @@ struct GameInspector: View {
                             if model.canUpdate(game) { Button("Update") { model.update(game) }.controlSize(.small) }
                         }
                     }
-                    if let installed = game.installation {
+                    if let installed = game.epicInstallation {
+                        LabeledContent("Store", value: "Epic Games")
+                        LabeledContent("Size", value: ByteCountFormatter.string(fromByteCount: installed.installSize, countStyle: .file))
+                        if let folder = model.epicFolder(game) {
+                            LabeledContent("Location") { folderLabel(folder.deletingLastPathComponent()).help(folder.path) }
+                        }
+                        LabeledContent("Version", value: installed.buildVersion)
+                    } else if let installed = game.installation {
                         LabeledContent("Size", value: installed.sizeDescription)
                         LabeledContent("Location") {
                             folderLabel(installed.folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent())
@@ -450,6 +481,10 @@ struct GameInspector: View {
                         }
                         LabeledContent("Branch", value: installed.branch)
                     } else {
+                        if game.store == .epic { LabeledContent("Store", value: "Epic Games") }
+                        if let store = game.epic?.thirdPartyStore {
+                            Text("Installed through \(store), which Pufflet doesn’t support yet.").font(.caption).foregroundStyle(.secondary)
+                        }
                         if let bytes = game.owned?.estimatedBytes {
                             LabeledContent("Download size", value: "About " + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
                         }
@@ -462,9 +497,26 @@ struct GameInspector: View {
                         }
                     }
                 }
-                GameDisplaySettings(selection: Binding(
-                    get: { model.displayPreference(for: game.id) },
-                    set: { model.setDisplayPreference($0, for: game.id) }))
+                if game.store == .epic, game.epicInstallation != nil {
+                    Section {
+                        Button("Show in Finder") { if let folder = model.epicFolder(game) { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path) } }
+                    }
+                    Section {
+                        let blocked = model.uninstallBlockReason(game)
+                        Button("Uninstall…", role: .destructive) { Task { await model.requestEpicUninstall(game) } }
+                            .disabled(blocked != nil)
+                        if let blocked, model.uninstallingID != game.id {
+                            Text(blocked).font(.caption).foregroundStyle(.secondary)
+                        }
+                    } footer: {
+                        Text("Deletes the game’s folder to free disk space.")
+                    }
+                }
+                if game.store == .steam {
+                    GameDisplaySettings(selection: Binding(
+                        get: { model.displayPreference(for: game.id) },
+                        set: { model.setDisplayPreference($0, for: game.id) }))
+                }
                 if let installed = game.installation {
                     Section("Graphics") {
                         Picker("Graphics backend", selection: Binding(get: { model.graphics.backend(for: game.id) },
@@ -498,14 +550,14 @@ struct GameInspector: View {
                 }
             }
             .formStyle(.grouped)
-            .task(id: game.id) { artwork = await model.artworkStore.image(appID: game.id, installation: model.installation, kind: .cover) }
+            .task(id: game.id) { artwork = await model.artwork(for: game.id, kind: .cover) }
             .onChange(of: model.settings.libraryURL) { availableBytes = nil }
             .task(id: AvailableSpaceRequest(gameID: game.id, library: model.settings.libraryURL,
-                                           isInstalled: game.installation != nil, isPresented: model.showsInspector)) {
+                                           isInstalled: game.isInstalled, isPresented: model.showsInspector)) {
                 // Keep the last value while refreshing so the row doesn't flicker between games.
                 guard model.showsInspector else { return }
                 guard let library = model.settings.libraryURL else { availableBytes = nil; return }
-                guard game.installation == nil else { return }
+                guard !game.isInstalled else { return }
                 while !Task.isCancelled {
                     let bytes = await Self.availableBytes(at: library)
                     guard !Task.isCancelled else { return }
@@ -527,13 +579,14 @@ struct GameInspector: View {
             .buttonStyle(.glass).controlSize(.large)
         } else {
             let playing = model.isPlaying(game)
-            Button { if game.installation == nil { model.install(game) } else { model.primaryAction(game) } } label: {
-                Label(playing ? "Return to Game" : model.isLaunching(game) ? "Launching…" : game.installation == nil ? "Install" : "Play",
-                      systemImage: playing ? "arrow.up.forward" : game.installation == nil ? "arrow.down" : "play.fill")
+            Button { if !game.isInstalled { model.install(game) } else { model.primaryAction(game) } } label: {
+                Label(playing ? "Return to Game" : model.isLaunching(game) ? "Launching…" : !game.isInstalled ? "Install" : "Play",
+                      systemImage: playing ? "arrow.up.forward" : !game.isInstalled ? "arrow.down" : "play.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.glassProminent).controlSize(.large)
-            .disabled(game.installation == nil ? !model.canInstall : !model.canStart(game))
+            .disabled(game.store == .epic ? !model.canStart(game) || game.epic?.thirdPartyStore != nil
+                      : game.installation == nil ? !model.canInstall : !model.canStart(game))
         }
     }
 
@@ -556,7 +609,7 @@ struct GameInspector: View {
             return "Downloading, " + (Double(work.done) / Double(work.total)).formatted(.percent.precision(.fractionLength(0)))
         }
         if game.installation?.isUpdatePending == true { return "Update pending" }
-        return model.downloadStatus(for: game.id) ?? (game.installation == nil ? "Not installed" : "Installed")
+        return model.downloadStatus(for: game.id) ?? (!game.isInstalled ? "Not installed" : "Installed")
     }
 
     private func folderLabel(_ folder: URL) -> some View {
@@ -605,6 +658,12 @@ private struct StatusBar: View {
                 Text("\(job.name): \(model.downloadActivityStatus(for: job))")
                 Spacer()
             }
+        } else if let id = model.epicDownloads.activeID, let job = model.epicDownloads.jobs.first(where: { $0.id == id }) {
+            bar {
+                ProgressView().controlSize(.small)
+                Text("\(job.name): \(model.downloadActivityStatus(for: job))")
+                Spacer()
+            }
         } else if model.ownedLibrary.isRefreshing, !model.entries.isEmpty {
             bar { ProgressView().controlSize(.small); Text("Loading your Steam games…"); Spacer() }
         } else if let error = model.ownedLibrary.errorMessage {
@@ -628,5 +687,18 @@ private struct StatusBar: View {
             .frame(maxWidth: .infinity)
             .background(.bar)
             .overlay(alignment: .top) { Divider() }
+    }
+}
+
+/// Marks games from a store other than Steam, which most of a library comes from.
+struct StoreBadge: View {
+    let store: GameStore
+
+    var body: some View {
+        Text(store == .epic ? "Epic" : "Steam")
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(.ultraThinMaterial, in: .capsule)
+            .accessibilityLabel(store == .epic ? "Epic Games" : "Steam")
     }
 }

@@ -82,32 +82,22 @@ struct GameID: Hashable, Codable, Sendable, CustomStringConvertible {
 - Cache and settings file names derived from a `GameID` use a fixed encoding
   (`epic_<AppName>`), never `:`.
 
-## Store protocol
+## Store integration
 
-```swift
-protocol GameStoreBackend: Sendable {
-    var store: GameStore { get }
-    func account() async -> StoreAccountState
-    func ownedGames() async throws -> [StoreGame]
-    func installedGames() async throws -> [InstalledStoreGame]
-    func install(_ id: GameID, into root: URL) -> AsyncThrowingStream<InstallProgress, Error>
-    func verify(_ id: GameID) -> AsyncThrowingStream<InstallProgress, Error>
-    func uninstall(_ id: GameID) async throws
-    func prepareLaunch(_ id: GameID) async throws -> LaunchPlan
-}
-```
+The design proposed a `GameStoreBackend` protocol with Steam conforming. In the
+implementation the two stores share data, not behaviour: Steam's work happens
+inside Valve's client through `SteamSessionHost`, and Epic's happens in Swift.
+So there is no protocol yet:
 
-- `StoreGame` carries title, artwork URLs, size estimate, compatibility flags
-  and DLC relation. `LibraryGame` becomes store-neutral over it.
-- Steam conforms by wrapping today's code: install/launch still go through
-  `SteamSessionHost`, so `prepareLaunch` for Steam returns a host-mediated plan
-  rather than an executable.
-- `LaunchPlan` is either `.steamHost(appID, option)` or
-  `.direct(executable, arguments, workingDirectory, environment)`.
+- `LibraryGame` carries each store's own records (`installation`/`owned` for
+  Steam, `epic`/`epicInstallation` for Epic) plus `store` and `isInstalled`.
+  Steam entries are unchanged.
+- `LibraryModel` routes install, status, progress and uninstall by
+  `entry.store`. Steam code paths are untouched.
+- Epic downloads run in `EpicDownloads`, separate from Steam's queue and host,
+  and appear in the same Downloads list.
 
-The protocol is extracted together with the Epic library (rollout step 3), so
-it is shaped by two real implementations rather than guessed from one. Steam's
-behaviour does not change when it conforms.
+Revisit a protocol when a third store (GOG) shows what is really shared.
 
 ## Prefix ownership
 
@@ -157,9 +147,9 @@ Pufflet is not affiliated with Epic.
 
 ### Library
 
-- Owned items: `library-service.live.use1a.on.epicgames.com/library/api/public/items`
-  (cursor-paginated).
-- Builds: `launcher-public-service-prod06…/launcher/api/public/assets/Windows?label=Live`.
+- Ownership: the Windows assets list,
+  `launcher-public-service-prod06…/launcher/api/public/assets/Windows?label=Live`,
+  as Legendary does. The library-items service is not needed.
 - Metadata: `catalog-public-service-prod06…/catalog/api/shared/namespace/{ns}/bulk/items`.
 - Keep only items with a Windows build and no `mainGameItem` (DLC is shown on
   its parent). Drop engine/asset-store content.
@@ -176,16 +166,18 @@ Pufflet is not affiliated with Epic.
   manifests. Download `ChunksV4` chunks (magic `0xB1FE3AA2`) with bounded
   concurrency, decompress, verify, and write files; verify every file SHA-1
   before marking the install complete.
-- Resume from a persisted per-install state file. Pause/cancel keep partial
-  files; uninstall removes them.
+- Resume and repair by verification: a run downloads only the chunks of files
+  that are missing or fail SHA-1, so no per-install state file is needed.
+  Pause and stop keep downloaded files; uninstall removes them.
 - Updates download the new manifest, reuse unchanged chunks from installed
   files, and replace files atomically.
 - Layout: `<library root>/Epic/<FolderName>`, beside `steamapps`, plus
   `<library root>/Epic/.pufflet/<AppName>.json` (installed version, manifest
   hash, executable, launch parameters, install size).
-- Jobs join the existing downloads queue. `GameDownload` gains a `GameID`;
-  Steam jobs still run through the host, Epic jobs through the Swift
-  downloader. One active download at a time across stores.
+- Jobs use the `GameDownload` model in their own queue, persisted per Epic
+  account, and are listed with Steam's in Downloads. One Epic download runs at
+  a time; it can run beside a Steam download, since it never touches Valve's
+  client or the Wine prefix. Downloading needs no Windows support.
 - Test against recorded manifests and chunk fixtures, with Legendary's output
   as the oracle.
 
@@ -238,22 +230,26 @@ Unsupported games are listed with a label and cannot be installed.
 
 ## UI
 
-- A store badge on tiles and in the inspector.
+- An "Epic" badge on Epic tiles; the inspector names the store.
 - Settings gains an "Epic Games" tab beside "Steam" for sign-in state and
   sign-out.
-- Library filters: All / Steam / Epic. One downloads list for every store.
-- Per-game display and graphics settings work for any `GameID`.
+- One downloads list for every store. A store filter is not built yet.
+- Onboarding accepts either account: Steam, Epic or both. Steam support is
+  only required once a Steam account is signed in.
+- Display and graphics settings are hidden for Epic games until they can be
+  played.
 
 ## Rollout
 
 1. `GameID`; store-neutral persisted keys (download queue, display profiles,
    artwork cache) accept it. No behaviour change for Steam.
-2. `PrefixCoordinator` and leases; Steam host becomes a lease holder.
-3. Store protocol with Steam conforming; Epic sign-in and library
-   (read-only), behind `PUFFLET_EPIC=1`.
-4. Epic downloader, verify and uninstall.
-5. Epic launch and exit tracking.
-6. Updates, cloud saves, compatibility labels; remove the flag.
+2. Epic sign-in and library (read-only).
+3. Epic manifest parser and downloader.
+4. Epic games in the library, Downloads and onboarding; install and
+   uninstall.
+5. `PrefixCoordinator` and leases, then Epic launch and exit tracking. The
+   coordinator moved here so it lands with its first user.
+6. Updates, cloud saves, compatibility labels.
 7. GOG reusing phases 1, 2 and 5.
 
 Each phase is one PR with tests. Live checks that touch `PuffletDev` or sign in

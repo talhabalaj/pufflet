@@ -20,29 +20,32 @@ struct DownloadsView: View {
     @Bindable var model: LibraryModel
     private let rowHeight: CGFloat = 60
 
+    /// Steam's queue, then Epic's.
+    private var jobs: [GameDownload] { model.downloads.jobs + model.epicDownloads.jobs }
+
     var body: some View {
-        let updates = model.updatableGames
-        if model.downloads.jobs.isEmpty && updates.isEmpty {
+        let updates = model.updatableGames, jobs = jobs
+        if jobs.isEmpty && updates.isEmpty {
             ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle", description: Text("Games you install appear here."))
                 .frame(width: 340, height: 200)
         } else {
             VStack(spacing: 0) {
-                if let error = model.downloads.storageError {
+                if let error = model.downloads.storageError ?? model.epicDownloads.queue.storageError {
                     Label(error, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
                         .font(.callout).frame(maxWidth: .infinity, alignment: .leading).padding(12)
                     Divider()
                 }
-                if !model.downloads.jobs.isEmpty {
+                if !jobs.isEmpty {
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(model.downloads.jobs) { job in
+                            ForEach(jobs) { job in
                                 DownloadRow(job: job, model: model).frame(height: rowHeight)
-                                if job.id != model.downloads.jobs.last?.id { Divider().padding(.leading, 56) }
+                                if job.id != jobs.last?.id { Divider().padding(.leading, 56) }
                             }
                         }
                     }
                     // Rows have a fixed height, so the list is as tall as its rows (up to five) instead of collapsing in the popover.
-                    .frame(height: CGFloat(min(model.downloads.jobs.count, 5)) * (rowHeight + 1))
+                    .frame(height: CGFloat(min(jobs.count, 5)) * (rowHeight + 1))
                     Divider()
                 }
                 HStack {
@@ -52,8 +55,8 @@ struct DownloadsView: View {
                         Button("Update All") { model.updateAll() }
                             .help("Download Steam updates for " + ListFormatter.localizedString(byJoining: updates.map(\.name)))
                     }
-                    Button("Clear") { model.downloads.clearFinished() }
-                        .disabled(!model.downloads.hasFinished)
+                    Button("Clear") { model.downloads.clearFinished(); model.epicDownloads.queue.clearFinished() }
+                        .disabled(!model.downloads.hasFinished && !model.epicDownloads.queue.hasFinished)
                         .help("Remove finished and stopped downloads from this list")
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
@@ -63,7 +66,7 @@ struct DownloadsView: View {
     }
 
     private func summary(updates: Int) -> String {
-        let pending = model.downloads.jobs.filter { [.queued, .preparing, .installing, .paused].contains($0.state) }.count
+        let pending = jobs.filter { [.queued, .preparing, .installing, .paused].contains($0.state) }.count
         if pending > 0 { return pending == 1 ? "1 download in progress or waiting" : "\(pending) downloads in progress or waiting" }
         if updates > 0 { return updates == 1 ? "1 game has an update" : "\(updates) games have updates" }
         return "No downloads in progress"
@@ -76,6 +79,7 @@ private struct DownloadRow: View {
     @State private var artwork: NSImage?
 
     private var isActive: Bool { [.preparing, .installing, .paused].contains(job.state) }
+    private var isEpic: Bool { GameID(job.id)?.store == .epic }
     private var report: SteamHostReport {
         model.headless.persistentEnabled ? model.headless.installReports[job.id] ?? SteamHostReport() : model.headless.report
     }
@@ -90,7 +94,7 @@ private struct DownloadRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(job.name).lineLimit(1)
                 if isActive {
-                    if let work = report.installWork {
+                    if let work = isEpic ? model.epicDownloads.fraction(for: job.id) : report.installWork {
                         ProgressView(value: Double(work.done), total: Double(work.total)).controlSize(.small)
                     } else {
                         ProgressView().progressViewStyle(.linear).controlSize(.small)
@@ -103,7 +107,7 @@ private struct DownloadRow: View {
                 .buttonStyle(.borderless).labelStyle(.iconOnly).imageScale(.large).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
-        .task(id: job.id) { artwork = await model.artworkStore.image(appID: job.id, installation: model.installation, kind: .cover) }
+        .task(id: job.id) { artwork = await model.artwork(for: job.id, kind: .cover) }
     }
 
     @ViewBuilder private var subtitle: some View {
@@ -120,6 +124,38 @@ private struct DownloadRow: View {
     }
 
     @ViewBuilder private var actions: some View {
+        if isEpic { epicActions } else { steamActions }
+    }
+
+    /// Epic downloads run in Pufflet itself: pausing keeps verified files, and
+    /// Resume or Retry only downloads what is missing.
+    @ViewBuilder private var epicActions: some View {
+        switch job.state {
+        case .preparing, .installing, .paused:
+            Button(job.state == .paused ? "Resume" : "Pause", systemImage: job.state == .paused ? "play.circle.fill" : "pause.circle.fill") {
+                if job.state == .paused { model.epicDownloads.resume(job.id) } else { model.epicDownloads.pause(job.id) }
+            }
+            .help(job.state == .paused ? "Resume download" : "Pause download")
+            .disabled(job.state == .preparing)
+            Button("Stop", systemImage: "xmark.circle.fill") { model.epicDownloads.cancel(job.id) }
+                .help("Stop download. Downloaded files are kept, and Retry continues from them.")
+        case .queued:
+            Button("Remove from Queue", systemImage: "xmark.circle.fill") { model.epicDownloads.queue.removeQueued(job.id) }
+                .help("Remove from queue")
+        case .failed, .stopped, .interrupted:
+            Button("Retry", systemImage: "arrow.clockwise.circle.fill") { model.epicDownloads.resume(job.id) }
+                .help("Retry. Pufflet checks the existing files and downloads only what’s missing.")
+        case .completed:
+            if let entry = model.entries.first(where: { $0.id == job.id }), let folder = model.epicFolder(entry) {
+                Button("Show in Finder", systemImage: "magnifyingglass.circle.fill") {
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+                }
+                .help("Show in Finder")
+            }
+        }
+    }
+
+    @ViewBuilder private var steamActions: some View {
         switch job.state {
         case .preparing, .installing, .paused:
             if model.headless.persistentEnabled {

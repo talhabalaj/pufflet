@@ -96,6 +96,7 @@
 		E91C00000000000000000006 /* EpicAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000005 /* EpicAccountView.swift */; };
 		E91C00000000000000000008 /* EpicLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000007 /* EpicLibrary.swift */; };
 		E91C00000000000000000010 /* EpicLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000009 /* EpicLibraryTests.swift */; };
+		E91C00000000000000000019 /* EpicInstalls.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000018 /* EpicInstalls.swift */; };
 		E91C00000000000000000017 /* EpicManifestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000016 /* EpicManifestTests.swift */; };
 		E91C00000000000000000015 /* EpicDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000014 /* EpicDownloader.swift */; };
 		E91C00000000000000000013 /* EpicManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000012 /* EpicManifest.swift */; };
@@ -204,6 +205,7 @@
 		E91C00000000000000000005 /* EpicAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicAccountView.swift; sourceTree = "<group>"; };
 		E91C00000000000000000007 /* EpicLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicLibrary.swift; sourceTree = "<group>"; };
 		E91C00000000000000000009 /* EpicLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicLibraryTests.swift; sourceTree = "<group>"; };
+		E91C00000000000000000018 /* EpicInstalls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicInstalls.swift; sourceTree = "<group>"; };
 		E91C00000000000000000016 /* EpicManifestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicManifestTests.swift; sourceTree = "<group>"; };
 		E91C00000000000000000014 /* EpicDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicDownloader.swift; sourceTree = "<group>"; };
 		E91C00000000000000000012 /* EpicManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicManifest.swift; sourceTree = "<group>"; };
@@ -293,6 +295,7 @@
 				E91C00000000000000000003 /* EpicAccount.swift */,
 				E91C00000000000000000005 /* EpicAccountView.swift */,
 				E91C00000000000000000007 /* EpicLibrary.swift */,
+				E91C00000000000000000018 /* EpicInstalls.swift */,
 				E91C00000000000000000014 /* EpicDownloader.swift */,
 				E91C00000000000000000012 /* EpicManifest.swift */,
 			);
@@ -662,6 +665,7 @@
 				E91C00000000000000000004 /* EpicAccount.swift in Sources */,
 				E91C00000000000000000006 /* EpicAccountView.swift in Sources */,
 				E91C00000000000000000008 /* EpicLibrary.swift in Sources */,
+				E91C00000000000000000019 /* EpicInstalls.swift in Sources */,
 				E91C00000000000000000015 /* EpicDownloader.swift in Sources */,
 				E91C00000000000000000013 /* EpicManifest.swift in Sources */,
 				CC59B1A5372C0EB45684D59C /* SteamSession.swift in Sources */,

@@ -5,7 +5,7 @@ import zlib
 @testable import SteamLibrary
 
 /// Builds manifests and chunks in Epic's binary format, so tests need no real game data.
-nonisolated private struct Builder {
+nonisolated struct Builder {
     struct FileSpec { var name: String; var content: Data; var executable = false; var link = "" }
     var files: [FileSpec]
     var chunkSize = 64
@@ -318,4 +318,127 @@ nonisolated private final class Locked<T>: @unchecked Sendable {
     init(_ value: T) { _value = value }
     var value: T { lock.withLock { _value } }
     func set(_ value: T) { lock.withLock { _value = value } }
+}
+
+/// Epic sign-in, manifest API, CDN and chunks behind one fake transport.
+nonisolated private final class FakeEpicService: @unchecked Sendable {
+    private let lock = NSLock()
+    private var files: [String: (Int, Data)] = [:]
+    func set(_ path: String, _ body: Data, status: Int = 200) { lock.withLock { files[path] = (status, body) } }
+    var transport: EpicAPI.Transport {
+        { [self] request in
+            let url = request.url!
+            let found = lock.withLock { files.first { (url.host! + url.path).hasSuffix($0.key) }?.value }
+            return (found?.1 ?? Data(), HTTPURLResponse(url: url, statusCode: found?.0 ?? 404, httpVersion: nil, headerFields: nil)!)
+        }
+    }
+
+    /// Serves one game, "Hazelnut", whose build is `builder`'s content.
+    static func serving(_ builder: inout Builder, thirdParty: Bool = false) throws -> FakeEpicService {
+        let (manifest, cdn) = try builder.build()
+        let fake = FakeEpicService()
+        fake.set("/account/api/oauth/token", Data(#"""
+        {"access_token":"a","expires_at":"2099-01-01T00:00:00.000Z","refresh_token":"r","refresh_expires_at":"2099-02-01T00:00:00.000Z","account_id":"acct","displayName":"t"}
+        """#.utf8))
+        fake.set("/launcher/api/public/assets/Windows", Data(#"[{"appName":"Hazelnut","buildVersion":"1.0","catalogItemId":"cat","namespace":"ns"}]"#.utf8))
+        let attributes = thirdParty ? #","customAttributes":{"ThirdPartyManagedProvider":{"value":"UbisoftConnect"}}"# : #","customAttributes":{"FolderName":{"value":"Limbo Game"}}"#
+        fake.set("/catalog/api/shared/namespace/ns/bulk/items", Data(#"{"cat":{"id":"cat","namespace":"ns","title":"Limbo"\#(attributes)}}"#.utf8))
+        let hash = Data(Insecure.SHA1.hash(data: manifest)).map { String(format: "%02x", $0) }.joined()
+        fake.set("/app/Hazelnut/label/Live", Data(#"{"elements":[{"hash":"\#(hash)","manifests":[{"uri":"https://cdn.example/builds/Hazelnut.manifest"}]}]}"#.utf8))
+        fake.set("cdn.example/builds/Hazelnut.manifest", manifest)
+        for (path, body) in cdn { fake.set("cdn.example/builds/" + path, body) }
+        return fake
+    }
+}
+
+nonisolated private final class MemoryCredentials: EpicCredentialStore, @unchecked Sendable {
+    var value: EpicCredentials?
+    func load() throws -> EpicCredentials? { value }
+    func save(_ credentials: EpicCredentials) throws { value = credentials }
+    func clear() throws { value = nil }
+}
+
+@MainActor struct EpicInstallTests {
+    private func sample() -> Builder {
+        Builder(files: [.init(name: "LimboLauncher.exe", content: bytes(150, seed: 1), executable: true),
+                        .init(name: "data/level.pak", content: bytes(90, seed: 2))])
+    }
+
+    private func signedIn(_ fake: FakeEpicService, root: URL) async -> (EpicAccount, EpicDownloads) {
+        let api = EpicAPI(transport: fake.transport)
+        let account = EpicAccount(api: api, keychain: MemoryCredentials(), libraryRoot: root.appendingPathComponent("Support"))
+        await account.signIn(authorizationCode: "code")
+        let downloads = EpicDownloads(account: account, api: api, downloader: EpicDownloader(transport: fake.transport),
+                                      queue: SteamDownloadQueue(root: root.appendingPathComponent("Downloads")))
+        downloads.activate()
+        return (account, downloads)
+    }
+
+    private func waitUntilIdle(_ downloads: EpicDownloads) async throws {
+        for _ in 0..<500 where downloads.activeID != nil || downloads.jobs.contains(where: { $0.state == .queued }) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    @Test func installSavesARecordTheLibraryShows() async throws {
+        var builder = sample()
+        let fake = try FakeEpicService.serving(&builder), root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (account, downloads) = await signedIn(fake, root: root)
+        let game = try #require(account.games.first)
+        #expect(game.folderName == "Limbo Game")
+        let library = root.appendingPathComponent("Library")
+        downloads.enqueue(game, library: library)
+        try await waitUntilIdle(downloads)
+        #expect(downloads.jobs.map(\.state) == [.completed] && downloads.revision == 1)
+
+        let store = EpicInstallStore(library: library)
+        let installed = try #require(store.installed().first)
+        #expect(installed.appName == "Hazelnut" && installed.launchExecutable == "LimboLauncher.exe" && installed.installSize == 240)
+        #expect(store.manifest(for: "Hazelnut") != nil)
+        #expect(try Data(contentsOf: library.appendingPathComponent("Epic/Limbo Game/data/level.pak")) == builder.files[1].content)
+
+        let entries = LibraryGame.merge(installed: [], owned: [], epicOwned: account.games, epicInstalled: [installed])
+        #expect(entries.count == 1 && entries[0].id == "epic:Hazelnut" && entries[0].isInstalled && entries[0].store == .epic)
+
+        #expect(try store.uninstall(installed) > 0)
+        #expect(store.installed().isEmpty && !FileManager.default.fileExists(atPath: library.appendingPathComponent("Epic/Limbo Game").path))
+    }
+
+    @Test func thirdPartyGamesAreRefused() async throws {
+        var builder = sample()
+        let fake = try FakeEpicService.serving(&builder, thirdParty: true), root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (account, downloads) = await signedIn(fake, root: root)
+        downloads.enqueue(try #require(account.games.first), library: root)
+        #expect(downloads.jobs.isEmpty && downloads.errorMessage?.contains("UbisoftConnect") == true)
+    }
+
+    @Test func storeIgnoresUnsafeRecordsAndNeverDeletesOutsideTheEpicFolder() throws {
+        let root = temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = EpicInstallStore(library: root)
+        let records = root.appendingPathComponent("Epic/.pufflet")
+        try FileManager.default.createDirectory(at: records, withIntermediateDirectories: true)
+        func record(_ appName: String, folder: String) -> EpicInstalledGame {
+            EpicInstalledGame(appName: appName, title: "T", folderName: folder, namespace: "ns", catalogItemID: "c",
+                              buildVersion: "1", launchExecutable: "a.exe", launchCommand: "", installSize: 1)
+        }
+        for (file, game) in [("Escape", record("Escape", folder: "..")), ("Mismatch", record("Other", folder: "Mismatch")),
+                             ("Missing", record("Missing", folder: "Missing"))] {
+            try JSONEncoder().encode(game).write(to: records.appendingPathComponent(file + ".json"))
+        }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Epic/Mismatch"), withIntermediateDirectories: true)
+        #expect(store.installed().isEmpty)
+        #expect(throws: (any Error).self) { try store.uninstall(record("Escape", folder: "..")) }
+        #expect(FileManager.default.fileExists(atPath: root.path))
+    }
+
+    @Test func queueKeysStayCompatibleWithSavedSteamQueues() {
+        let root = temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let steam = SteamDownloadQueue(root: root), byKey = SteamDownloadQueue(root: root)
+        steam.activate(account: 76561198000000000)
+        steam.enqueue(OwnedSteamGame(id: "10", name: "Ten", estimatedBytes: nil), destination: root)
+        byKey.activate(key: "76561198000000000")
+        #expect(byKey.jobs.map(\.id) == ["10"])
+    }
 }

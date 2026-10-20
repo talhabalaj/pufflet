@@ -27,7 +27,12 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
     var active: GameDownload? { jobs.first { [.preparing, .installing].contains($0.state) } }
 
     func activate(account: UInt64?, resumePending: Bool = true) {
-        let key = account.map { SHA256.hash(data: Data(String($0).utf8)).map { String(format: "%02x", $0) }.joined() }
+        activate(key: account.map(String.init), resumePending: resumePending)
+    }
+
+    /// `key` identifies the account; only its hash is stored. Steam passes the SteamID.
+    func activate(key account: String?, resumePending: Bool = true) {
+        let key = account.map { SHA256.hash(data: Data($0.utf8)).map { String(format: "%02x", $0) }.joined() }
         guard key != accountKey else { return }
         accountKey = key; jobs = []; storageError = nil
         guard let file, let size = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 4 * 1024 * 1024,
@@ -47,9 +52,13 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
     }
 
     func enqueue(_ game: OwnedSteamGame, destination: URL, kind: GameDownload.Kind = .install) {
+        enqueue(id: game.id, name: game.name, destination: destination, kind: kind)
+    }
+
+    func enqueue(id: String, name: String, destination: URL, kind: GameDownload.Kind = .install) {
         guard accountKey != nil else { return }
-        let job = GameDownload(id: game.id, name: game.name, destination: destination, kind: kind)
-        if let index = jobs.firstIndex(where: { $0.id == game.id }) {
+        let job = GameDownload(id: id, name: name, destination: destination, kind: kind)
+        if let index = jobs.firstIndex(where: { $0.id == id }) {
             guard ![.queued, .preparing, .installing, .paused].contains(jobs[index].state) else { return }
             jobs[index] = job
         } else { jobs.append(job) }

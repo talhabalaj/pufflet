@@ -69,10 +69,6 @@ struct EpicKeychain: EpicCredentialStore {
 
 /// The signed-in Epic account and its owned library. Read-only for now: see docs/STORES.md.
 @Observable final class EpicAccount {
-    static func isEnabled(_ defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
-        environment["PUFFLET_EPIC"] == "1" || defaults.bool(forKey: "epicStoreEnabled")
-    }
-
     private(set) var displayName: String?
     private(set) var games: [EpicOwnedGame] = []
     private(set) var isBusy = false
@@ -137,8 +133,10 @@ struct EpicKeychain: EpicCredentialStore {
         games = fetched
     }
 
+    var accountID: String? { credentials?.accountID }
+
     /// Refresh tokens rotate, so every refresh is saved before it is used.
-    private func accessToken() async throws -> String {
+    func accessToken() async throws -> String {
         if let access, access.expires > Date().addingTimeInterval(120) { return access.token }
         guard let refresh = credentials?.refreshToken else { throw EpicError.signedOut }
         do { try store(try await api.token(.refreshToken(refresh))) }

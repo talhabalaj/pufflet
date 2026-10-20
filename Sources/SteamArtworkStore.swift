@@ -77,6 +77,23 @@ final class SteamArtworkStore {
         return nil
     }
 
+    /// Artwork from another store's catalog, cached like Steam's. `key` must be a safe file name.
+    func image(url: URL, key: String) async -> NSImage? {
+        guard url.scheme == "https", !key.contains("/"), !key.hasPrefix(".") else { return nil }
+        if let image = images.object(forKey: key as NSString) { return image }
+        let stored = cache.appendingPathComponent(key + ".image")
+        if let image = NSImage(contentsOf: stored) { images.setObject(image, forKey: key as NSString); return image }
+        do {
+            let (data, response) = try await session.data(from: url)
+            guard !Task.isCancelled, (response as? HTTPURLResponse)?.statusCode == 200,
+                  data.count < 12_000_000, let image = NSImage(data: data), image.size.width > 1 else { return nil }
+            try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try? data.write(to: stored, options: .atomic)
+            images.setObject(image, forKey: key as NSString, cost: Int(image.size.width * image.size.height * 4))
+            return image
+        } catch { return nil }
+    }
+
     private func resolvedURL(appID: String, kind: SteamArtworkKind) async -> URL? {
         guard let number = Int(appID) else { return nil }
         let payload: [String: Any] = ["ids": [["appid": number]],
