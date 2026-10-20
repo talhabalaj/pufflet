@@ -15,8 +15,10 @@ prepare)
   app="$output/stage/PuffletRuntime.app"
   [[ ! -e "$app" ]] || { echo 'Use an empty output directory.' >&2; exit 1; }
   test -x "$source_app/Contents/SharedSupport/wine/bin/wine"
+  test -d "$source_app/Contents/SharedSupport/gstreamer-1.0"
   mkdir -p "$app/Contents/SharedSupport/renderer/dxmt" "$app/Contents/Frameworks" "$app/Contents/MacOS"
   rsync -aE "$source_app/Contents/SharedSupport/wine/" "$app/Contents/SharedSupport/wine/"
+  rsync -aE "$source_app/Contents/SharedSupport/gstreamer-1.0/" "$app/Contents/SharedSupport/gstreamer-1.0/"
   rsync -aE --exclude renderer "$source_app/Contents/Frameworks/" "$app/Contents/Frameworks/"
   rsync -aE "$source_app/Contents/Frameworks/renderer/dxmt/" "$app/Contents/SharedSupport/renderer/dxmt/"
   # The signed wineserver child must resolve libinotify without depending on
