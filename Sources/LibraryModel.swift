@@ -25,6 +25,7 @@ import os
     /// Epic sign-in, library and downloads. See docs/STORES.md.
     let epic: EpicAccount
     let epicDownloads: EpicDownloads
+    let epicLauncher = EpicLauncher()
     private(set) var epicInstalled: [EpicInstalledGame] = []
     @ObservationIgnored private var epicRevision = 0
     var epicUninstallRequest: EpicUninstallRequest?
@@ -72,6 +73,7 @@ import os
         headless.isActive || phase != .idle || runtimeSetup.isBusy || hasDownloadWork
             || queuedPlay != nil || blockedPlay != nil || isRestartingForPlay
             || snapshot.steam != nil || games.contains(where: isPlaying) || uninstallingID != nil || epicDownloads.hasPendingWork
+            || epicLauncher.isBusy
     }
     var canPlay: Bool {
         phase == .idle && downloadTask == nil && !isStoppingDownload && !runtimeSetup.isBusy && uninstallingID == nil
@@ -600,7 +602,9 @@ import os
         settingsTab = .advanced
     }
 
-    func isLaunching(_ entry: LibraryGame) -> Bool { phase == .launching(entry.id) }
+    func isLaunching(_ entry: LibraryGame) -> Bool {
+        entry.store == .epic ? epicLauncher.launchingID == entry.id : phase == .launching(entry.id)
+    }
 
     // MARK: Epic
 
@@ -655,8 +659,27 @@ import os
             errorMessage = "\(game.title) could not be fully uninstalled. \(error.localizedDescription)"
         }
     }
-    func isPlaying(_ entry: LibraryGame) -> Bool { entry.installation.map(isPlaying) ?? false }
-    func play(_ entry: LibraryGame) async { if let game = entry.installation { await play(game) } }
+    func isPlaying(_ entry: LibraryGame) -> Bool {
+        entry.store == .epic ? epicLauncher.playingID == entry.id : entry.installation.map(isPlaying) ?? false
+    }
+    func play(_ entry: LibraryGame) async {
+        if entry.store == .epic { await playEpic(entry) } else if let game = entry.installation { await play(game) }
+    }
+
+    /// Epic games run in their own prefix, so Steam's session doesn't block them.
+    private func playEpic(_ entry: LibraryGame) async {
+        if isPlaying(entry) { if !epicLauncher.returnToGame() { errorMessage = "The game is running. Click its window to return to it." }; return }
+        guard let game = entry.epicInstallation, let folder = epicFolder(entry), requireRuntime(), let application = runtimeSetup.application else { return }
+        errorMessage = nil
+        do {
+            try await epicLauncher.play(game, folder: folder, account: epic, runtimeApplication: application,
+                                        dockBridge: runtime.dockBridge, graphics: graphics)
+        } catch EpicLauncher.Failure.needsToolkit {
+            showsGraphicsSetup = true
+        } catch {
+            errorMessage = "\(entry.name) could not start. \(error.localizedDescription)"
+        }
+    }
 
     func refresh() {
         refreshLibrary()
@@ -755,6 +778,7 @@ import os
             guard entry.epicInstallation != nil else { return "\(name) isn’t installed." }
             if uninstallingID != nil { return "Pufflet is already uninstalling a game. Wait for it to finish." }
             if isPending(entry) { return "\(name) has a download in progress. Stop it in Downloads before uninstalling the game." }
+            if isPlaying(entry) || isLaunching(entry) { return "Quit \(name) before uninstalling it. Pufflet can’t remove a game that’s running." }
             return nil
         }
         guard let game = entry.installation else { return "\(name) isn’t installed." }
@@ -931,6 +955,7 @@ import os
     }
 
     func shutdownSession() async throws {
+        await epicLauncher.stop()
         cancelQueuedPlay(); blockedPlay = nil
         isStoppingDownload = true
         defer { isStoppingDownload = false }
@@ -1021,8 +1046,7 @@ import os
     /// so its download size and free space are visible before anything is downloaded.
     func primaryAction(_ entry: LibraryGame) {
         if entry.store == .epic {
-            // Epic games can't be played yet; Play stays disabled. See docs/STORES.md.
-            selectedID = entry.id; showsInspector = true
+            if entry.isInstalled { Task { await play(entry) } } else { selectedID = entry.id; showsInspector = true }
             return
         }
         if entry.installation == nil { selectedID = entry.id; showsInspector = true } else { Task { await play(entry) } }
@@ -1034,7 +1058,11 @@ import os
     }
 
     func canStart(_ entry: LibraryGame) -> Bool {
-        if entry.store == .epic { return !entry.isInstalled && !isPending(entry) && settings.libraryURL != nil }
+        if entry.store == .epic {
+            if isPlaying(entry) { return true }
+            if entry.isInstalled { return !epicLauncher.isBusy && !isPending(entry) && uninstallingID != entry.id }
+            return !isPending(entry) && settings.libraryURL != nil
+        }
         if isPlaying(entry) { return true }
         if isLaunching(entry) { return false }
         if isPending(entry) { return entry.installation != nil && phase == .idle && !isRestartingForPlay }

@@ -254,7 +254,7 @@ struct GameMenuItems: View {
     var body: some View {
         let installed = game?.installation
         let folder = installed?.folder ?? game.flatMap(model.epicFolder)
-        Button(primaryTitle) { if let game { if game.store == .epic { model.install(game) } else { model.primaryAction(game) } } }
+        Button(primaryTitle) { if let game { if game.store == .epic && !game.isInstalled { model.install(game) } else { model.primaryAction(game) } } }
             .keyboardShortcut(inContextMenu ? nil : KeyboardShortcut("o"))
             .disabled(game.map { !model.canStart($0) } ?? true)
         Button("Show in Finder") { if let folder { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path) } }
@@ -450,11 +450,8 @@ struct GameInspector: View {
                         .accessibilityHidden(true)
                         Text(game.name).font(.title3.weight(.semibold)).multilineTextAlignment(.center)
                         primaryButton(game)
-                        if game.epicInstallation != nil {
-                            Text("Playing Epic games in Pufflet is coming soon.").font(.caption).foregroundStyle(.secondary)
-                        }
                         if model.isLaunching(game) {
-                            Text(model.message ?? "Starting…").font(.caption).foregroundStyle(.secondary)
+                            Text((game.store == .epic ? model.epicLauncher.status : model.message) ?? "Starting…").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     .frame(maxWidth: .infinity).padding(.vertical, 6)
@@ -498,6 +495,15 @@ struct GameInspector: View {
                     }
                 }
                 if game.store == .epic, game.epicInstallation != nil {
+                    Section("Graphics") {
+                        Picker("Graphics backend", selection: Binding(get: { model.graphics.backend(for: game.id) },
+                            set: { model.graphics.setBackend($0, for: game.id) })) {
+                            ForEach(GraphicsBackend.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .disabled(model.isPlaying(game) || model.isLaunching(game))
+                        Text("Auto uses D3DMetal for games that only support DirectX 12, when it’s set up, and DXMT for everything else.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     Section {
                         Button("Show in Finder") { if let folder = model.epicFolder(game) { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path) } }
                     }
@@ -625,7 +631,20 @@ private struct StatusBar: View {
     @Bindable var model: LibraryModel
 
     var body: some View {
-        if let game = model.playingGame {
+        if let id = model.epicLauncher.playingID, let entry = model.entries.first(where: { $0.id == id }) {
+            bar {
+                Image(systemName: "play.fill").foregroundStyle(.tint)
+                Text("Playing \(entry.name)")
+                Spacer()
+                Button("Return to Game") { _ = model.epicLauncher.returnToGame() }.controlSize(.small)
+            }
+        } else if let id = model.epicLauncher.launchingID {
+            bar {
+                ProgressView().controlSize(.small)
+                Text(model.epicLauncher.status ?? (model.entries.first { $0.id == id }.map { "Starting \($0.name)…" } ?? "Starting…"))
+                Spacer()
+            }
+        } else if let game = model.playingGame {
             bar {
                 Image(systemName: "play.fill").foregroundStyle(.tint)
                 Text("Playing \(game.name)")
