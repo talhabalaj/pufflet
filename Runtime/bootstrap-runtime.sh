@@ -11,7 +11,7 @@ trap 'rmdir "$stage/.bootstrap-lock"' EXIT
 # (CrossOver Wine + our patches, DXMT, libraries). package-runtime.sh signs it.
 tag=wine-11.0-dxmt-3
 url="https://github.com/talhabalaj/pufflet-runtime/releases/download/$tag/pufflet-runtime-$tag.tar.xz"
-sha=3ee51996a7d851d0b295bc0afdb699500cad100cb35a70cac410be21cb3d2a98
+sha=e506ca4b0c38a864e4fd0cafb902dc3fd9795990dad52dba4c79981947f38f4c
 curl --fail --location --silent --show-error --retry 3 "$url" -o "$stage/runtime.download"
 printf '%s  %s\n' "$sha" "$stage/runtime.download" | shasum -a 256 -c -
 rm -rf "$stage/extract" && mkdir "$stage/extract"
