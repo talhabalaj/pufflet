@@ -167,15 +167,6 @@ struct EpicLibraryTests {
         #expect(!EpicCredentials(token).isUsable(at: Date(timeIntervalSince1970: 20)))
         #expect(EpicCredentials(token).isUsable(at: Date(timeIntervalSince1970: 5)))
     }
-
-    @Test func featureFlag() throws {
-        let suite = "EpicLibraryTests." + UUID().uuidString
-        let defaults = try #require(UserDefaults(suiteName: suite)); defer { defaults.removePersistentDomain(forName: suite) }
-        #expect(!EpicAccount.isEnabled(defaults, environment: [:]))
-        #expect(EpicAccount.isEnabled(defaults, environment: ["PUFFLET_EPIC": "1"]))
-        defaults.set(true, forKey: "epicStoreEnabled")
-        #expect(EpicAccount.isEnabled(defaults, environment: [:]))
-    }
 }
 
 @MainActor struct EpicAccountTests {

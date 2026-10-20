@@ -86,9 +86,7 @@ struct LibrarySettingsView: View {
         TabView(selection: $model.settingsTab) {
             Tab("General", systemImage: "gearshape", value: .general) { GeneralSettings(model: model) }
             Tab("Steam", systemImage: "person.crop.circle", value: .steam) { SteamAccountSettings(model: model) }
-            if EpicAccount.isEnabled() {
-                Tab("Epic Games", systemImage: "person.crop.circle.badge", value: .epic) { EpicAccountSettings(account: model.epic) }
-            }
+            Tab("Epic Games", systemImage: "person.crop.circle.badge", value: .epic) { EpicAccountSettings(account: model.epic) }
             Tab("Advanced", systemImage: "wrench.and.screwdriver", value: .advanced) { AdvancedSettings(model: model) }
         }
         .frame(width: 520)

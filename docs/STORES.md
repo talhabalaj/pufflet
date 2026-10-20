@@ -243,13 +243,13 @@ Unsupported games are listed with a label and cannot be installed.
 
 1. `GameID`; store-neutral persisted keys (download queue, display profiles,
    artwork cache) accept it. No behaviour change for Steam.
-2. Epic sign-in and library (read-only), behind `PUFFLET_EPIC=1`.
+2. Epic sign-in and library (read-only).
 3. Epic manifest parser and downloader.
 4. Epic games in the library, Downloads and onboarding; install and
    uninstall.
 5. `PrefixCoordinator` and leases, then Epic launch and exit tracking. The
    coordinator moved here so it lands with its first user.
-6. Updates, cloud saves, compatibility labels; remove the flag.
+6. Updates, cloud saves, compatibility labels.
 7. GOG reusing phases 1, 2 and 5.
 
 Each phase is one PR with tests. Live checks that touch `PuffletDev` or sign in

@@ -8,9 +8,8 @@ struct RuntimeOnboardingView: View {
     @State private var showsAccount = false
     @State private var showsEpicSignIn = false
 
-    /// With Epic enabled, either account is enough, and Steam support is only
-    /// needed once a Steam account is signed in.
-    private var epicOnly: Bool { model.epicEnabled && model.epic.isSignedIn && model.account.accountName == nil }
+    /// Either account is enough; Steam support is only needed once a Steam account is signed in.
+    private var epicOnly: Bool { model.epic.isSignedIn && model.account.accountName == nil }
     private var steps: [Bool] {
         [model.settings.libraryURL != nil, model.runtimeSetup.isReady, model.account.accountName != nil || epicOnly,
          model.readyToPlay || (epicOnly && model.runtimeSetup.isReady && model.settings.libraryURL != nil),
@@ -67,30 +66,20 @@ struct RuntimeOnboardingView: View {
                     }
                 }
                 Divider().padding(.leading, 38)
-                if model.epicEnabled {
-                    step(2, "Accounts") {
-                        Text("Sign in to Steam, Epic Games or both to see the Windows games you own.")
-                        HStack {
-                            Text(model.account.accountName.map { "Steam: \($0)" } ?? "Steam: not signed in")
-                            Spacer()
-                            if model.account.accountName == nil { Button("Sign In to Steam…") { showsAccount = true }.controlSize(.small) }
-                        }
-                        HStack {
-                            Text(model.epic.displayName.map { "Epic Games: \($0)" } ?? "Epic Games: not signed in")
-                            Spacer()
-                            if !model.epic.isSignedIn { Button("Sign In to Epic Games…") { showsEpicSignIn = true }.controlSize(.small) }
-                        }
-                        if let error = model.epic.errorMessage { Text(error).foregroundStyle(.red) }
-                    } accessory: { EmptyView() }
-                } else {
-                    step(2, "Steam Account") {
-                        Text(model.account.accountName.map { "Signed in as \($0)." } ?? "Sign in to see the Windows games you own.")
-                    } accessory: {
-                        if model.account.accountName == nil {
-                            Button("Sign In…") { showsAccount = true }.buttonStyle(.borderedProminent)
-                        }
+                step(2, "Accounts") {
+                    Text("Sign in to Steam, Epic Games or both to see the Windows games you own.")
+                    HStack {
+                        Text(model.account.accountName.map { "Steam: \($0)" } ?? "Steam: not signed in")
+                        Spacer()
+                        if model.account.accountName == nil { Button("Sign In to Steam…") { showsAccount = true }.controlSize(.small) }
                     }
-                }
+                    HStack {
+                        Text(model.epic.displayName.map { "Epic Games: \($0)" } ?? "Epic Games: not signed in")
+                        Spacer()
+                        if !model.epic.isSignedIn { Button("Sign In to Epic Games…") { showsEpicSignIn = true }.controlSize(.small) }
+                    }
+                    if let error = model.epic.errorMessage { Text(error).foregroundStyle(.red) }
+                } accessory: { EmptyView() }
                 Divider().padding(.leading, 38)
                 step(3, "Steam Support") {
                     Text(model.steamSupportReady ? "Steam support is prepared. Choose a game and press Play."

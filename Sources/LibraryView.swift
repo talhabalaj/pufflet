@@ -113,31 +113,27 @@ struct LibraryView: View {
     }
 
     @ViewBuilder private var emptyLibrary: some View {
-        if model.ownedLibrary.isRefreshing || (model.epicEnabled && model.epic.isBusy && model.epic.games.isEmpty) {
+        if model.ownedLibrary.isRefreshing || (model.epic.isBusy && model.epic.games.isEmpty) {
             ContentUnavailableView {
                 Label("Loading Your Games", systemImage: "gamecontroller")
-            } description: { Text(model.epicEnabled ? "Pufflet is getting the Windows games you own." : "Pufflet is getting the Windows games you own from Steam.") }
-        } else if model.account.accountName == nil && !(model.epicEnabled && model.epic.isSignedIn) {
+            } description: { Text("Pufflet is getting the Windows games you own.") }
+        } else if model.account.accountName == nil && !model.epic.isSignedIn {
             ContentUnavailableView {
                 Label("Sign In to See Your Games", systemImage: "gamecontroller")
             } description: {
-                Text(model.epicEnabled ? "Pufflet shows the Windows games you own on Steam and Epic Games. You can also use a Steam library folder you already have."
-                     : "Pufflet shows the Windows games you own on Steam. You can also use a Steam library folder you already have.")
+                Text("Pufflet shows the Windows games you own on Steam and Epic Games. You can also use a Steam library folder you already have.")
             } actions: {
                 Button("Sign In to Steam…") { model.showsAccount = true }.buttonStyle(.borderedProminent).controlSize(.large)
-                if model.epicEnabled {
-                    Button("Sign In to Epic Games…") { model.settingsTab = .epic; openSettings() }.controlSize(.large)
-                }
+                Button("Sign In to Epic Games…") { model.settingsTab = .epic; openSettings() }.controlSize(.large)
                 Button("Choose Library Folder…", action: chooseLibrary).controlSize(.large).disabled(!model.canChangeLibrary)
             }
         } else {
             ContentUnavailableView {
                 Label("No Games to Show", systemImage: "gamecontroller")
             } description: {
-                Text(model.epicEnabled ? "Pufflet didn’t find any Windows games in your accounts or library folder."
-                     : "Pufflet didn’t find any Windows games in your Steam account or library folder.")
+                Text("Pufflet didn’t find any Windows games in your accounts or library folder.")
             } actions: {
-                Button("Refresh Library") { model.refresh(); if model.epicEnabled { Task { await model.epic.refreshLibrary() } } }.controlSize(.large)
+                Button("Refresh Library") { model.refresh(); Task { await model.epic.refreshLibrary() } }.controlSize(.large)
                 Button("Choose Library Folder…", action: chooseLibrary).controlSize(.large).disabled(!model.canChangeLibrary)
             }
         }

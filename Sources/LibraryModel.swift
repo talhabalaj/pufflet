@@ -22,11 +22,9 @@ import os
     var steamSupportReady = false
     let artworkStore = SteamArtworkStore()
     let account: SteamAccount
-    /// Epic sign-in, library and downloads, behind `EpicAccount.isEnabled`. See docs/STORES.md.
+    /// Epic sign-in, library and downloads. See docs/STORES.md.
     let epic: EpicAccount
     let epicDownloads: EpicDownloads
-    /// Read once: the flag changes only with a relaunch.
-    let epicEnabled: Bool
     private(set) var epicInstalled: [EpicInstalledGame] = []
     @ObservationIgnored private var epicRevision = 0
     var epicUninstallRequest: EpicUninstallRequest?
@@ -94,7 +92,7 @@ import os
     /// Views read this many times per update, so the merge and sort run only when a source list changes.
     var entries: [LibraryGame] {
         let installed = games, owned = ownedLibrary.games
-        let epicOwned = epicEnabled ? epic.games : [], epicInstalled = epicEnabled ? epicInstalled : []
+        let epicOwned = epic.games, epicInstalled = epicInstalled
         if let cached = mergedEntries, cached.installed == installed, cached.owned == owned,
            cached.epicOwned == epicOwned, cached.epicInstalled == epicInstalled { return cached.entries }
         let merged = LibraryGame.merge(installed: installed, owned: owned, epicOwned: epicOwned, epicInstalled: epicInstalled)
@@ -168,7 +166,6 @@ import os
         let epic = EpicAccount()
         self.epic = epic
         epicDownloads = EpicDownloads(account: epic)
-        epicEnabled = EpicAccount.isEnabled()
         self.settings = settings; self.headless = headless; self.ownedLibrary = ownedLibrary; self.downloads = downloads
         self.graphics = graphics
         refreshLibrary()
@@ -179,12 +176,12 @@ import os
     var isSetUp: Bool {
         guard settings.libraryURL != nil, runtimeSetup.isReady else { return false }
         if account.accountName != nil { return steamSupportReady }
-        return epicEnabled && epic.isSignedIn
+        return epic.isSignedIn
     }
 
     func beginSetup() async {
         account.refresh()
-        if epicEnabled { epic.refresh(); epicAccountChanged() }
+        epic.refresh(); epicAccountChanged()
         graphics.refresh()
         await runtimeSetup.check()
         if runtimeSetup.isReady, !headless.isActive {
@@ -208,10 +205,8 @@ import os
             games = []; epicInstalled = []; selectedID = nil; errorMessage = nil
             return
         }
-        if epicEnabled {
-            let found = EpicInstallStore(library: library).installed()
-            if found != epicInstalled { epicInstalled = found }
-        }
+        let found = EpicInstallStore(library: library).installed()
+        if found != epicInstalled { epicInstalled = found }
         do {
             games = try installation.library()
             errorMessage = nil
@@ -611,7 +606,6 @@ import os
 
     /// Loads the signed-in Epic account's queue and library.
     func epicAccountChanged() {
-        guard epicEnabled else { return }
         guard epic.isSignedIn else {
             // Signed out: stop this account's downloads before forgetting its queue.
             Task { await epicDownloads.stopAll(); epicDownloads.activate() }
