@@ -116,4 +116,27 @@ struct GameAppBundleTests {
         let environment = SteamRuntime(installation: setup, dockBridge: URL(filePath: "/tmp/DockBridge.dylib")).environment()
         #expect(environment["WINEAPPBUNDLES"] == GameAppBundle.directory(prefix: setup.prefix).path)
     }
+
+    @Test func bundlesTheGameFoldersOtherExecutables() throws {
+        let root = try Self.temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runtime = try Self.fakeRuntime(in: root)
+        let prefix = root.appendingPathComponent("prefix")
+        let folder = root.appendingPathComponent("Peggle Extreme")
+        for name in ["PeggleExtreme.exe", "testapp.exe", "UnityCrashHandler64.exe", "unins000.exe", "_CommonRedist/vc_redist.x64.exe", "bin/Game.exe"] {
+            let url = folder.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try (name == "PeggleExtreme.exe" ? Self.executable(icon: Self.pngIcon()) : Self.executable(icon: nil)).write(to: url)
+        }
+        GameAppBundle.prepareGame(main: folder.appendingPathComponent("PeggleExtreme.exe"), folder: folder,
+                                  identifier: "me.balaj.Test.game.3483", name: "Peggle Extreme", runtime: runtime, prefix: prefix)
+        let bundles = try FileManager.default.contentsOfDirectory(atPath: GameAppBundle.directory(prefix: prefix).path).sorted()
+        #expect(bundles == ["Game.exe.app", "PeggleExtreme.exe.app", "testapp.exe.app"])
+        let info = try #require(NSDictionary(contentsOf: GameAppBundle.directory(prefix: prefix)
+            .appendingPathComponent("testapp.exe.app/Contents/Info.plist")))
+        #expect(info["CFBundleName"] as? String == "Peggle Extreme")
+        #expect(info["CFBundleIdentifier"] as? String == "me.balaj.Test.game.3483.testapp")
+        // No icon of its own: it borrows the launched EXE's.
+        #expect(info["CFBundleIconFile"] as? String == "AppIcon")
+    }
 }

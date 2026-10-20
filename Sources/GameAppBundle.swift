@@ -15,9 +15,45 @@ nonisolated enum GameAppBundle {
 
     /// Builds (or refreshes) the bundle for `executable`. Wine looks it up by the
     /// executable's file name, so one bundle serves every launch of that EXE.
+    /// Bundles the launched EXE and the other EXEs in its game folder, all named after the
+    /// game, so a launcher that starts the real game as a second EXE still gives it an app.
+    /// Failures are ignored: bundles are identity and icons, never a reason not to launch.
+    static func prepareGame(main: URL, folder: URL, identifier: String, name: String, runtime: URL, prefix: URL,
+                            fallbackArtwork: URL? = nil) {
+        _ = try? prepare(executable: main, identifier: identifier, name: name, runtime: runtime, prefix: prefix,
+                         fallbackArtwork: fallbackArtwork)
+        var names: Set<String> = [main.lastPathComponent.lowercased()]
+        for other in siblingExecutables(in: folder) where names.insert(other.lastPathComponent.lowercased()).inserted {
+            let stem = other.deletingPathExtension().lastPathComponent.lowercased()
+            _ = try? prepare(executable: other, identifier: identifier + "." + stem, name: name, runtime: runtime,
+                             prefix: prefix, fallbackArtwork: fallbackArtwork, fallbackIcon: main)
+        }
+    }
+
+    /// Game EXEs other than crash reporters, uninstallers and redistributable installers,
+    /// a few levels deep and capped, so large game folders stay cheap to scan.
+    static func siblingExecutables(in folder: URL, depth: Int = 3, limit: Int = 16) -> [URL] {
+        let skippedFolders: Set<String> = ["_commonredist", "redist", "redistributables", "directx", "vcredist", "__installer", "installers"]
+        guard let walker = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                                                          options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
+        var result: [URL] = []
+        for case let url as URL in walker {
+            let name = url.lastPathComponent.lowercased()
+            if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                if walker.level >= depth || skippedFolders.contains(name) { walker.skipDescendants() }
+                continue
+            }
+            guard name.hasSuffix(".exe"), !name.contains("crash"), !name.hasPrefix("unins"), !name.contains("redist"),
+                  (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+            result.append(url)
+            if result.count >= limit { break }
+        }
+        return result
+    }
+
     @discardableResult
     static func prepare(executable: URL, identifier: String, name: String, runtime: URL,
-                        prefix: URL, fallbackArtwork: URL? = nil) throws -> URL {
+                        prefix: URL, fallbackArtwork: URL? = nil, fallbackIcon: URL? = nil) throws -> URL {
         let fm = FileManager.default
         let wine = runtime.appendingPathComponent("Contents/SharedSupport/wine/lib/wine/x86_64-unix")
         let loader = wine.appendingPathComponent("wine"), ntdll = wine.appendingPathComponent("ntdll.so")
@@ -55,7 +91,8 @@ nonisolated enum GameAppBundle {
             // (app menu with Quit, Window menu); starting regular would skip that.
             "LSUIElement": true,
         ]
-        if let image = executableIcon(executable) ?? fallbackArtwork.flatMap(artworkIcon(_:)),
+        if let image = executableIcon(executable) ?? fallbackIcon.flatMap(executableIcon(_:))
+                ?? fallbackArtwork.flatMap(artworkIcon(_:)),
            let icns = icnsData(macIcon(image)) {
             try icns.write(to: resources.appendingPathComponent("AppIcon.icns"))
             info["CFBundleIconFile"] = "AppIcon"

@@ -387,20 +387,22 @@ nonisolated struct SteamRuntime: Sendable {
         let image = executable.resolvingSymlinksInPath().standardizedFileURL
         let folder = gameFolder.resolvingSymlinksInPath().standardizedFileURL
         guard image.path.hasPrefix(folder.path + "/"), image.pathExtension.lowercased() == "exe",
-              !image.path.contains("\n"), image.path.utf8.count < PATH_MAX,
+              !image.path.contains("\n"), !folder.path.contains("\n"),
+              image.path.utf8.count + folder.path.utf8.count < PATH_MAX - 1,
               try image.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
             throw SteamClientPackages.Failure.conflict
         }
         let temporary = installation.prefix.appendingPathComponent(".dock-allow-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
-        guard FileManager.default.createFile(atPath: temporary.path, contents: Data(image.path.utf8),
+        // The folder line lets the game's own launcher start the real game as another EXE there.
+        guard FileManager.default.createFile(atPath: temporary.path, contents: Data((image.path + "\n" + folder.path).utf8),
                                              attributes: [.posixPermissions: 0o600]),
               rename(temporary.path, dockAllowRecord.path) == 0 else { throw RuntimeError.missingSetup }
         if let app {
             // Cosmetic and identity only: a game still launches if its bundle can't be made.
-            _ = try? GameAppBundle.prepare(executable: image, identifier: app.identifier, name: app.name,
-                                           runtime: installation.runtimeApplication, prefix: installation.prefix,
-                                           fallbackArtwork: app.artwork)
+            GameAppBundle.prepareGame(main: image, folder: folder, identifier: app.identifier, name: app.name,
+                                      runtime: installation.runtimeApplication, prefix: installation.prefix,
+                                      fallbackArtwork: app.artwork)
         }
     }
 
