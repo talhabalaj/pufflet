@@ -126,6 +126,8 @@ nonisolated struct SteamRuntime: Sendable {
         env["WINEDLLPATH"] = ["x86_64-windows", "i386-windows", "x86_64-unix"]
             .map { wine.appendingPathComponent("lib/wine/\($0)").path }.joined(separator: ":")
         env["WINEDLLPATH_DXMT"] = renderer
+        // Wine execs a game through AppBundles/<exe>.app when Pufflet has made one.
+        env[GameAppBundle.environmentKey] = GameAppBundle.directory(prefix: installation.prefix).path
         // GStreamer plugins live outside Frameworks, which codesign reserves for bundles.
         env["GST_PLUGIN_SYSTEM_PATH_1_0"] = contents.appendingPathComponent("SharedSupport/gstreamer-1.0").path
         env["WINEDLLPATH_PREPEND"] = renderer
@@ -373,11 +375,15 @@ nonisolated struct SteamRuntime: Sendable {
     var dockAllowRecord: URL { installation.prefix.appendingPathComponent(".pufflet-dock-allow") }
 
     func allowDockExecutable(_ executable: URL, for game: SteamGame) throws {
-        try allowDockExecutable(executable, inside: game.folder)
+        try allowDockExecutable(executable, inside: game.folder,
+                                app: (AppIdentity.bundleID + ".game." + game.id, game.name,
+                                      installation.cachedArtwork(appID: game.id, kind: .cover)))
     }
 
-    /// Lets the Dock bridge promote only this image, which must be inside `gameFolder`.
-    func allowDockExecutable(_ executable: URL, inside gameFolder: URL) throws {
+    /// Lets the Dock bridge promote only this image, which must be inside `gameFolder`,
+    /// and gives it its own app bundle (name, icon, Cmd-Tab) when `app` is supplied.
+    func allowDockExecutable(_ executable: URL, inside gameFolder: URL,
+                             app: (identifier: String, name: String, artwork: URL?)? = nil) throws {
         let image = executable.resolvingSymlinksInPath().standardizedFileURL
         let folder = gameFolder.resolvingSymlinksInPath().standardizedFileURL
         guard image.path.hasPrefix(folder.path + "/"), image.pathExtension.lowercased() == "exe",
@@ -390,6 +396,12 @@ nonisolated struct SteamRuntime: Sendable {
         guard FileManager.default.createFile(atPath: temporary.path, contents: Data(image.path.utf8),
                                              attributes: [.posixPermissions: 0o600]),
               rename(temporary.path, dockAllowRecord.path) == 0 else { throw RuntimeError.missingSetup }
+        if let app {
+            // Cosmetic and identity only: a game still launches if its bundle can't be made.
+            _ = try? GameAppBundle.prepare(executable: image, identifier: app.identifier, name: app.name,
+                                           runtime: installation.runtimeApplication, prefix: installation.prefix,
+                                           fallbackArtwork: app.artwork)
+        }
     }
 
     func clearDockExecutable() { try? FileManager.default.removeItem(at: dockAllowRecord) }

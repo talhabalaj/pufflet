@@ -113,7 +113,8 @@ nonisolated enum EpicLaunch {
         let arguments = EpicLaunch.arguments(launchCommand: game.launchCommand, exchangeCode: code, game: game, accountID: accountID,
                                              displayName: account.displayName ?? "", locale: locale, ownershipToken: ownershipPath)
         status = "Starting \(game.title)…"
-        try runtime.allowDockExecutable(executable, inside: folder)
+        try runtime.allowDockExecutable(executable, inside: folder,
+                                        app: (AppIdentity.bundleID + ".epic." + id, game.title, nil))
         let process = try runtime.startWindows([executable.path] + arguments, extraEnvironment: [:],
                                                workingDirectory: executable.deletingLastPathComponent())
         self.runtime = runtime
