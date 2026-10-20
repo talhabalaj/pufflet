@@ -74,7 +74,7 @@ nonisolated enum GameAppBundle {
         let macOS = stage.appendingPathComponent("Contents/MacOS"), resources = stage.appendingPathComponent("Contents/Resources")
         try fm.createDirectory(at: macOS, withIntermediateDirectories: true)
         try fm.createDirectory(at: resources, withIntermediateDirectories: true)
-        // The loader finds ntdll.so next to its own path; a copy keeps the runtime's signature.
+        // The loader finds ntdll.so next to its own path.
         try fm.copyItem(at: loader, to: macOS.appendingPathComponent("wine"))
         try fm.createSymbolicLink(at: macOS.appendingPathComponent("ntdll.so"), withDestinationURL: ntdll)
 
@@ -100,10 +100,26 @@ nonisolated enum GameAppBundle {
         try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
             .write(to: stage.appendingPathComponent("Contents/Info.plist"))
         try Data(stamp.utf8).write(to: resources.appendingPathComponent("pufflet-stamp"))
+        // An unsigned bundle would be killed at launch; without one, Wine runs the game unbundled.
+        do { try sign(stage) } catch { try? fm.removeItem(at: bundle); throw error }
 
         if fm.fileExists(atPath: bundle.path) { try fm.removeItem(at: bundle) }
         try fm.moveItem(at: stage, to: bundle)
         return bundle
+    }
+
+    /// The copied loader's Developer ID signature doesn't seal this bundle's Info.plist, and
+    /// macOS kills a hardened executable whose bundle fails validation on its first launch.
+    /// Re-sign the bundle ad hoc, keeping the loader's entitlements and hardened runtime.
+    private static func sign(_ bundle: URL) throws {
+        let codesign = Process()
+        codesign.executableURL = URL(filePath: "/usr/bin/codesign")
+        codesign.arguments = ["--force", "--sign", "-", "--preserve-metadata=entitlements,flags", bundle.path]
+        codesign.standardOutput = FileHandle.nullDevice
+        codesign.standardError = FileHandle.nullDevice
+        try codesign.run()
+        codesign.waitUntilExit()
+        guard codesign.terminationStatus == 0 else { throw CocoaError(.executableLoad) }
     }
 
     private static func stampValue(loader: URL, executable: URL, identifier: String, name: String) throws -> String {
@@ -111,7 +127,7 @@ nonisolated enum GameAppBundle {
             let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
             return "\(url.path)|\(values.fileSize ?? 0)|\(values.contentModificationDate?.timeIntervalSince1970 ?? 0)"
         }
-        return ["v3", try describe(loader), try describe(executable), identifier, name].joined(separator: "\n")
+        return ["v4", try describe(loader), try describe(executable), identifier, name].joined(separator: "\n")
     }
 
     // MARK: Icons

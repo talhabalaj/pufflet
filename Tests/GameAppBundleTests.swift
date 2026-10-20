@@ -24,10 +24,20 @@ struct GameAppBundleTests {
         let app = root.appendingPathComponent("PuffletRuntime.app")
         let unix = app.appendingPathComponent("Contents/SharedSupport/wine/lib/wine/x86_64-unix")
         try FileManager.default.createDirectory(at: unix, withIntermediateDirectories: true)
-        try Data("loader".utf8).write(to: unix.appendingPathComponent("wine"))
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: unix.appendingPathComponent("wine").path)
+        // A real Mach-O stands in for the loader, since bundles are code-signed.
+        try FileManager.default.copyItem(at: URL(filePath: "/usr/bin/true"), to: unix.appendingPathComponent("wine"))
         try Data("ntdll".utf8).write(to: unix.appendingPathComponent("ntdll.so"))
         return app
+    }
+
+    static func run(_ path: String, _ arguments: [String]) throws -> Int32 {
+        let process = Process()
+        process.executableURL = URL(filePath: path)
+        process.arguments = arguments
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus
     }
 
     static func temporaryRoot() throws -> URL {
@@ -68,7 +78,9 @@ struct GameAppBundleTests {
         #expect(info["CFBundleIconFile"] as? String == "AppIcon")
         #expect(info["LSUIElement"] as? Bool == true)
         let macOS = bundle.appendingPathComponent("Contents/MacOS")
-        #expect(try String(contentsOf: macOS.appendingPathComponent("wine"), encoding: .utf8) == "loader")
+        // The bundle is sealed (macOS kills a hardened loader in an unsealed bundle) and runs.
+        #expect(try Self.run("/usr/bin/codesign", ["--verify", bundle.path]) == 0)
+        #expect(try Self.run(macOS.appendingPathComponent("wine").path, []) == 0)
         #expect(try FileManager.default.destinationOfSymbolicLink(atPath: macOS.appendingPathComponent("ntdll.so").path)
                 == runtime.appendingPathComponent("Contents/SharedSupport/wine/lib/wine/x86_64-unix/ntdll.so").path)
         let icon = try #require(NSImage(contentsOf: bundle.appendingPathComponent("Contents/Resources/AppIcon.icns")))
