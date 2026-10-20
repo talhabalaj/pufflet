@@ -56,7 +56,7 @@ nonisolated enum GameAppBundle {
             "LSUIElement": true,
         ]
         if let image = executableIcon(executable) ?? fallbackArtwork.flatMap(artworkIcon(_:)),
-           let icns = icnsData(image) {
+           let icns = icnsData(macIcon(image)) {
             try icns.write(to: resources.appendingPathComponent("AppIcon.icns"))
             info["CFBundleIconFile"] = "AppIcon"
         }
@@ -74,7 +74,7 @@ nonisolated enum GameAppBundle {
             let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
             return "\(url.path)|\(values.fileSize ?? 0)|\(values.contentModificationDate?.timeIntervalSince1970 ?? 0)"
         }
-        return ["v2", try describe(loader), try describe(executable), identifier, name].joined(separator: "\n")
+        return ["v3", try describe(loader), try describe(executable), identifier, name].joined(separator: "\n")
     }
 
     // MARK: Icons
@@ -87,25 +87,73 @@ nonisolated enum GameAppBundle {
         return NSImage(data: ico)
     }
 
-    /// A rounded square from the top of the game's cover art.
+    /// The top square of the game's cover art.
     static func artworkIcon(_ url: URL) -> NSImage? {
         guard let cover = NSImage(contentsOf: url), cover.size.width > 1, cover.size.height > 1 else { return nil }
-        let side: CGFloat = 1024
-        return NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
-            let inset: CGFloat = 100, content = NSRect(x: inset, y: inset, width: side - 2 * inset, height: side - 2 * inset)
-            NSBezierPath(roundedRect: content, xRadius: 185, yRadius: 185).addClip()
-            let width = cover.size.width, crop = NSRect(x: 0, y: cover.size.height - width, width: width, height: width)
-            cover.draw(in: content, from: crop, operation: .copy, fraction: 1)
+        let side = min(cover.size.width, cover.size.height)
+        let crop = NSRect(x: (cover.size.width - side) / 2, y: cover.size.height - side, width: side, height: side)
+        return NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+            cover.draw(in: rect, from: crop, operation: .copy, fraction: 1)
             return true
         }
+    }
+
+    /// A Windows icon laid out as a Mac app icon, like CrossOver's: on Apple's 1024 grid,
+    /// clipped to the 824-point rounded tile with a soft shadow. A full-bleed icon fills
+    /// the tile; one with transparent margins keeps them on a white tile; anything in
+    /// between is inset so it doesn't touch the edges. Small icons stay pixel-crisp.
+    static func macIcon(_ icon: NSImage) -> NSImage {
+        let canvas: CGFloat = 1024
+        let tile = NSRect(x: 100, y: 100, width: 824, height: 824)
+        let coverage = edgeCoverage(icon)
+        let content = coverage > 0.05 && coverage < 0.9 ? tile.insetBy(dx: 80, dy: 80) : tile
+        let largest = icon.representations.map(\.pixelsWide).max() ?? 0
+        let smooth = largest == 0 || largest >= 128
+        return NSImage(size: NSSize(width: canvas, height: canvas), flipped: false) { rect in
+            let scale = rect.width / canvas
+            func scaled(_ r: NSRect) -> NSRect { NSRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale) }
+            let shape = NSBezierPath(roundedRect: scaled(tile), xRadius: 185 * scale, yRadius: 185 * scale)
+            NSGraphicsContext.saveGraphicsState()
+            let shadow = NSShadow()
+            shadow.shadowOffset = NSSize(width: 0, height: -5 * scale)
+            shadow.shadowBlurRadius = 25 * scale
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
+            shadow.set()
+            NSColor.white.setFill()
+            shape.fill()
+            NSGraphicsContext.restoreGraphicsState()
+            NSGraphicsContext.saveGraphicsState()
+            shape.addClip()
+            NSGraphicsContext.current?.imageInterpolation = smooth ? .high : .none
+            icon.draw(in: scaled(content), from: .zero, operation: .sourceOver, fraction: 1)
+            NSGraphicsContext.restoreGraphicsState()
+            return true
+        }
+    }
+
+    /// The share of opaque pixels in a 50-point frame around the icon at 1024 points.
+    static func edgeCoverage(_ icon: NSImage) -> Double {
+        let side = 1024, edge = 50
+        guard let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side,
+                                      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue),
+              let data = context.data?.assumingMemoryBound(to: UInt8.self) else { return 0 }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        icon.draw(in: NSRect(x: 0, y: 0, width: side, height: side), from: .zero, operation: .copy, fraction: 1)
+        NSGraphicsContext.restoreGraphicsState()
+        var opaque = 0, total = 0
+        for y in 0..<side {
+            for x in 0..<side where x < edge || x >= side - edge || y < edge || y >= side - edge {
+                total += 1
+                if data[y * side + x] > 32 { opaque += 1 }
+            }
+        }
+        return total == 0 ? 0 : Double(opaque) / Double(total)
     }
 
     static func icnsData(_ image: NSImage) -> Data? {
         let output = NSMutableData()
         let sizes = [16, 32, 64, 128, 256, 512, 1024]
-        // Small icons are usually pixel art; scale them up without smoothing.
-        let largest = image.representations.map(\.pixelsWide).max() ?? 0
-        let smooth = largest == 0 || largest >= 128
         guard let destination = CGImageDestinationCreateWithData(output, UTType.icns.identifier as CFString, sizes.count, nil) else { return nil }
         for side in sizes {
             guard let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
@@ -113,7 +161,7 @@ nonisolated enum GameAppBundle {
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-            NSGraphicsContext.current?.imageInterpolation = smooth ? .high : .none
+            NSGraphicsContext.current?.imageInterpolation = .high
             image.draw(in: NSRect(x: 0, y: 0, width: side, height: side), from: .zero, operation: .copy, fraction: 1)
             NSGraphicsContext.restoreGraphicsState()
             guard let rendered = context.makeImage() else { return nil }
