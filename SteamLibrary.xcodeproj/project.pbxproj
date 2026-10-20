@@ -91,6 +91,11 @@
 		61D000000000000000000002 /* GameIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D000000000000000000001 /* GameIdentity.swift */; };
 		3A7E00000000000000000004 /* WakeLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7E00000000000000000003 /* WakeLockTests.swift */; };
 		61D000000000000000000004 /* GameIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D000000000000000000003 /* GameIdentityTests.swift */; };
+		E91C00000000000000000002 /* EpicAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000001 /* EpicAPI.swift */; };
+		E91C00000000000000000004 /* EpicAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000003 /* EpicAccount.swift */; };
+		E91C00000000000000000006 /* EpicAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000005 /* EpicAccountView.swift */; };
+		E91C00000000000000000008 /* EpicLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000007 /* EpicLibrary.swift */; };
+		E91C00000000000000000010 /* EpicLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000009 /* EpicLibraryTests.swift */; };
 
 /* End PBXBuildFile section */
 
@@ -191,6 +196,11 @@
 		61D000000000000000000001 /* GameIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameIdentity.swift; sourceTree = "<group>"; };
 		3A7E00000000000000000003 /* WakeLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeLockTests.swift; sourceTree = "<group>"; };
 		61D000000000000000000003 /* GameIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameIdentityTests.swift; sourceTree = "<group>"; };
+		E91C00000000000000000001 /* EpicAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicAPI.swift; sourceTree = "<group>"; };
+		E91C00000000000000000003 /* EpicAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicAccount.swift; sourceTree = "<group>"; };
+		E91C00000000000000000005 /* EpicAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicAccountView.swift; sourceTree = "<group>"; };
+		E91C00000000000000000007 /* EpicLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicLibrary.swift; sourceTree = "<group>"; };
+		E91C00000000000000000009 /* EpicLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicLibraryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -270,6 +280,17 @@
 			path = SteamCatalogue;
 			sourceTree = "<group>";
 		};
+		E91C00000000000000000011 /* Epic */ = {
+			isa = PBXGroup;
+			children = (
+				E91C00000000000000000001 /* EpicAPI.swift */,
+				E91C00000000000000000003 /* EpicAccount.swift */,
+				E91C00000000000000000005 /* EpicAccountView.swift */,
+				E91C00000000000000000007 /* EpicLibrary.swift */,
+			);
+			path = Epic;
+			sourceTree = "<group>";
+		};
 		6BFF56938DA9A41282EFDCAA /* Fixtures */ = {
 			isa = PBXGroup;
 			children = (
@@ -318,6 +339,7 @@
 				5AFE00000000000000000003 /* SteamGameUninstallerTests.swift */,
 				3A7E00000000000000000003 /* WakeLockTests.swift */,
 				61D000000000000000000003 /* GameIdentityTests.swift */,
+				E91C00000000000000000009 /* EpicLibraryTests.swift */,
 				1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */,
 				D0916B831D45D0C23DFE3A0C /* SteamSessionHostTests.swift */,
 				FEBF788ADF92630C119E1249 /* WineProcessCleanupTests.swift */,
@@ -400,6 +422,7 @@
 
 				D302A1907DAE6F4B7086422B /* SteamAuth */,
 				52BAA39798466C4ED9D4A755 /* SteamCatalogue */,
+				E91C00000000000000000011 /* Epic */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -566,6 +589,7 @@
 				5AFE00000000000000000004 /* SteamGameUninstallerTests.swift in Sources */,
 				3A7E00000000000000000004 /* WakeLockTests.swift in Sources */,
 				61D000000000000000000004 /* GameIdentityTests.swift in Sources */,
+				E91C00000000000000000010 /* EpicLibraryTests.swift in Sources */,
 				FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */,
 				10975662770F555CA9D0991D /* SteamSessionHostTests.swift in Sources */,
 				FFD2DE4BA31FBE25F4C7A573 /* WineProcessCleanupTests.swift in Sources */,
@@ -624,6 +648,10 @@
 				5AFE00000000000000000002 /* SteamGameUninstaller.swift in Sources */,
 				3A7E00000000000000000002 /* WakeLock.swift in Sources */,
 				61D000000000000000000002 /* GameIdentity.swift in Sources */,
+				E91C00000000000000000002 /* EpicAPI.swift in Sources */,
+				E91C00000000000000000004 /* EpicAccount.swift in Sources */,
+				E91C00000000000000000006 /* EpicAccountView.swift in Sources */,
+				E91C00000000000000000008 /* EpicLibrary.swift in Sources */,
 				CC59B1A5372C0EB45684D59C /* SteamSession.swift in Sources */,
 				CB5E91BED3A190DD11EB4998 /* SteamSessionHost.swift in Sources */,
 				2A2C09FAC615425F0CE05D14 /* WineProcessIdentity.swift in Sources */,
