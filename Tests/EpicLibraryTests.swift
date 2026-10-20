@@ -107,14 +107,18 @@ struct EpicAPITests {
     }
 
     @Test func authorizationCodeIsReadOnlyFromTheRedirectPage() {
-        typealias C = EpicLoginWebView.Coordinator
-        #expect(C.isRedirect(URL(string: "https://www.epicgames.com/id/api/redirect?clientId=x")!))
-        #expect(!C.isRedirect(URL(string: "https://evil.example.com/id/api/redirect")!))
-        #expect(!C.isRedirect(URL(string: "http://www.epicgames.com/id/api/redirect")!))
-        #expect(C.authorizationCode(in: #"{"redirectUrl":"x","authorizationCode":"0f35b3d3c1b946f195379c992c556031","sid":null}"#) == "0f35b3d3c1b946f195379c992c556031")
-        #expect(C.authorizationCode(in: #"{"authorizationCode":null}"#) == nil)
-        #expect(C.authorizationCode(in: #"{"authorizationCode":"a b"}"#) == nil)
-        #expect(C.authorizationCode(in: "<html>") == nil)
+        #expect(EpicSignIn.isRedirect(URL(string: "https://www.epicgames.com/id/api/redirect?clientId=x")!))
+        #expect(!EpicSignIn.isRedirect(URL(string: "https://evil.example.com/id/api/redirect")!))
+        #expect(!EpicSignIn.isRedirect(URL(string: "http://www.epicgames.com/id/api/redirect")!))
+        let code = "0f35b3d3c1b946f195379c992c556031"
+        #expect(EpicSignIn.authorizationCode(in: #"{"redirectUrl":"x","authorizationCode":"\#(code)","sid":null}"#) == code)
+        #expect(EpicSignIn.authorizationCode(in: "  \(code)\n") == code)
+        #expect(EpicSignIn.authorizationCode(in: #"pretty print ✓ {"authorizationCode":"\#(code)"}"#) == code)
+        #expect(EpicSignIn.authorizationCode(in: #"{"authorizationCode":null}"#) == nil)
+        #expect(EpicSignIn.authorizationCode(in: #"{"authorizationCode":"a b"}"#) == nil)
+        #expect(EpicSignIn.authorizationCode(in: "hello world") == nil)
+        #expect(EpicSignIn.authorizationCode(in: String(code.dropLast())) == nil)
+        #expect(EpicSignIn.authorizationCode(in: "<html>") == nil)
     }
 
     @Test func catalogRejectsUnsafeIdentifiersWithoutARequest() async throws {
