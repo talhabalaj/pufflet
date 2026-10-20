@@ -22,6 +22,8 @@ import os
     var steamSupportReady = false
     let artworkStore = SteamArtworkStore()
     let account: SteamAccount
+    /// Epic sign-in and library, behind `EpicAccount.isEnabled`. See docs/STORES.md.
+    let epic = EpicAccount()
     let headless: SteamHeadlessSession
     let ownedLibrary: SteamOwnedLibrary
     let downloads: SteamDownloadQueue
