@@ -98,9 +98,45 @@ nonisolated private struct Builder {
         return (manifest, cdn)
     }
 
+    /// The same content as an old-style JSON manifest. Chunk windows are padded to
+    /// 1 MiB, as Epic's are, because JSON manifests do not record window sizes.
+    mutating func buildJSON() throws -> (Data, [String: Data]) {
+        chunkSize = 1024 * 1024
+        _ = try build()
+        func blob<T: FixedWidthInteger>(_ value: T) -> String { Self.le(value).map { String(format: "%03d", $0) }.joined() }
+        func blob(_ data: Data) -> String { data.map { String(format: "%03d", $0) }.joined() }
+        func hex(_ guid: EpicGUID) -> String { [guid.words.0, guid.words.1, guid.words.2, guid.words.3].map { String(format: "%08X", $0) }.joined() }
+        var sizes: [String: String] = [:], hashes: [String: String] = [:], shas: [String: String] = [:], groups: [String: String] = [:]
+        var cdn: [String: Data] = [:]
+        let padded = chunks.map { ($0.guid, $0.window + Data(count: 1024 * 1024 - $0.window.count), $0.hash) }
+        for (guid, window, hash) in padded {
+            let file = try chunkFile((guid, window, hash))
+            sizes[hex(guid)] = blob(UInt64(file.count)); hashes[hex(guid)] = blob(hash)
+            shas[hex(guid)] = Data(Insecure.SHA1.hash(data: window)).map { String(format: "%02x", $0) }.joined()
+            groups[hex(guid)] = blob(UInt8(guid.words.0 % 100))
+            cdn[String(format: "ChunksV3/%02d/%016llX_%@.chunk", guid.words.0 % 100, hash, hex(guid))] = file
+        }
+        var position = 0
+        let fileList: [[String: Any]] = files.map { file in
+            var parts: [[String: String]] = []
+            var remaining = file.content.count
+            while remaining > 0 {
+                let chunk = position / chunkSize, within = position % chunkSize, take = min(remaining, chunkSize - within)
+                parts.append(["Guid": hex(chunks[chunk].guid), "Offset": blob(UInt32(within)), "Size": blob(UInt32(take))])
+                position += take; remaining -= take
+            }
+            return ["Filename": file.name, "FileHash": blob(Data(Insecure.SHA1.hash(data: file.content))),
+                    "bIsUnixExecutable": file.executable, "FileChunkParts": parts]
+        }
+        let object: [String: Any] = ["ManifestFileVersion": blob(UInt32(13)), "bIsFileData": false, "AppID": blob(UInt32(0)),
+            "AppNameString": "TestApp", "BuildVersionString": "1.0", "LaunchExeString": files.first?.name ?? "", "LaunchCommand": "",
+            "ChunkHashList": hashes, "ChunkShaList": shas, "DataGroupList": groups, "ChunkFilesizeList": sizes, "FileManifestList": fileList]
+        return (try JSONSerialization.data(withJSONObject: object), cdn)
+    }
+
     var secrets: [String: Data] { secret.map { [$0.guid.secretKey: $0.key.withUnsafeBytes { Data($0) }] } ?? [:] }
 
-    private func chunkFile(_ c: (guid: EpicGUID, window: Data, hash: UInt64)) throws -> Data {
+    func chunkFile(_ c: (guid: EpicGUID, window: Data, hash: UInt64)) throws -> Data {
         let sha = Data(Insecure.SHA1.hash(data: c.window))
         var payload = Self.compress(c.window), storedAs: UInt8 = 1, tag = Data(count: 16)
         if let secret {
@@ -172,7 +208,7 @@ struct EpicManifestTests {
         var builder = sample()
         var (data, _) = try builder.build()
         #expect(throws: EpicManifestError.self) { try EpicManifest.parse(data.prefix(30)) }
-        #expect(throws: EpicManifestError.unsupported("JSON manifest")) { try EpicManifest.parse(Data("{\"x\":1}".utf8)) }
+        #expect(throws: EpicManifestError.malformed("JSON")) { try EpicManifest.parse(Data("{\"x\":1}".utf8)) }
         data[60] ^= 0xFF
         #expect(throws: EpicManifestError.self) { try EpicManifest.parse(data) }
         for name in ["../escape", "/abs", "a/../../b", "C:evil", "a\\..\\b"] {
@@ -237,6 +273,21 @@ struct EpicManifestTests {
         // The link was replaced, not written through.
         #expect((try FileManager.default.attributesOfItem(atPath: exe.path)[.type] as? FileAttributeType) == .typeRegular)
         #expect(try Data(contentsOf: exe) == builder.files[0].content)
+    }
+
+    @Test func jsonManifestsInstallLikeBinaryOnes() async throws {
+        var builder = sample()
+        let (data, cdn) = try builder.buildJSON()
+        let manifest = try EpicManifest.parse(data)
+        #expect(manifest.version == 13 && manifest.appName == "TestApp" && manifest.launchExecutable == "Game.exe")
+        #expect(manifest.files.map(\.size) == [150, 90, 0] && manifest.files[0].isExecutable)
+        let chunk = try #require(manifest.chunks[EpicGUID(words: (1, 0xA, 0xB, 0xC))])
+        #expect(manifest.path(for: chunk) == "ChunksV3/01/0000000000001111_000000010000000A0000000B0000000C.chunk")
+        let source = EpicInstallSource(manifest: manifest, manifestData: data, baseURLs: [URL(string: "https://a.example/b")!], secrets: [:])
+        let root = temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        try await EpicDownloader(transport: FakeCDN(cdn).transport).install(source, into: root)
+        for file in builder.files { #expect(try Data(contentsOf: root.appendingPathComponent(file.name)) == file.content) }
+        #expect(throws: EpicManifestError.self) { try EpicManifest.parse(Data(#"{"ChunkHashList":{},"DataGroupList":{},"ChunkFilesizeList":{},"FileManifestList":[{"Filename":"../x","FileHash":"","FileChunkParts":[]}]}"#.utf8)) }
     }
 
     @Test func fallsBackToTheNextCDNAndFailsOnBadData() async throws {

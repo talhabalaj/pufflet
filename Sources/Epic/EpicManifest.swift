@@ -77,7 +77,7 @@ nonisolated struct EpicManifest: Sendable {
     /// Parses a binary manifest. `secrets` maps uppercase GUID hex to AES-256 keys,
     /// as returned by the manifest API; only encrypted manifests need them.
     static func parse(_ data: Data, secrets: [String: Data] = [:]) throws -> Self {
-        guard data.first != UInt8(ascii: "{") else { throw EpicManifestError.unsupported("JSON manifest") }
+        if data.first == UInt8(ascii: "{") { return try parseJSON(data) }
         var header = ByteReader(data)
         guard try header.u32() == magic else { throw EpicManifestError.malformed("header") }
         let headerSize = Int(try header.u32())
@@ -174,6 +174,82 @@ nonisolated struct EpicManifest: Sendable {
 
         return Self(version: featureLevel, appName: appName, buildVersion: buildVersion,
                     launchExecutable: launchExecutable, launchCommand: launchCommand, chunks: chunks, files: files)
+    }
+
+    /// Older builds use JSON manifests. Numbers there are "blobs": each byte as
+    /// three decimal digits, little-endian. They are never encrypted.
+    static func parseJSON(_ data: Data) throws -> Self {
+        struct Body: Decodable {
+            struct File: Decodable {
+                struct Part: Decodable { let Guid: String; let Offset: String; let Size: String }
+                let Filename: String
+                let FileHash: String
+                let bIsUnixExecutable: Bool?
+                let SymlinkTarget: String?
+                let FileChunkParts: [Part]
+            }
+            let ManifestFileVersion: String?
+            let bIsFileData: Bool?
+            let AppNameString: String?
+            let BuildVersionString: String?
+            let LaunchExeString: String?
+            let LaunchCommand: String?
+            let ChunkHashList: [String: String]
+            let ChunkShaList: [String: String]?
+            let DataGroupList: [String: String]
+            let ChunkFilesizeList: [String: String]
+            let FileManifestList: [File]
+        }
+        guard data.count <= maximumBody, let body = try? JSONDecoder().decode(Body.self, from: data) else { throw EpicManifestError.malformed("JSON") }
+        guard body.bIsFileData != true else { throw EpicManifestError.unsupported("file-data manifest") }
+        func number(_ blob: String) throws -> UInt64 {
+            let bytes = try blobBytes(blob)
+            guard bytes.count <= 8 else { throw EpicManifestError.malformed("number") }
+            return bytes.enumerated().reduce(0) { $0 | UInt64($1.element) << (8 * UInt64($1.offset)) }
+        }
+        func guid(_ hex: String) throws -> EpicGUID {
+            guard hex.utf8.count == 32, let raw = Data(hex: hex) else { throw EpicManifestError.malformed("GUID") }
+            let words = (0..<4).map { i in raw[(i * 4)..<(i * 4 + 4)].reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
+            return EpicGUID(words: (words[0], words[1], words[2], words[3]))
+        }
+        let featureLevel = UInt32(try number(body.ManifestFileVersion ?? "013000000000"))
+        guard body.ChunkFilesizeList.count <= 2_000_000, body.FileManifestList.count <= 2_000_000 else { throw EpicManifestError.malformed("size") }
+        var chunks: [EpicGUID: Chunk] = [:]
+        for (key, size) in body.ChunkFilesizeList {
+            guard let hash = body.ChunkHashList[key], let group = body.DataGroupList[key],
+                  let sha = Data(hex: body.ChunkShaList?[key] ?? ""), sha.count == 20 else { throw EpicManifestError.malformed("chunk") }
+            let id = try guid(key), groupNumber = try number(group), downloadSize = try number(size)
+            guard groupNumber < 100, downloadSize <= UInt64(Int64.max) else { throw EpicManifestError.malformed("chunk") }
+            chunks[id] = Chunk(guid: id, hash: try number(hash), sha1: sha, group: UInt8(groupNumber), windowSize: 1024 * 1024,
+                               downloadSize: Int64(downloadSize), secretGUID: nil)
+        }
+        var files: [File] = []
+        for file in body.FileManifestList {
+            guard (file.SymlinkTarget ?? "").isEmpty else { throw EpicManifestError.unsupported("symbolic links") }
+            guard let path = safePath(file.Filename) else { throw EpicManifestError.malformed("file name") }
+            let sha = Data(try blobBytes(file.FileHash))
+            guard sha.count == 20 else { throw EpicManifestError.malformed("file hash") }
+            let parts = try file.FileChunkParts.map { part -> Part in
+                let value = Part(guid: try guid(part.Guid), offset: UInt32(try number(part.Offset)), size: UInt32(try number(part.Size)))
+                guard let chunk = chunks[value.guid], UInt64(value.offset) + UInt64(value.size) <= UInt64(chunk.windowSize) else {
+                    throw EpicManifestError.malformed("chunk part")
+                }
+                return value
+            }
+            files.append(File(path: path, sha1: sha, isExecutable: file.bIsUnixExecutable == true, parts: parts))
+        }
+        guard Set(files.map { $0.path.lowercased() }).count == files.count else { throw EpicManifestError.malformed("duplicate file") }
+        return Self(version: featureLevel, appName: body.AppNameString ?? "", buildVersion: body.BuildVersionString ?? "",
+                    launchExecutable: body.LaunchExeString ?? "", launchCommand: body.LaunchCommand ?? "", chunks: chunks, files: files)
+    }
+
+    private static func blobBytes(_ blob: String) throws -> [UInt8] {
+        let digits = Array(blob.utf8)
+        guard digits.count % 3 == 0, digits.count <= 3 * 64 else { throw EpicManifestError.malformed("number") }
+        return try stride(from: 0, to: digits.count, by: 3).map { i in
+            guard let value = UInt16(String(decoding: digits[i..<(i + 3)], as: UTF8.self)), value <= 255 else { throw EpicManifestError.malformed("number") }
+            return UInt8(value)
+        }
     }
 
     /// Relative, normalised "/"-separated path that cannot leave the install folder.
