@@ -136,6 +136,12 @@ nonisolated struct SteamRuntime: Sendable {
         env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1"
         env["WINEBOOT_HIDE_DIALOG"] = "1"
         env["WINEDEBUG"] = "-all"
+        #if DEBUG
+        // Debug-only: PUFFLET_DEV_WINEDEBUG=+seh,err+all (etc.) logs Wine channels to wine.log.
+        if let channels = ProcessInfo.processInfo.environment["PUFFLET_DEV_WINEDEBUG"], !channels.isEmpty {
+            env["WINEDEBUG"] = channels
+        }
+        #endif
         env["METAL_HUD"] = "1"
         // The bridge permits game images while keeping Wine services/helpers
         // background-only. Wine retains its native Quit delegate.
