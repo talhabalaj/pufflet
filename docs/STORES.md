@@ -4,7 +4,8 @@
 
 Tracking issue: #31, track 2. Epic Games Store is the first non-Steam store;
 GOG follows. Track 1 (Ubisoft/EA/Rockstar launchers as background services for
-Steam games) builds on the prefix-lease model below but is not designed here.
+Steam games) needs a shared-prefix coordinator (see "Prefix ownership") and is
+not designed here.
 
 Pufflet stays a native macOS client. For Steam it implements authentication and
 the owned library in Swift and lets Valve's own Windows client download and
@@ -101,27 +102,24 @@ Revisit a protocol when a third store (GOG) shows what is really shared.
 
 ## Prefix ownership
 
-All games share the support prefix until #12 lands. Today `SteamSessionHost`
-owns the prefix's lifetime: host exit (`SteamSessionHost.swift:555`),
-shutdown and dockhost's 5-minute idle exit all call `stopPrivatePrefix`, which
-would end a running Epic game.
+`SteamSessionHost` owns the Steam prefix's lifetime: host exit, shutdown and
+dockhost's 5-minute idle exit all call `stopPrivatePrefix`, which would end an
+Epic game running in the same prefix.
 
-Introduce a `PrefixCoordinator` actor that owns start, stop and exclusive
-operations for a prefix:
+The design proposed a `PrefixCoordinator` with leases so both stores could
+share one prefix. The implementation gives Epic its own prefix instead,
+`<support>/EpicPrefix`, created on first Play with the same display defaults
+as Steam's:
 
-- **Leases.** A running game, an install that writes into the prefix, and the
-  Steam host each hold a lease. `stop` waits for, or explicitly ends, leases;
-  idle shutdown only stops the prefix when no game lease is held.
-- **Exclusive operations.** `withClientStopped`, display switches and Steam
-  client provisioning become exclusive coordinator operations that fail with
-  "a game is running" instead of tearing it down.
-- **Steam host exit** stops only the host's process family. The prefix is torn
-  down when the last lease is released.
-- **App quit** ends all leases and tears the prefix down as today.
+- Steam's host lifecycle is unchanged; nothing it does can reach an Epic game.
+- Steam and Epic games can run at the same time. One Epic game runs at a time.
+- An Epic game is running until the Epic prefix's `wineserver -w` returns.
+  Then Pufflet clears the Dock allowlist and deletes any ownership token.
+- App quit stops the Epic prefix with `stopPrivatePrefix`, like Steam's.
 
-This is the riskiest change to shipped behaviour and lands as its own PR with
-tests for each transition. It is also the base for track 1 launcher services
-and for #12.
+The cost is a second prefix on disk (about 1 GB). A coordinator is still the
+right base for track 1 launcher services, which must share a prefix with Steam
+games, and for #12; it is designed with those.
 
 ## Epic
 
@@ -196,17 +194,14 @@ Pufflet is not affiliated with Epic.
 4. Resolve the executable as `installPath/launchExe`; the working directory
    is the executable's directory. Reject executables outside the install folder.
 5. Choose the graphics backend with `PEImports` and the per-game setting.
-6. Acquire a game lease, allowlist the executable for the Dock bridge, and
-   spawn it with `SteamRuntime.spawn` semantics.
-7. Exit: the game is running while its process family (tracked by the
-   process guard) is alive; release the lease when it ends.
+6. Allowlist the executable for the Dock bridge and start it in the Epic
+   prefix with `SteamRuntime.startWindows`.
+7. Exit: the game is running until the Epic prefix's server exits (see
+   "Prefix ownership").
 
-Required generalisations:
-
-- `allowDockExecutable(_:for:)` takes an install folder instead of `SteamGame`.
-- `WineProcessGuard.c` classifies game images under any registered game root
-  (`steamapps\common` and `Epic\`), passed in at guard start, not hard-coded.
-- Window/exit tracking tolerates fullscreen windows on non-zero layers.
+`allowDockExecutable(_:inside:)` takes an install folder instead of
+`SteamGame`. The Epic prefix runs no Steam client, so `WineProcessGuard.c`
+needs no Epic game roots yet.
 
 ### Cloud saves
 
@@ -236,8 +231,9 @@ Unsupported games are listed with a label and cannot be installed.
 - One downloads list for every store. A store filter is not built yet.
 - Onboarding accepts either account: Steam, Epic or both. Steam support is
   only required once a Steam account is signed in.
-- Display and graphics settings are hidden for Epic games until they can be
-  played.
+- Installed Epic games have the per-game graphics backend and display profile
+  settings. The display profile is written to the Epic prefix before Play when
+  it differs from the last one applied; Inherit means Standard.
 
 ## Rollout
 
@@ -247,8 +243,7 @@ Unsupported games are listed with a label and cannot be installed.
 3. Epic manifest parser and downloader.
 4. Epic games in the library, Downloads and onboarding; install and
    uninstall.
-5. `PrefixCoordinator` and leases, then Epic launch and exit tracking. The
-   coordinator moved here so it lands with its first user.
+5. Epic launch and exit tracking in a separate Epic prefix.
 6. Updates, cloud saves, compatibility labels.
 7. GOG reusing phases 1, 2 and 5.
 
@@ -259,8 +254,8 @@ prefixes.
 ## Acceptance
 
 - Steam behaviour unchanged after phases 1–2, including persisted settings.
-- A running Epic game survives Steam host idle exit and host crash; app quit
-  and prefix stop leave no Wine clients.
+- A running Epic game survives Steam host idle exit and host crash (it is in
+  another prefix); app quit and prefix stop leave no Wine clients.
 - Sign in, list, install, verify, launch and quit Unrailed and Limbo from
   Pufflet across a cold restart, with the Dock entry on the game.
 - One `OwnershipToken` title launches.

@@ -123,6 +123,32 @@ nonisolated struct EpicAPI: Sendable {
                          accountID: account, displayName: String((body.displayName ?? "").prefix(64)))
     }
 
+    /// A single-use code that signs the game in to Epic, passed as `-AUTH_PASSWORD`.
+    func exchangeCode(accessToken: String) async throws -> String {
+        var request = Self.request("https://\(Self.oauthHost)/account/api/oauth/exchange")
+        request.setValue("bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        struct Response: Decodable { let code: String }
+        let code = try decode(Response.self, from: await send(request)).code
+        guard Self.isIdentifier(code) else { throw EpicError.invalidResponse }
+        return code
+    }
+
+    /// The signed ownership proof some games read from `-epicovt=<file>`.
+    func ownershipToken(namespace: String, catalogItemID: String, accountID: String, accessToken: String) async throws -> Data {
+        guard Self.isIdentifier(namespace), Self.isIdentifier(catalogItemID), Self.isIdentifier(accountID) else { throw EpicError.invalidResponse }
+        var request = Self.request("https://ecommerceintegration-public-service-ecomprod02.ol.epicgames.com/ecommerceintegration/api/public"
+            + "/platforms/EPIC/identities/\(accountID)/ownershipToken", method: "POST")
+        request.setValue("bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data("nsCatalogItemId=\(namespace)%3A\(catalogItemID)".utf8)
+        let (data, status) = try await send(request)
+        switch status {
+        case 200 where !data.isEmpty && data.count <= 64 * 1024: return data
+        case 401, 403: throw EpicError.invalidCredentials
+        default: throw EpicError.unavailable(status)
+        }
+    }
+
     /// Best effort: the local sign-out does not depend on it.
     func endSession(accessToken: String) async {
         guard let path = accessToken.addingPercentEncoding(withAllowedCharacters: .alphanumerics) else { return }

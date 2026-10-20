@@ -337,8 +337,22 @@ nonisolated struct SteamRuntime: Sendable {
         return process.terminationStatus
     }
 
-    @MainActor func startWindows(_ arguments: [String], extraEnvironment: [String: String]) throws -> Process {
-        try spawn(arguments, extraEnvironment: extraEnvironment)
+    @MainActor func startWindows(_ arguments: [String], extraEnvironment: [String: String], workingDirectory: URL? = nil) throws -> Process {
+        try spawn(arguments, extraEnvironment: extraEnvironment, workingDirectory: workingDirectory)
+    }
+
+    /// Waits, without a deadline, until every Windows process in this prefix
+    /// has exited and its server has stopped. A launcher that hands off to the
+    /// real game keeps this waiting until the game also exits.
+    @concurrent func waitUntilPrefixStops() async {
+        let process = Process()
+        process.executableURL = installation.wine.deletingLastPathComponent().appendingPathComponent("wineserver"); process.arguments = ["-w"]
+        process.environment = environment().filter { $0.key != "DYLD_INSERT_LIBRARIES" }
+        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return }
+        await withTaskCancellationHandler {
+            while process.isRunning { try? await Task.sleep(for: .milliseconds(500)) }
+        } onCancel: { process.terminate() }
     }
 
     func startSessionHost(_ arguments: [String], environment: [String: String], input: Pipe, output: Pipe) throws -> Process {
@@ -360,8 +374,13 @@ nonisolated struct SteamRuntime: Sendable {
     var dockAllowRecord: URL { installation.prefix.appendingPathComponent(".pufflet-dock-allow") }
 
     func allowDockExecutable(_ executable: URL, for game: SteamGame) throws {
+        try allowDockExecutable(executable, inside: game.folder)
+    }
+
+    /// Lets the Dock bridge promote only this image, which must be inside `gameFolder`.
+    func allowDockExecutable(_ executable: URL, inside gameFolder: URL) throws {
         let image = executable.resolvingSymlinksInPath().standardizedFileURL
-        let folder = game.folder.resolvingSymlinksInPath().standardizedFileURL
+        let folder = gameFolder.resolvingSymlinksInPath().standardizedFileURL
         guard image.path.hasPrefix(folder.path + "/"), image.pathExtension.lowercased() == "exe",
               !image.path.contains("\n"), image.path.utf8.count < PATH_MAX,
               try image.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
@@ -393,7 +412,8 @@ nonisolated struct SteamRuntime: Sendable {
         }
     }
 
-    private func spawn(_ arguments: [String], extraEnvironment: [String: String] = [:], input: Pipe? = nil, output: Pipe? = nil) throws -> Process {
+    private func spawn(_ arguments: [String], extraEnvironment: [String: String] = [:], input: Pipe? = nil, output: Pipe? = nil,
+                       workingDirectory: URL? = nil) throws -> Process {
         guard FileManager.default.isExecutableFile(atPath: installation.wine.path) else { throw RuntimeError.missingSetup }
         let logOutput = try launchLog()
         defer { try? logOutput.close() }
@@ -401,7 +421,7 @@ nonisolated struct SteamRuntime: Sendable {
         process.executableURL = installation.wine
         process.arguments = arguments
         process.environment = environment().merging(extraEnvironment) { _, value in value }
-        process.currentDirectoryURL = installation.prefix
+        process.currentDirectoryURL = workingDirectory ?? installation.prefix
         process.standardInput = input ?? FileHandle.nullDevice
         process.standardOutput = output ?? logOutput; process.standardError = logOutput
         try process.run()

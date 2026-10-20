@@ -201,7 +201,7 @@ struct EpicAccountSettings: View {
                         Button("Refresh Library") { Task { await account.refreshLibrary() } }.disabled(account.isBusy)
                     }
                 } footer: {
-                    Text("Epic games appear in your library and can be installed. Playing them in Pufflet is coming soon.")
+                    Text("Epic games appear in your library with Steam’s. They run in their own Windows prefix, separate from Steam.")
                 }
             }
         }

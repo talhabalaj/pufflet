@@ -219,3 +219,53 @@ struct EpicLibraryTests {
         #expect(fake.requests.last?.value(forHTTPHeaderField: "Authorization") == "bearer access-1")
     }
 }
+
+struct EpicLaunchTests {
+    private let game = EpicInstalledGame(appName: "Hazelnut", title: "Limbo", folderName: "Limbo", namespace: "ns1", catalogItemID: "cat",
+                                         buildVersion: "1", launchExecutable: "LimboLauncher.exe", launchCommand: "-windowed \"-log=a b\"", installSize: 1)
+
+    @Test func argumentsMatchEpicsLauncher() {
+        let arguments = EpicLaunch.arguments(launchCommand: game.launchCommand, exchangeCode: "code1", game: game, accountID: "acct",
+                                             displayName: "tester", locale: "en", ownershipToken: "C:\\users\\Public\\Pufflet\\x.ovt")
+        #expect(arguments == ["-windowed", "-log=a b", "-AUTH_LOGIN=unused", "-AUTH_PASSWORD=code1", "-AUTH_TYPE=exchangecode",
+                              "-epicapp=Hazelnut", "-epicenv=Prod", "-epicovt=C:\\users\\Public\\Pufflet\\x.ovt", "-EpicPortal",
+                              "-epicusername=tester", "-epicuserid=acct", "-epiclocale=en", "-epicsandboxid=ns1"])
+        #expect(!EpicLaunch.arguments(launchCommand: "", exchangeCode: "c", game: game, accountID: "a", displayName: "", locale: "en",
+                                      ownershipToken: nil).contains { $0.hasPrefix("-epicovt") })
+    }
+
+    @Test func commandLinesSplitLikeWindows() {
+        #expect(EpicLaunch.split("") == [])
+        #expect(EpicLaunch.split("  -a   -b ") == ["-a", "-b"])
+        #expect(EpicLaunch.split(#"-x "two words" -y="" end"#) == ["-x", "two words", "-y=", "end"])
+    }
+
+    @Test func executableMustBeInsideTheGameFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("epic-exe-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("Game")
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("bin"), withIntermediateDirectories: true)
+        try Data().write(to: folder.appendingPathComponent("bin/Game.exe"))
+        try Data().write(to: root.appendingPathComponent("Outside.exe"))
+        #expect(EpicLaunch.executable("bin\\Game.exe", in: folder)?.lastPathComponent == "Game.exe")
+        #expect(EpicLaunch.executable("bin/Missing.exe", in: folder) == nil)
+        #expect(EpicLaunch.executable("../Outside.exe", in: folder) == nil)
+        #expect(EpicLaunch.executable("bin/readme.txt", in: folder) == nil)
+        try FileManager.default.createSymbolicLink(at: folder.appendingPathComponent("Linked.exe"), withDestinationURL: root.appendingPathComponent("Outside.exe"))
+        #expect(EpicLaunch.executable("Linked.exe", in: folder) == nil)
+    }
+
+    @Test func exchangeCodeAndOwnershipTokenRequests() async throws {
+        let fake = FakeEpic()
+        fake.routes = ["account-public-service-prod03.ol.epicgames.com/account/api/oauth/exchange": (200, #"{"code":"abc123","expiresInSeconds":300}"#),
+                       "ecommerceintegration-public-service-ecomprod02.ol.epicgames.com/ecommerceintegration/api/public/platforms/EPIC/identities/acct/ownershipToken": (200, "TOKENBYTES")]
+        #expect(try await fake.api.exchangeCode(accessToken: "t") == "abc123")
+        let token = try await fake.api.ownershipToken(namespace: "ns1", catalogItemID: "cat", accountID: "acct", accessToken: "t")
+        #expect(token == Data("TOKENBYTES".utf8))
+        let request = try #require(fake.requests.last)
+        #expect(request.httpMethod == "POST" && String(decoding: request.httpBody ?? Data(), as: UTF8.self) == "nsCatalogItemId=ns1%3Acat")
+        await #expect(throws: EpicError.self) { try await fake.api.ownershipToken(namespace: "../x", catalogItemID: "c", accountID: "a", accessToken: "t") }
+        fake.routes = ["account-public-service-prod03.ol.epicgames.com/account/api/oauth/exchange": (200, #"{"code":"a b"}"#)]
+        await #expect(throws: EpicError.invalidResponse) { try await fake.api.exchangeCode(accessToken: "t") }
+    }
+}
