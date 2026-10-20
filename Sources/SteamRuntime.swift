@@ -118,23 +118,22 @@ nonisolated struct SteamRuntime: Sendable {
         let inherited = ProcessInfo.processInfo.environment
         let permitted = Set(["HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "__CF_USER_TEXT_ENCODING", "SECURITYSESSIONID"])
         var env = inherited.filter { permitted.contains($0.key) }
-        // Sikarugir's working DXMT settings, without importing Steam account configuration.
+        // DXMT settings for pufflet-runtime, without importing Steam account configuration.
         env["WINEPREFIX"] = prefix
         env["PATH"] = wine.appendingPathComponent("bin").path + ":/usr/bin:/bin:/usr/sbin:/sbin"
-        env["DYLD_FALLBACK_LIBRARY_PATH"] = [wine.appendingPathComponent("lib").path,
-            wine.appendingPathComponent("lib64").path, frameworks.path,
-            frameworks.appendingPathComponent("GStreamer.framework/Libraries").path,
+        env["DYLD_FALLBACK_LIBRARY_PATH"] = [wine.appendingPathComponent("lib").path, frameworks.path,
             "/usr/lib", "/usr/libexec", "/usr/lib/system"].joined(separator: ":")
         env["WINEDLLPATH"] = ["x86_64-windows", "i386-windows", "x86_64-unix"]
             .map { wine.appendingPathComponent("lib/wine/\($0)").path }.joined(separator: ":")
         env["WINEDLLPATH_DXMT"] = renderer
+        // GStreamer plugins live outside Frameworks, which codesign reserves for bundles.
+        env["GST_PLUGIN_SYSTEM_PATH_1_0"] = contents.appendingPathComponent("SharedSupport/gstreamer-1.0").path
         env["WINEDLLPATH_PREPEND"] = renderer
         env["WINEESYNC"] = "1"
         env["WINEMSYNC"] = "1"
         env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1"
         env["WINEBOOT_HIDE_DIALOG"] = "1"
         env["WINEDEBUG"] = "-all"
-        env["SikarugirAppWine11"] = "1"
         env["METAL_HUD"] = "1"
         // The bridge permits game images while keeping Wine services/helpers
         // background-only. Wine retains its native Quit delegate.

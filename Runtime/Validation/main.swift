@@ -79,11 +79,10 @@ import Synchronization
         let contents = app.appendingPathComponent("Contents")
         let wine = contents.appendingPathComponent("SharedSupport/wine")
         let inherited = ProcessInfo.processInfo.environment.filter { ["HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE"].contains($0.key) }
-        let environment = inherited.merging(["WINEPREFIX": prefix.path, "PATH": "/usr/bin:/bin", "SikarugirAppWine11": "1"]) { _, value in value }
+        let environment = inherited.merging(["WINEPREFIX": prefix.path, "PATH": "/usr/bin:/bin"]) { _, value in value }
         let launchEnvironment = environment.merging([
-            "DYLD_FALLBACK_LIBRARY_PATH": [wine.appendingPathComponent("lib").path, wine.appendingPathComponent("lib64").path,
-                contents.appendingPathComponent("Frameworks").path,
-                contents.appendingPathComponent("Frameworks/GStreamer.framework/Libraries").path, "/usr/lib"].joined(separator: ":")
+            "DYLD_FALLBACK_LIBRARY_PATH": [wine.appendingPathComponent("lib").path,
+                contents.appendingPathComponent("Frameworks").path, "/usr/lib"].joined(separator: ":")
         ]) { _, value in value }
         let server = wine.appendingPathComponent("bin/wineserver")
         func cleanPrefix() throws {

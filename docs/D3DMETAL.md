@@ -2,6 +2,14 @@
 
 Research checked 16 October 2026. This document separates the archived original Whisky from newer unrelated forks, and the current Apple download from historical GPTK releases. No Apple binaries are added to Pufflet's repository or runtime.
 
+> **Runtime update (20 October 2026):** from `wine-11.0-dxmt-3` Pufflet runs its own
+> [pufflet-runtime](https://github.com/talhabalaj/pufflet-runtime), built from CrossOver
+> 26.3 sources, instead of Sikarugir11.0_1. `GameGraphicsTests.offlineD3D12Sample` passed
+> against it with GPTK 4.0b2 (Apple's `d3d12.dll` mapped, GPU fence and pixel readback).
+> D3DMetal processes (`WINEDLLPATH_D3DMETAL` set) keep CrossOver's `%gs` scheme, because
+> Apple's code calls native code directly from PE code; the Sikarugir-specific notes
+> below describe the previous runtime.
+
 ## Decision
 
 Use a user-provided GPTK evaluation environment, preserving its complete `redist/lib` layout. Select graphics per game; keep DXMT as the existing D3D10/11 route. D3DMetal needs a Wine build with Apple's/CrossOver's integration patches, not merely a sufficiently high Wine version. Validate the exact Pufflet runtime rather than replace it just because its version is 11.

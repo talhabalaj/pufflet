@@ -14,9 +14,8 @@ base = {key: value for key, value in os.environ.items()
 subprocess.run([str(server), "--version"], env=base, check=True, timeout=20)
 environment = base | {
     "WINEPREFIX": str(prefix), "PATH": str(wine / "bin") + ":/usr/bin:/bin",
-    "SikarugirAppWine11": "1", "WINEDEBUG": "-all", "WINEBOOT_HIDE_DIALOG": "1",
-    "DYLD_FALLBACK_LIBRARY_PATH": ":".join(map(str, [wine / "lib", wine / "lib64",
-        contents / "Frameworks", contents / "Frameworks/GStreamer.framework/Libraries", "/usr/lib"])),
+    "WINEDEBUG": "-all", "WINEBOOT_HIDE_DIALOG": "1",
+    "DYLD_FALLBACK_LIBRARY_PATH": ":".join(map(str, [wine / "lib", contents / "Frameworks", "/usr/lib"])),
 }
 log = prefix.parent / "windows-command.log"
 process = None

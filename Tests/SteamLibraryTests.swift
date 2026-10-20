@@ -127,7 +127,8 @@ struct SteamLibraryTests {
         #expect(setup.wine.path == "/private/runtime/PuffletRuntime.app/Contents/SharedSupport/wine/bin/wine")
         #expect(environment["DYLD_FALLBACK_LIBRARY_PATH"]?.contains("/private/runtime/PuffletRuntime.app/Contents/Frameworks") == true)
         #expect(environment["PATH"]?.hasPrefix("/private/runtime/") == true)
-        #expect(environment["SikarugirAppWine11"] == "1")
+        #expect(environment["SikarugirAppWine11"] == nil)
+        #expect(environment["GST_PLUGIN_SYSTEM_PATH_1_0"] == "/private/runtime/PuffletRuntime.app/Contents/SharedSupport/gstreamer-1.0")
         #expect(environment["OPENAI_API_KEY"] == nil)
         #expect(environment["DXMT_CONFIG_FILE"] == nil)
     }

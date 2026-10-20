@@ -44,8 +44,8 @@ there is no unsigned network manifest. The current schema is:
 ```json
 {
   "schemaVersion": 1,
-  "version": "wine-11.0-dxmt-2",
-  "url": "https://github.com/talhabalaj/pufflet/releases/download/runtime-wine-11.0-dxmt-2/PuffletRuntime-wine-11.0-dxmt-2.tar.xz",
+  "version": "wine-11.0-dxmt-3",
+  "url": "https://github.com/talhabalaj/pufflet/releases/download/runtime-wine-11.0-dxmt-3/PuffletRuntime-wine-11.0-dxmt-3.tar.xz",
   "sha256": "<SHA-256 of final signed, stapled tar.xz, lowercase hex>",
   "sizeBytes": 123,
   "expandedSizeBytes": 456,
@@ -62,7 +62,7 @@ asset under the same URL causes existing apps to reject it; a different artifact
 needs a new version, URL and app pin. GitHub release redirects are permitted only
 over HTTPS on standard ports to GitHub’s release-asset hosts. No credentials or
 cookies are sent. The owned repository is the mirror, so installation does not
-depend on upstream Sikarugir release availability.
+depend on the pufflet-runtime release staying available.
 
 The xz-compressed tar has exactly one top-level app:
 
@@ -77,8 +77,8 @@ PuffletRuntime.app/
       wine/bin/{wine,wineserver}
       wine/{lib,lib64,...}
       renderer/dxmt/wine/...     # Windows DLLs, outside macOS Frameworks
+      gstreamer-1.0/...          # plugins; GST_PLUGIN_SYSTEM_PATH_1_0 points here
     Frameworks/
-      GStreamer.framework/...
       <flat native support libraries>
 ```
 
