@@ -100,6 +100,7 @@ struct GameAppBundleTests {
         #expect(info["CFBundleExecutable"] as? String == "wine")
         #expect(info["LSApplicationCategoryType"] as? String == "public.app-category.games")
         #expect(info["CFBundleIconFile"] as? String == "AppIcon")
+        #expect(info["LSUIElement"] as? Bool == true)
         let macOS = bundle.appendingPathComponent("Contents/MacOS")
         #expect(try String(contentsOf: macOS.appendingPathComponent("wine"), encoding: .utf8) == "loader")
         #expect(try FileManager.default.destinationOfSymbolicLink(atPath: macOS.appendingPathComponent("ntdll.so").path)

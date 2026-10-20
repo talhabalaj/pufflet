@@ -50,6 +50,10 @@ nonisolated enum GameAppBundle {
             "CFBundleExecutable": "wine", "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "1.0",
             "LSApplicationCategoryType": "public.app-category.games", "LSSupportsGameMode": true,
             "NSHighResolutionCapable": true,
+            // Start in the background like an unbundled Wine process. Wine's Mac driver makes
+            // the app regular when the game shows a window, and only then builds its menu bar
+            // (app menu with Quit, Window menu); starting regular would skip that.
+            "LSUIElement": true,
         ]
         if let image = executableIcon(executable) ?? fallbackArtwork.flatMap(artworkIcon(_:)),
            let icns = icnsData(image) {
@@ -70,7 +74,7 @@ nonisolated enum GameAppBundle {
             let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
             return "\(url.path)|\(values.fileSize ?? 0)|\(values.contentModificationDate?.timeIntervalSince1970 ?? 0)"
         }
-        return ["v1", try describe(loader), try describe(executable), identifier, name].joined(separator: "\n")
+        return ["v2", try describe(loader), try describe(executable), identifier, name].joined(separator: "\n")
     }
 
     // MARK: Icons
