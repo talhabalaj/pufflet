@@ -79,13 +79,15 @@ nonisolated struct EpicAPI: Sendable {
     let transport: Transport
     init(transport: @escaping Transport = EpicAPI.liveTransport) { self.transport = transport }
 
-    static let liveTransport: Transport = { request in
+    /// One session for all Epic traffic, so connections to the API and CDNs are reused.
+    private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
         configuration.urlCache = nil
         configuration.timeoutIntervalForRequest = 20
-        return try await URLSession(configuration: configuration).data(for: request)
-    }
+        return URLSession(configuration: configuration)
+    }()
+    static let liveTransport: Transport = { request in try await session.data(for: request) }
 
     enum Grant: Equatable, Sendable { case authorizationCode(String), refreshToken(String) }
 
