@@ -16,42 +16,8 @@ struct GameAppBundleTests {
         return rep.representation(using: .png, properties: [:])!
     }
 
-    /// A minimal PE32+ whose only section holds a resource tree with one icon group.
     static func executable(icon: Data?) -> Data {
-        func le16(_ value: Int) -> [UInt8] { [UInt8(value & 0xff), UInt8(value >> 8 & 0xff)] }
-        func le32(_ value: Int) -> [UInt8] { le16(value & 0xffff) + le16(value >> 16) }
-        let sectionRVA = 0x1000, raw = 0x200
-        var rsrc: [UInt8] = []
-        if let icon {
-            // Root (types 3 and 14) → name 1 → language 0x409 → data entry.
-            func directory(_ entries: [(Int, Int)]) -> [UInt8] {
-                [UInt8](repeating: 0, count: 12) + le16(0) + le16(entries.count) + entries.flatMap { le32($0.0) + le32($0.1) }
-            }
-            let group = le16(0) + le16(1) + le16(1) + [64, 64, 0, 0] + le16(1) + le16(32) + le32(icon.count) + le16(1)
-            // Layout: root(32) iconNames(24) groupNames(24) iconLang(24) groupLang(24) iconData(16) groupData(16) payloads
-            let root = 0, iconNames = 32, groupNames = 56, iconLang = 80, groupLang = 104, iconEntry = 128, groupEntry = 144, payload = 160
-            rsrc += directory([(3, 0x8000_0000 | iconNames), (14, 0x8000_0000 | groupNames)])
-            rsrc += directory([(1, 0x8000_0000 | iconLang)])
-            rsrc += directory([(1, 0x8000_0000 | groupLang)])
-            rsrc += directory([(0x409, iconEntry)])
-            rsrc += directory([(0x409, groupEntry)])
-            rsrc += le32(sectionRVA + payload) + le32(icon.count) + le32(0) + le32(0)
-            rsrc += le32(sectionRVA + payload + icon.count) + le32(group.count) + le32(0) + le32(0)
-            _ = root
-            rsrc += [UInt8](icon) + group
-        }
-        var file = [UInt8](repeating: 0, count: raw)
-        file[0] = 0x4d; file[1] = 0x5a
-        file.replaceSubrange(0x3c..<0x40, with: le32(0x40))
-        var header = [0x50, 0x45, 0, 0] + le16(0x8664) + le16(1) + [UInt8](repeating: 0, count: 12) + le16(240) + le16(0x22)
-        var optional = le16(0x20b) + [UInt8](repeating: 0, count: 238)
-        // Data directory 2 (resources) starts at optional offset 112 + 2 * 8.
-        optional.replaceSubrange(128..<136, with: le32(icon == nil ? 0 : sectionRVA) + le32(rsrc.count))
-        header += optional
-        header += Array(".rsrc\0\0\0".utf8) + le32(rsrc.count) + le32(sectionRVA) + le32(rsrc.count) + le32(raw)
-            + [UInt8](repeating: 0, count: 16)
-        file.replaceSubrange(0x40..<(0x40 + header.count), with: header)
-        return Data(file + rsrc)
+        PEFixture.executable(icon.map { PEFixture.iconResources($0) } ?? [])
     }
 
     static func fakeRuntime(in root: URL) throws -> URL {

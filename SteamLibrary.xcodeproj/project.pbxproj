@@ -47,7 +47,9 @@
 		581AF256E0AA349CCCDAA533 /* EpicAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 837CABC88F695A1F0E94C197 /* EpicAccountView.swift */; };
 		60ADFCCFC45941840C2159E1 /* EpicLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0FD5B6DB9A816067DD02D49 /* EpicLauncher.swift */; };
 		6307397C6CAC9E5E760B2EE5 /* LicenseListBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8649701E76D99A249838D69C /* LicenseListBox.swift */; };
+		64B1EEC4A84565C265D2AF57 /* PEResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142C85205BF0A14133B20D47 /* PEResources.swift */; };
 		6504EA0F6CC9E12EA2D9D541 /* PersistentSessionLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C0517DF43025923DD537F48 /* PersistentSessionLiveTests.swift */; };
+		69053FE632D41C68A4548973 /* PEFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86206F2F199CA3F58EEC149D /* PEFixture.swift */; };
 		6CA6A4D42CE2E581D1929B7B /* RuntimeDefaults.plist in Resources */ = {isa = PBXBuildFile; fileRef = 915F6851D67B5018F154DE9D /* RuntimeDefaults.plist */; };
 		6FCDF6A39EBBCBCBB1818194 /* SteamLibraryFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E292E91CD5634F58F9D4D1B /* SteamLibraryFetcher.swift */; };
 		6FD3C8575B44A5499548A7AA /* wine-process-guard.exe in Resources */ = {isa = PBXBuildFile; fileRef = 9D4A36AE9AF628B620EE0ABF /* wine-process-guard.exe */; };
@@ -123,6 +125,7 @@
 		0DC1AB38B97D6B7635148E92 /* OwnedLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnedLibraryTests.swift; sourceTree = "<group>"; };
 		0DDF0BA24C62652CA960ED65 /* OwnedSteamGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnedSteamGame.swift; sourceTree = "<group>"; };
 		0F72FF9E4601204C664F1F1A /* RuntimeDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDownloader.swift; sourceTree = "<group>"; };
+		142C85205BF0A14133B20D47 /* PEResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PEResources.swift; sourceTree = "<group>"; };
 		187C8758A15233306D44E94E /* LibrarySettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySettingsTests.swift; sourceTree = "<group>"; };
 		188CF4C36EA9E2D147441CF7 /* SteamArtworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamArtworkTests.swift; sourceTree = "<group>"; };
 		1BEF834B1E4819021AEFD6FB /* SteamLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamLog.swift; sourceTree = "<group>"; };
@@ -173,6 +176,7 @@
 		837CABC88F695A1F0E94C197 /* EpicAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicAccountView.swift; sourceTree = "<group>"; };
 		847C9F172181D0AA05C4C500 /* LICENSE */ = {isa = PBXFileReference; path = LICENSE; sourceTree = "<group>"; };
 		84ADEC0810BAF0E78032DCD1 /* Pufflet.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Pufflet.icon; sourceTree = "<group>"; };
+		86206F2F199CA3F58EEC149D /* PEFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PEFixture.swift; sourceTree = "<group>"; };
 		8649701E76D99A249838D69C /* LicenseListBox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseListBox.swift; sourceTree = "<group>"; };
 		883EBDD9B138C6F2DDC5DCCA /* SteamDisplayProfilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamDisplayProfilesTests.swift; sourceTree = "<group>"; };
 		891B0F9625FEA79EC09768BC /* WakeLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeLockTests.swift; sourceTree = "<group>"; };
@@ -351,6 +355,7 @@
 				38B1665CB7333FE45C1FE8E8 /* LibraryResponsivenessTests.swift */,
 				187C8758A15233306D44E94E /* LibrarySettingsTests.swift */,
 				0DC1AB38B97D6B7635148E92 /* OwnedLibraryTests.swift */,
+				86206F2F199CA3F58EEC149D /* PEFixture.swift */,
 				6C0517DF43025923DD537F48 /* PersistentSessionLiveTests.swift */,
 				F2B78237412CDCB067890084 /* RuntimeDownloaderTests.swift */,
 				79A857CEFC9C8363CD9BFA31 /* RuntimeInstallerTests.swift */,
@@ -425,6 +430,7 @@
 				23581EFB5B56953D9A88D959 /* LibraryModel.swift */,
 				5C67BC9DA9CFFE577855CFD2 /* LibrarySettings.swift */,
 				249413E5C7E6FCFED178256F /* LibraryView.swift */,
+				142C85205BF0A14133B20D47 /* PEResources.swift */,
 				4CF4BBE4C86611A07C882A2C /* RuntimeArchive.swift */,
 				79D7B53DA3C534CB4715787F /* RuntimeArtifact.swift */,
 				0F72FF9E4601204C664F1F1A /* RuntimeDownloader.swift */,
@@ -604,6 +610,7 @@
 				A3BB5BD38EFDCC3B601C2671 /* LibraryResponsivenessTests.swift in Sources */,
 				DCCFAF0B4BA756292AFCB1DD /* LibrarySettingsTests.swift in Sources */,
 				9BC3E96C362DCDB795A3F09C /* OwnedLibraryTests.swift in Sources */,
+				69053FE632D41C68A4548973 /* PEFixture.swift in Sources */,
 				6504EA0F6CC9E12EA2D9D541 /* PersistentSessionLiveTests.swift in Sources */,
 				2F2E405B324F70B075AABFA4 /* RuntimeDownloaderTests.swift in Sources */,
 				2D8B4C4CB448FCA09AABAFE5 /* RuntimeInstallerTests.swift in Sources */,
@@ -647,6 +654,7 @@
 				4E928DBE474822E09DF8C39A /* LibraryView.swift in Sources */,
 				6307397C6CAC9E5E760B2EE5 /* LicenseListBox.swift in Sources */,
 				7231C6CF42BFCED2F259443D /* OwnedSteamGame.swift in Sources */,
+				64B1EEC4A84565C265D2AF57 /* PEResources.swift in Sources */,
 				0ED7AA44D04998E76A4A567E /* RuntimeArchive.swift in Sources */,
 				22B4F454C5B2624F8C74C44A /* RuntimeArtifact.swift in Sources */,
 				F9EE12E3E087AF5070AED393 /* RuntimeDownloader.swift in Sources */,

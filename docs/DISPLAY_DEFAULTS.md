@@ -6,12 +6,25 @@ per-game prefix isolation remains a separate project.
 
 ## Per-game profiles
 
+- **Automatic** is the default for a game without a saved choice. At Play it reads
+  the game executable's embedded manifest: a DPI-aware program (`dpiAware` true or
+  true/pm, or `dpiAwareness` system/PerMonitor/PerMonitorV2) gets **High resolution ·
+  192 DPI**, so it is sharp and draws its own UI at full scale; an unaware program
+  gets **Standard**, because Wine can't bitmap-scale an unaware program's UI the way
+  Windows does. Most current engines (Unity, Unreal) declare DPI awareness; older
+  games such as Peggle Extreme or Super Crate Box don't. On desktop Steam and the
+  legacy launcher Automatic behaves like Inherit.
 - **Inherit** uses the prefix's original saved display values, captured once before
   the first explicit override. It never means the last game's selected profile.
 - **Standard** uses Retina off and 96 DPI.
 - **High resolution** uses Retina on and 96 DPI. This can increase rendering cost.
 - Two advanced compatibility choices expose either Retina mode at 192 DPI.
   Older non-DPI-aware games may become enlarged; these are not recommended presets.
+
+High resolution renders at the Mac's full pixel count, which costs GPU time in
+heavy 3D games until a lower resolution is chosen in the game. Because the display
+keys are prefix-wide, alternating games with different profiles restarts the
+session; with Automatic most current games share one profile.
 
 Selecting a choice saves intent for the next Play without changing the active
 session. Preferences are keyed by Steam App ID in
@@ -36,7 +49,7 @@ the game unlaunched. Saved intent and the baseline allow retry after interruptio
 corrupt files are not silently reset or recaptured. No game config or save is reset.
 
 Explicit overrides are unsupported by desktop Steam and the legacy launcher;
-those paths reject the request. Choose Inherit to use them. Desktop/external
+those paths reject the request. Choose Automatic or Inherit to use them. Desktop/external
 prefixes retain their own display configuration, rather than receiving managed
 per-game settings. Resolution, fullscreen mode, render scale and UI scale still
 belong to the game. If a saved resolution no longer fits after changing profiles,

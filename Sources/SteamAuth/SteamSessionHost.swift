@@ -145,7 +145,7 @@ actor SteamSessionHost {
     func startGame(_ game: SteamGame, option: UInt32, executable: URL, destination: URL, library: [SteamGame], credentials: SteamCredentials, runtime: SteamRuntime) async throws {
         guard !switchingDisplay, !starting, !preparingSupport, !stopping, installReservations.isEmpty, !uninstalling,
               ongoing.subtracting(installRequests).isEmpty else { throw SteamDisplayProfiles.Failure.busy }
-        let preference = try SteamDisplayProfiles(paths: paths).preference(for: game.id)
+        let preference = try SteamDisplayProfiles(paths: paths).preference(for: game.id).resolved(for: executable)
         guard let appID = UInt32(game.id), appID > 0, appID <= Int32.max else { throw SteamError.invalidMessage }
         switchingDisplay = true
         defer { switchingDisplay = false }

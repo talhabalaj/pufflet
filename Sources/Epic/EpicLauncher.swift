@@ -70,10 +70,10 @@ nonisolated enum EpicLaunch {
         }
     }
 
-    /// - Parameter display: the game's display profile; nil uses the prefix's
-    ///   defaults (standard resolution, 96 DPI).
+    /// - Parameter display: the game's display choice. Automatic is resolved from the
+    ///   game's executable; Inherit uses the prefix defaults (standard resolution, 96 DPI).
     func play(_ game: EpicInstalledGame, folder: URL, account: EpicAccount, api: EpicAPI = EpicAPI(),
-              runtimeApplication: URL, dockBridge: URL, graphics: GraphicsSupport, display: SteamDisplayConfiguration? = nil) async throws {
+              runtimeApplication: URL, dockBridge: URL, graphics: GraphicsSupport, display: SteamDisplayPreference = .automatic) async throws {
         guard let id = game.gameID?.description else { return }
         if let playingID { throw Failure.busy(playingID == id ? game.title : "your other Epic game") }
         guard launchingID == nil else { return }
@@ -90,7 +90,8 @@ nonisolated enum EpicLaunch {
             ? graphics.installation : nil
 
         try await preparePrefix(runtime)
-        try await applyDisplay(display ?? Self.defaultDisplay, runtime: runtime)
+        let profile = await Task.detached { display.resolved(for: executable) }.value
+        try await applyDisplay(profile.configuration ?? Self.defaultDisplay, runtime: runtime)
         status = "Signing in to Epic…"
         let token = try await account.accessToken()
         guard let accountID = account.accountID else { throw EpicError.signedOut }

@@ -273,7 +273,7 @@ import os
     func displayPreference(for appID: String) -> SteamDisplayPreference {
         _ = displayRevision
         if let cached = displayPreferences[appID] { return cached }
-        let preference = (try? SteamDisplayProfiles(paths: paths).preference(for: appID)) ?? .inherit
+        let preference = (try? SteamDisplayProfiles(paths: paths).preference(for: appID)) ?? .automatic
         displayPreferences[appID] = preference
         return preference
     }
@@ -674,7 +674,7 @@ import os
         do {
             try await epicLauncher.play(game, folder: folder, account: epic, runtimeApplication: application,
                                         dockBridge: runtime.dockBridge, graphics: graphics,
-                                        display: displayPreference(for: entry.id).configuration)
+                                        display: displayPreference(for: entry.id))
         } catch EpicLauncher.Failure.needsToolkit {
             showsGraphicsSetup = true
         } catch {
