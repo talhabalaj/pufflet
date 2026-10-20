@@ -10,7 +10,7 @@ nonisolated struct OwnedSteamGame: Codable, Equatable, Identifiable, Sendable {
     let estimatedBytes: Int64?
 
     var isValid: Bool {
-        UInt32(id).map { $0 > 0 && $0 <= Int32.max } == true && !name.isEmpty && name.utf8.count <= 1024
+        GameID(id)?.steamAppID != nil && !name.isEmpty && name.utf8.count <= 1024
     }
 
     static func parse(appID: UInt32, from data: Data) -> Self? {

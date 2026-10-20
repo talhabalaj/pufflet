@@ -105,8 +105,9 @@ protocol GameStoreBackend: Sendable {
 - `LaunchPlan` is either `.steamHost(appID, option)` or
   `.direct(executable, arguments, workingDirectory, environment)`.
 
-The protocol is extracted from Steam first, with no behaviour change, before
-Epic code lands.
+The protocol is extracted together with the Epic library (rollout step 3), so
+it is shaped by two real implementations rather than guessed from one. Steam's
+behaviour does not change when it conforms.
 
 ## Prefix ownership
 
@@ -245,9 +246,11 @@ Unsupported games are listed with a label and cannot be installed.
 
 ## Rollout
 
-1. `GameID` and store-neutral library types; Steam conforms. No behaviour change.
+1. `GameID`; store-neutral persisted keys (download queue, display profiles,
+   artwork cache) accept it. No behaviour change for Steam.
 2. `PrefixCoordinator` and leases; Steam host becomes a lease holder.
-3. Epic sign-in and library (read-only), behind `PUFFLET_EPIC=1`.
+3. Store protocol with Steam conforming; Epic sign-in and library
+   (read-only), behind `PUFFLET_EPIC=1`.
 4. Epic downloader, verify and uninstall.
 5. Epic launch and exit tracking.
 6. Updates, cloud saves, compatibility labels; remove the flag.

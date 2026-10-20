@@ -34,7 +34,7 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
               let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode([GameDownload].self, from: data), saved.count <= 1000 else { return }
         var ids = Set<String>()
         jobs = saved.filter { job in
-            UInt32(job.id).map { $0 > 0 && $0 <= Int32.max } == true && ids.insert(job.id).inserted && job.destination.isFileURL
+            GameID(job.id) != nil && ids.insert(job.id).inserted && job.destination.isFileURL
         }.map { job in
             var job = job
             if [.preparing, .installing, .queued].contains(job.state) {
