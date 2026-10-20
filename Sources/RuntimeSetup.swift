@@ -16,6 +16,16 @@ import Observation
     func check() async {
         guard !hasChecked, !isBusy else { return }
         progress = RuntimeProgress(phase: .checking)
+        #if DEBUG
+        if let app = Self.developmentRuntime {
+            // Debug-only: use a local, unsigned runtime build as is, without the
+            // download or Developer ID/notarization approval that Release requires.
+            do { try RuntimeInstaller.checkLayout(app); application = app }
+            catch { errorMessage = "PUFFLET_DEV_RUNTIME is not a complete runtime: \(app.path)" }
+            progress = nil; hasChecked = true
+            return
+        }
+        #endif
         do {
             let installer = try installer()
             application = try await installer.existing()
@@ -52,6 +62,16 @@ import Observation
     }
 
     func cancel() { task?.cancel() }
+
+    #if DEBUG
+    /// PUFFLET_DEV_RUNTIME from the environment, or a user default/launch argument of that name.
+    static var developmentRuntime: URL? {
+        let path = ProcessInfo.processInfo.environment["PUFFLET_DEV_RUNTIME"]
+            ?? UserDefaults.standard.string(forKey: "PUFFLET_DEV_RUNTIME")
+        guard let path, !path.isEmpty else { return nil }
+        return URL(filePath: path).standardizedFileURL
+    }
+    #endif
 
     private func installer() throws -> RuntimeInstaller {
         RuntimeInstaller(artifact: try RuntimeArtifact.bundled(), support: AppIdentity.support)

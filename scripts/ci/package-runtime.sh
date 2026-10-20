@@ -20,7 +20,10 @@ prepare)
   rsync -aE "$source_app/Contents/SharedSupport/wine/" "$app/Contents/SharedSupport/wine/"
   rsync -aE "$source_app/Contents/SharedSupport/gstreamer-1.0/" "$app/Contents/SharedSupport/gstreamer-1.0/"
   rsync -aE --exclude renderer "$source_app/Contents/Frameworks/" "$app/Contents/Frameworks/"
-  rsync -aE "$source_app/Contents/Frameworks/renderer/dxmt/" "$app/Contents/SharedSupport/renderer/dxmt/"
+  # pufflet-runtime stages the renderer in its final place; older sources kept it in Frameworks.
+  renderer="$source_app/Contents/SharedSupport/renderer/dxmt"
+  [[ -d "$renderer" ]] || renderer="$source_app/Contents/Frameworks/renderer/dxmt"
+  rsync -aE "$renderer/" "$app/Contents/SharedSupport/renderer/dxmt/"
   # The signed wineserver child must resolve libinotify without depending on
   # loader environment variables surviving Wine's process launch path.
   # pufflet-runtime's stage.sh already adds this rpath.

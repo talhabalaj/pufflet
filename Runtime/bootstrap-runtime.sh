@@ -17,7 +17,7 @@ printf '%s  %s\n' "$sha" "$stage/runtime.download" | shasum -a 256 -c -
 rm -rf "$stage/extract" && mkdir "$stage/extract"
 tar -xf "$stage/runtime.download" -C "$stage/extract"
 test -x "$stage/extract/PuffletRuntime.app/Contents/SharedSupport/wine/bin/wine"
-test -d "$stage/extract/PuffletRuntime.app/Contents/Frameworks/renderer/dxmt"
+test -d "$stage/extract/PuffletRuntime.app/Contents/SharedSupport/renderer/dxmt"
 mv "$stage/extract/PuffletRuntime.app" "$app"
 rm -rf "$stage/extract" "$stage/runtime.download"
 echo "Pinned Wine runtime assembled."
