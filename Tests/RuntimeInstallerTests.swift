@@ -20,6 +20,7 @@ nonisolated struct RuntimeFixture {
             ArchiveMember(path: "PuffletRuntime.app/Contents/SharedSupport/wine/bin/wine"),
             ArchiveMember(path: "PuffletRuntime.app/Contents/SharedSupport/wine/bin/wineserver"),
             ArchiveMember(path: "PuffletRuntime.app/Contents/SharedSupport/renderer/dxmt/wine/d3d11.dll"),
+            ArchiveMember(path: "PuffletRuntime.app/Contents/SharedSupport/gstreamer-1.0/libgstcoreelements.dylib"),
             ArchiveMember(path: "PuffletRuntime.app/Contents/Frameworks/GStreamer.framework/Versions/A/GStreamer"),
             ArchiveMember(path: "PuffletRuntime.app/Contents/Frameworks/GStreamer.framework/Versions/Current", type: "symlink", value: "A"),
             ArchiveMember(path: "PuffletRuntime.app/Contents/Frameworks/GStreamer.framework/GStreamer", type: "symlink", value: "Versions/Current/GStreamer")

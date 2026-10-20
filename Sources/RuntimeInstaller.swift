@@ -94,7 +94,7 @@ nonisolated struct RuntimeInstaller: Sendable {
             let file = app.appendingPathComponent(relative)
             guard fm.isExecutableFile(atPath: file.path), file.resolvingSymlinksInPath().path.hasPrefix(app.path + "/") else { throw RuntimeInstallError.incomplete }
         }
-        for relative in ["Contents/Frameworks/GStreamer.framework", "Contents/SharedSupport/renderer/dxmt/wine"] {
+        for relative in ["Contents/SharedSupport/gstreamer-1.0", "Contents/SharedSupport/renderer/dxmt/wine"] {
             let folder = app.appendingPathComponent(relative)
             guard (try? folder.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
                   folder.resolvingSymlinksInPath().path.hasPrefix(app.path + "/"),
