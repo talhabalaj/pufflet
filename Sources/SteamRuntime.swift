@@ -118,23 +118,30 @@ nonisolated struct SteamRuntime: Sendable {
         let inherited = ProcessInfo.processInfo.environment
         let permitted = Set(["HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "__CF_USER_TEXT_ENCODING", "SECURITYSESSIONID"])
         var env = inherited.filter { permitted.contains($0.key) }
-        // Sikarugir's working DXMT settings, without importing Steam account configuration.
+        // DXMT settings for pufflet-runtime, without importing Steam account configuration.
         env["WINEPREFIX"] = prefix
         env["PATH"] = wine.appendingPathComponent("bin").path + ":/usr/bin:/bin:/usr/sbin:/sbin"
-        env["DYLD_FALLBACK_LIBRARY_PATH"] = [wine.appendingPathComponent("lib").path,
-            wine.appendingPathComponent("lib64").path, frameworks.path,
-            frameworks.appendingPathComponent("GStreamer.framework/Libraries").path,
+        env["DYLD_FALLBACK_LIBRARY_PATH"] = [wine.appendingPathComponent("lib").path, frameworks.path,
             "/usr/lib", "/usr/libexec", "/usr/lib/system"].joined(separator: ":")
         env["WINEDLLPATH"] = ["x86_64-windows", "i386-windows", "x86_64-unix"]
             .map { wine.appendingPathComponent("lib/wine/\($0)").path }.joined(separator: ":")
         env["WINEDLLPATH_DXMT"] = renderer
+        // Wine execs a game through AppBundles/<exe>.app when Pufflet has made one.
+        env[GameAppBundle.environmentKey] = GameAppBundle.directory(prefix: installation.prefix).path
+        // GStreamer plugins live outside Frameworks, which codesign reserves for bundles.
+        env["GST_PLUGIN_SYSTEM_PATH_1_0"] = contents.appendingPathComponent("SharedSupport/gstreamer-1.0").path
         env["WINEDLLPATH_PREPEND"] = renderer
         env["WINEESYNC"] = "1"
         env["WINEMSYNC"] = "1"
         env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1"
         env["WINEBOOT_HIDE_DIALOG"] = "1"
         env["WINEDEBUG"] = "-all"
-        env["SikarugirAppWine11"] = "1"
+        #if DEBUG
+        // Debug-only: PUFFLET_DEV_WINEDEBUG=+seh,err+all (etc.) logs Wine channels to wine.log.
+        if let channels = ProcessInfo.processInfo.environment["PUFFLET_DEV_WINEDEBUG"], !channels.isEmpty {
+            env["WINEDEBUG"] = channels
+        }
+        #endif
         env["METAL_HUD"] = "1"
         // The bridge permits game images while keeping Wine services/helpers
         // background-only. Wine retains its native Quit delegate.
@@ -374,23 +381,35 @@ nonisolated struct SteamRuntime: Sendable {
     var dockAllowRecord: URL { installation.prefix.appendingPathComponent(".pufflet-dock-allow") }
 
     func allowDockExecutable(_ executable: URL, for game: SteamGame) throws {
-        try allowDockExecutable(executable, inside: game.folder)
+        try allowDockExecutable(executable, inside: game.folder,
+                                app: (AppIdentity.bundleID + ".game." + game.id, game.name,
+                                      installation.cachedArtwork(appID: game.id, kind: .cover)))
     }
 
-    /// Lets the Dock bridge promote only this image, which must be inside `gameFolder`.
-    func allowDockExecutable(_ executable: URL, inside gameFolder: URL) throws {
+    /// Lets the Dock bridge promote only this image, which must be inside `gameFolder`,
+    /// and gives it its own app bundle (name, icon, Cmd-Tab) when `app` is supplied.
+    func allowDockExecutable(_ executable: URL, inside gameFolder: URL,
+                             app: (identifier: String, name: String, artwork: URL?)? = nil) throws {
         let image = executable.resolvingSymlinksInPath().standardizedFileURL
         let folder = gameFolder.resolvingSymlinksInPath().standardizedFileURL
         guard image.path.hasPrefix(folder.path + "/"), image.pathExtension.lowercased() == "exe",
-              !image.path.contains("\n"), image.path.utf8.count < PATH_MAX,
+              !image.path.contains("\n"), !folder.path.contains("\n"),
+              image.path.utf8.count + folder.path.utf8.count < PATH_MAX - 1,
               try image.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
             throw SteamClientPackages.Failure.conflict
         }
         let temporary = installation.prefix.appendingPathComponent(".dock-allow-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
-        guard FileManager.default.createFile(atPath: temporary.path, contents: Data(image.path.utf8),
+        // The folder line lets the game's own launcher start the real game as another EXE there.
+        guard FileManager.default.createFile(atPath: temporary.path, contents: Data((image.path + "\n" + folder.path).utf8),
                                              attributes: [.posixPermissions: 0o600]),
               rename(temporary.path, dockAllowRecord.path) == 0 else { throw RuntimeError.missingSetup }
+        if let app {
+            // Cosmetic and identity only: a game still launches if its bundle can't be made.
+            GameAppBundle.prepareGame(main: image, folder: folder, identifier: app.identifier, name: app.name,
+                                      runtime: installation.runtimeApplication, prefix: installation.prefix,
+                                      fallbackArtwork: app.artwork)
+        }
     }
 
     func clearDockExecutable() { try? FileManager.default.removeItem(at: dockAllowRecord) }

@@ -1,10 +1,11 @@
 import Foundation
 
 nonisolated enum SteamDisplayPreference: String, Codable, CaseIterable, Sendable {
-    case inherit, standard, highResolution, standard192, highResolution192
+    case automatic, inherit, standard, highResolution, standard192, highResolution192
 
     var title: String {
         switch self {
+        case .automatic: "Automatic"
         case .inherit: "Inherit"
         case .standard: "Standard"
         case .highResolution: "High resolution"
@@ -12,9 +13,19 @@ nonisolated enum SteamDisplayPreference: String, Codable, CaseIterable, Sendable
         case .highResolution192: "High resolution · 192 DPI"
         }
     }
+    /// The profile Automatic picks for a game: full Retina resolution at 192 DPI when
+    /// its executable declares DPI awareness, so it draws its own UI at that scale;
+    /// Standard otherwise, since Wine can't scale an unaware program's UI for it.
+    /// Without an executable there is nothing to decide from, so the prefix keeps its settings.
+    func resolved(for executable: URL?) -> SteamDisplayPreference {
+        guard self == .automatic else { return self }
+        guard let executable else { return .inherit }
+        return PEManifest.isDPIAware(at: executable) ? .highResolution192 : .standard
+    }
+
     var configuration: SteamDisplayConfiguration? {
         switch self {
-        case .inherit: nil
+        case .automatic, .inherit: nil
         case .standard: .init(retinaValue: "n", dpi: 96)
         case .highResolution: .init(retinaValue: "y", dpi: 96)
         case .standard192: .init(retinaValue: "n", dpi: 192)
@@ -43,7 +54,7 @@ nonisolated struct SteamDisplayProfiles: Sendable {
         var errorDescription: String? {
             switch self {
             case .invalidSettings: "Saved display preferences could not be read. Restore the preferences file before launching."
-            case .unsupportedFallback: "Per-game display settings require Pufflet’s managed Steam session. Choose Inherit to use desktop Steam or the legacy launcher."
+            case .unsupportedFallback: "Per-game display settings require Pufflet’s managed Steam session. Choose Automatic or Inherit to use desktop Steam or the legacy launcher."
             case .busy: "Steam is busy starting a game or download. Try again in a moment."
             }
         }
@@ -54,18 +65,21 @@ nonisolated struct SteamDisplayProfiles: Sendable {
         guard value.version == 1 else { throw Failure.invalidSettings }
         return value
     }
+    /// A game without a saved choice is Automatic.
     func preference(for appID: String) throws -> SteamDisplayPreference {
-        try preferences().games[appID] ?? .inherit
+        try preferences().games[appID] ?? .automatic
     }
     func set(_ preference: SteamDisplayPreference, for appID: String) throws {
         guard GameID(appID) != nil else { throw Failure.invalidSettings }
         var value = try preferences()
-        value.games[appID] = preference == .inherit ? nil : preference
+        value.games[appID] = preference == .automatic ? nil : preference
         try FileManager.default.createDirectory(at: preferencesURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(value).write(to: preferencesURL, options: .atomic)
     }
     func requireFallbackSupport(for appID: String) throws {
-        guard try preference(for: appID) == .inherit else { throw Failure.unsupportedFallback }
+        // Automatic needs Pufflet's managed session to apply a profile; elsewhere it leaves
+        // the prefix's settings alone, like Inherit. Only an explicit profile is refused.
+        guard [.automatic, .inherit].contains(try preference(for: appID)) else { throw Failure.unsupportedFallback }
         // A managed override may still be stored in the shared prefix. Desktop
         // fallback does not promise to restore this baseline or mutate a wrapper.
     }

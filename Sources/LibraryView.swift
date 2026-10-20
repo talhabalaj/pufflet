@@ -422,6 +422,7 @@ struct GameDisplaySettings: View {
     var body: some View {
         Section {
             Picker("Display", selection: $selection) {
+                Text("Automatic").tag(SteamDisplayPreference.automatic)
                 Text("Inherit").tag(SteamDisplayPreference.inherit)
                 Text("Standard").tag(SteamDisplayPreference.standard)
                 Text("High resolution").tag(SteamDisplayPreference.highResolution)
@@ -433,8 +434,8 @@ struct GameDisplaySettings: View {
         } header: { Text("Display") }
         footer: {
             switch store {
-            case .steam: Text("Applies on the next Play. Inherit uses the original settings. A different profile restarts Steam when you press Play; if something is downloading, Pufflet asks first. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.")
-            case .epic: Text("Applies on the next Play. Inherit uses Standard. High resolution renders at your Mac’s full Retina resolution; choose the matching resolution inside the game. 192 DPI may enlarge older interfaces.")
+            case .steam: Text("Applies on the next Play. Automatic uses High resolution · 192 DPI for games that support high-DPI displays and Standard for older ones. Inherit uses the original settings. A different profile restarts Steam when you press Play; if something is downloading, Pufflet asks first. Choose the matching resolution inside the game; 192 DPI may enlarge older interfaces. Desktop Steam uses its own display settings.")
+            case .epic: Text("Applies on the next Play. Automatic uses High resolution · 192 DPI for games that support high-DPI displays and Standard for older ones. Inherit uses Standard. High resolution renders at your Mac’s full Retina resolution; choose the matching resolution inside the game. 192 DPI may enlarge older interfaces.")
             }
         }
     }

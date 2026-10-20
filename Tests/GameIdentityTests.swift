@@ -62,7 +62,7 @@ struct GameIdentityTests {
         defer { try? FileManager.default.removeItem(at: profiles.paths.support) }
         try profiles.set(.highResolution, for: "epic:Hazelnut")
         #expect(try profiles.preference(for: "epic:Hazelnut") == .highResolution)
-        #expect(try profiles.preference(for: "Hazelnut") == .inherit)
+        #expect(try profiles.preference(for: "Hazelnut") == .automatic)
         #expect(throws: (any Error).self) { try profiles.set(.standard, for: "epic:../x") }
     }
 

@@ -329,7 +329,8 @@ private actor PreparedClient: SteamClientPreparing {
         let image = game.folder.appendingPathComponent("game.exe")
         try Data([0]).write(to: image)
         try await host.launch(game: game, option: 9, executable: image)
-        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8) == image.resolvingSymlinksInPath().path)
+        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8)
+                == image.resolvingSymlinksInPath().path + "\n" + game.folder.resolvingSymlinksInPath().path)
         try await host.control("pause", appID: 1)
         try await host.control("resume", appID: 1)
         #expect(await host.isActive)
@@ -573,7 +574,8 @@ private actor PreparedClient: SteamClientPreparing {
         #expect(await installer.applied == [.init(retinaValue: "y", dpi: 96)])
         #expect(await !installer.preparedWithD3DMetal)
         #expect(await !installer.queriedWithD3DMetal)
-        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8) == executable.resolvingSymlinksInPath().path)
+        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8).components(separatedBy: "\n").first
+                == executable.resolvingSymlinksInPath().path)
         try await host.shutdown()
         #expect(!FileManager.default.fileExists(atPath: runtime.dockAllowRecord.path))
         #expect(await !host.isActive)
@@ -785,7 +787,9 @@ private actor PreparedClient: SteamClientPreparing {
             assert fields[:4] == ['MDOCKL01', str(app), parts[3], '0']
             os.unlink(path)
             with open(os.path.join(os.environ['WINEPREFIX'], '.pufflet-dock-allow')) as record:
-                assert os.path.samefile(record.read(), os.path.join(os.path.dirname(__file__), 'steamapps/common/Fixture/game.exe'))
+                image, folder = record.read().split('\n')
+                assert os.path.samefile(image, os.path.join(os.path.dirname(__file__), 'steamapps/common/Fixture/game.exe'))
+                assert os.path.samefile(folder, os.path.join(os.path.dirname(__file__), 'steamapps/common/Fixture'))
         emit(req, app + 1, 'command-result', 35) # Wrong-app responses must not settle a request.
         emit(req, app, 'command-result', 0)
         if action == 'launch': emit(req, app, 'launch-game-running', 1)

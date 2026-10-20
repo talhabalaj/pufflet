@@ -25,10 +25,15 @@ static NSString *nativeImagePath(NSString *image)
     return nil; // Do not guess an image from its basename or an argument.
 }
 
-static NSString *allowedImage(void)
+/* The record is "<selected image>" or "<selected image>\n<game folder>"; the folder
+   line lets a game's own launcher start the real game as another EXE in the folder. */
+static NSArray<NSString *> *allowedRecord(void)
 {
     const char *explicit = getenv("STEAM_LIBRARY_DOCK_ALLOW");
-    if (explicit) return strlen(explicit) < PATH_MAX ? nativeImagePath([NSString stringWithUTF8String:explicit]) : nil;
+    if (explicit) {
+        NSString *image = strlen(explicit) < PATH_MAX ? nativeImagePath([NSString stringWithUTF8String:explicit]) : nil;
+        return image ? @[image] : nil;
+    }
     NSString *prefix = [NSString stringWithUTF8String:getenv("WINEPREFIX")];
     NSString *record = [prefix stringByAppendingPathComponent:@".pufflet-dock-allow"];
     int fd = open(record.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
@@ -41,8 +46,19 @@ static NSString *allowedImage(void)
         count = read(fd, bytes, sizeof(bytes));
     close(fd);
     if (count <= 0 || count >= PATH_MAX || memchr(bytes, 0, (size_t)count)) return nil;
-    NSString *path = [[NSString alloc] initWithBytes:bytes length:(NSUInteger)count encoding:NSUTF8StringEncoding];
-    return [path hasPrefix:@"/"] ? path : nil;
+    NSString *text = [[NSString alloc] initWithBytes:bytes length:(NSUInteger)count encoding:NSUTF8StringEncoding];
+    NSArray<NSString *> *lines = [text componentsSeparatedByString:@"\n"];
+    if (lines.count < 1 || lines.count > 2) return nil;
+    for (NSString *line in lines) if (![line hasPrefix:@"/"]) return nil;
+    return lines;
+}
+
+static BOOL isInsideFolder(NSString *candidate, NSString *folder)
+{
+    char image[PATH_MAX], root[PATH_MAX];
+    if (!realpath(candidate.fileSystemRepresentation, image) || !realpath(folder.fileSystemRepresentation, root)) return NO;
+    size_t length = strlen(root);
+    return length > 1 && !strncmp(image, root, length) && image[length] == '/';
 }
 
 static BOOL isGameProcess(void)
@@ -50,20 +66,31 @@ static BOOL isGameProcess(void)
     static dispatch_once_t once;
     static BOOL allowed;
     dispatch_once(&once, ^{
-        // The host's flag stays on. Only the exact selected image may promote;
-        // a sibling GUI executable in the game directory is still a helper.
+        // The host's flag stays on. The selected image may promote, and so may another
+        // EXE inside the game folder when the record names it, or one the game started
+        // (a launcher running the real game from elsewhere, like PopCap's temp copy).
+        // Crash reporters, installers and Wine/Steam helpers never do.
         for (NSString *argument in NSProcessInfo.processInfo.arguments) {
             NSString *path = [[argument stringByReplacingOccurrencesOfString:@"/" withString:@"\\"] lowercaseString];
             if (![path hasSuffix:@".exe"]) continue;
             NSString *name = [path componentsSeparatedByString:@"\\"].lastObject;
-            if ([name containsString:@"crashhandler"] || [name hasPrefix:@"unins"] ||
+            if ([name containsString:@"crash"] || [name hasPrefix:@"unins"] || [name containsString:@"redist"] ||
                 [@[@"explorer.exe", @"services.exe", @"winedevice.exe", @"rpcss.exe", @"plugplay.exe",
                    @"svchost.exe", @"steamservice.exe", @"steam.exe", @"dockhost.exe", @"wine-process-guard.exe"] containsObject:name]) return;
-            NSString *candidate = nativeImagePath(argument), *expected = allowedImage();
+            const char *inherited = getenv("STEAM_LIBRARY_DOCK_GAME");
+            if (inherited && !strcmp(inherited, "1")) {
+                allowed = YES;
+                return;
+            }
+            NSString *candidate = nativeImagePath(argument);
+            NSArray<NSString *> *record = allowedRecord();
             struct stat image, selected;
-            allowed = candidate && expected && !stat(candidate.fileSystemRepresentation, &image) &&
-                !stat(expected.fileSystemRepresentation, &selected) && S_ISREG(image.st_mode) &&
-                image.st_dev == selected.st_dev && image.st_ino == selected.st_ino;
+            if (!candidate || !record || stat(candidate.fileSystemRepresentation, &image) || !S_ISREG(image.st_mode)) return;
+            allowed = (!stat(record[0].fileSystemRepresentation, &selected) &&
+                       image.st_dev == selected.st_dev && image.st_ino == selected.st_ino) ||
+                      (record.count == 2 && isInsideFolder(candidate, record[1]));
+            // Processes the game starts inherit this, so they count as the game too.
+            if (allowed) setenv("STEAM_LIBRARY_DOCK_GAME", "1", 1);
             return; // Wine's first EXE argument is its image; later arguments grant nothing.
         }
     });
@@ -103,4 +130,6 @@ __attribute__((constructor)) static void installDockBridge(void)
     if (method) originalSetActivationPolicy = (void *)method_setImplementation(method, (IMP)launcherSetActivationPolicy);
     method = class_getInstanceMethod(NSApplication.class, @selector(finishLaunching));
     if (method) originalFinishLaunching = (void *)method_setImplementation(method, (IMP)launcherFinishLaunching);
+    // Decide now, so a launcher that never opens a window still passes its mark to the game.
+    isGameProcess();
 }

@@ -26,7 +26,7 @@ import Testing
     @Test func displayPreferencesStayCorrectWhileCached() throws {
         let (model, root, defaults, suite) = try fixture()
         defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suite) }
-        #expect(model.displayPreference(for: "10") == .inherit)
+        #expect(model.displayPreference(for: "10") == .automatic)
         model.setDisplayPreference(.highResolution, for: "10")
         #expect(model.displayPreference(for: "10") == .highResolution)
         model.setDisplayPreference(.standard192, for: "20")

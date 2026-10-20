@@ -29,6 +29,20 @@ chmod 600 "$work/prefix/.pufflet-dock-allow"
 unset STEAM_LIBRARY_DOCK_ALLOW
 "$work/probe" 'C:\Fixture\game.exe'
 EXPECT_BACKGROUND=1 "$work/probe" 'C:\Fixture\unknown-helper.exe'
+# With the game folder on a second line, the game's own launcher may start another
+# EXE in that folder; crash reporters there and EXEs elsewhere stay helpers.
+touch "$work/prefix/drive_c/windows/system32/outside.exe"
+printf '%s\n%s' "$work/steamapps/common/Fixture/game.exe" "$work/steamapps/common/Fixture" > "$work/prefix/.pufflet-dock-allow"
+"$work/probe" 'C:\Fixture\unknown-helper.exe'
+"$work/probe" 'C:\Fixture\game.exe'
+EXPECT_BACKGROUND=1 "$work/probe" 'C:\Fixture\UnityCrashHandler64.exe'
+EXPECT_BACKGROUND=1 "$work/probe" 'C:\windows\system32\outside.exe'
+# A process the game started inherits its mark, even from outside the game folder
+# (PopCap's temp\popcapgame1.exe); a crash reporter it starts stays a helper.
+STEAM_LIBRARY_DOCK_GAME=1 "$work/probe" 'C:\windows\system32\outside.exe'
+STEAM_LIBRARY_DOCK_GAME=1 EXPECT_BACKGROUND=1 "$work/probe" 'C:\Fixture\UnityCrashHandler64.exe'
+STEAM_LIBRARY_DOCK_GAME=1 EXPECT_BACKGROUND=1 "$work/probe" 'C:\windows\system32\explorer.exe'
+printf '%s' "$work/steamapps/common/Fixture/game.exe" > "$work/prefix/.pufflet-dock-allow"
 chmod 644 "$work/prefix/.pufflet-dock-allow"
 EXPECT_BACKGROUND=1 "$work/probe" 'C:\Fixture\game.exe'
 rm "$work/prefix/.pufflet-dock-allow"

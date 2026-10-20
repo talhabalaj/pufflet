@@ -29,14 +29,16 @@ for path in sorted(native, key=lambda p: len(p.parts), reverse=True):
     command = ["/usr/bin/codesign", "--force", "--sign", identity, "--options", "runtime"]
     command += ["--timestamp"] if os.environ.get("CONFIGURATION") == "Release" else ["--timestamp=none"]
     if path == contents / "SharedSupport/wine/lib/wine/x86_64-unix/wine":
-        # bin/wine re-execs this process host. It maps unsigned Windows PE code;
+        # bin/wine is a symlink to this loader. It maps unsigned Windows PE code;
         # the exception belongs here, not on the launcher or native Dock bridge.
         command += ["--entitlements", str(Path(__file__).with_name("WindowsLoader.entitlements"))]
     elif path in [contents / "SharedSupport/wine/bin/wine", contents / "SharedSupport/wine/bin/wineserver"]:
         command += ["--entitlements", str(Path(__file__).with_name("Wine.entitlements"))]
-    subprocess.run(command + [str(path)], check=True)
+    # The timestamp service occasionally drops a request; retry before failing.
+    for attempt in range(3):
+        if subprocess.run(command + [str(path)]).returncode == 0:
+            break
+    else:
+        raise SystemExit(f"codesign failed for {path}")
 
-framework = contents / "Frameworks/GStreamer.framework"
-subprocess.run(["/usr/bin/codesign", "--force", "--sign", identity, "--options", "runtime",
-                "--timestamp" if os.environ.get("CONFIGURATION") == "Release" else "--timestamp=none", str(framework)], check=True)
-print(f"Signed {len(native)} native runtime files and GStreamer.framework.")
+print(f"Signed {len(native)} native runtime files.")

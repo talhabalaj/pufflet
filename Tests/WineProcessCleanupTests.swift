@@ -15,7 +15,8 @@ import Testing
         let game = SteamGame(id: "1", name: "Fixture", installDirectory: "Fixture", bytes: 1, folder: folder)
         let runtime = SteamRuntime(installation: SteamInstallation(prefix: prefix, runtime: root.appendingPathComponent("unused")), dockBridge: root.appendingPathComponent("unused"))
         try runtime.allowDockExecutable(image, for: game)
-        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8) == image.resolvingSymlinksInPath().path)
+        #expect(try String(contentsOf: runtime.dockAllowRecord, encoding: .utf8)
+                == image.resolvingSymlinksInPath().path + "\n" + folder.resolvingSymlinksInPath().path)
         let attributes = try FileManager.default.attributesOfItem(atPath: runtime.dockAllowRecord.path)
         #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
         #expect(throws: (any Error).self) { try runtime.allowDockExecutable(outside, for: game) }
