@@ -96,6 +96,9 @@
 		E91C00000000000000000006 /* EpicAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000005 /* EpicAccountView.swift */; };
 		E91C00000000000000000008 /* EpicLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000007 /* EpicLibrary.swift */; };
 		E91C00000000000000000010 /* EpicLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000009 /* EpicLibraryTests.swift */; };
+		E91C00000000000000000017 /* EpicManifestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000016 /* EpicManifestTests.swift */; };
+		E91C00000000000000000015 /* EpicDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000014 /* EpicDownloader.swift */; };
+		E91C00000000000000000013 /* EpicManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C00000000000000000012 /* EpicManifest.swift */; };
 
 /* End PBXBuildFile section */
 
@@ -201,6 +204,9 @@
 		E91C00000000000000000005 /* EpicAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicAccountView.swift; sourceTree = "<group>"; };
 		E91C00000000000000000007 /* EpicLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicLibrary.swift; sourceTree = "<group>"; };
 		E91C00000000000000000009 /* EpicLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicLibraryTests.swift; sourceTree = "<group>"; };
+		E91C00000000000000000016 /* EpicManifestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicManifestTests.swift; sourceTree = "<group>"; };
+		E91C00000000000000000014 /* EpicDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicDownloader.swift; sourceTree = "<group>"; };
+		E91C00000000000000000012 /* EpicManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpicManifest.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -287,6 +293,8 @@
 				E91C00000000000000000003 /* EpicAccount.swift */,
 				E91C00000000000000000005 /* EpicAccountView.swift */,
 				E91C00000000000000000007 /* EpicLibrary.swift */,
+				E91C00000000000000000014 /* EpicDownloader.swift */,
+				E91C00000000000000000012 /* EpicManifest.swift */,
 			);
 			path = Epic;
 			sourceTree = "<group>";
@@ -340,6 +348,7 @@
 				3A7E00000000000000000003 /* WakeLockTests.swift */,
 				61D000000000000000000003 /* GameIdentityTests.swift */,
 				E91C00000000000000000009 /* EpicLibraryTests.swift */,
+				E91C00000000000000000016 /* EpicManifestTests.swift */,
 				1F7DE52C29B40903B95A8A11 /* SteamLibraryTests.swift */,
 				D0916B831D45D0C23DFE3A0C /* SteamSessionHostTests.swift */,
 				FEBF788ADF92630C119E1249 /* WineProcessCleanupTests.swift */,
@@ -590,6 +599,7 @@
 				3A7E00000000000000000004 /* WakeLockTests.swift in Sources */,
 				61D000000000000000000004 /* GameIdentityTests.swift in Sources */,
 				E91C00000000000000000010 /* EpicLibraryTests.swift in Sources */,
+				E91C00000000000000000017 /* EpicManifestTests.swift in Sources */,
 				FF59133E1964C81552E907FB /* SteamLibraryTests.swift in Sources */,
 				10975662770F555CA9D0991D /* SteamSessionHostTests.swift in Sources */,
 				FFD2DE4BA31FBE25F4C7A573 /* WineProcessCleanupTests.swift in Sources */,
@@ -652,6 +662,8 @@
 				E91C00000000000000000004 /* EpicAccount.swift in Sources */,
 				E91C00000000000000000006 /* EpicAccountView.swift in Sources */,
 				E91C00000000000000000008 /* EpicLibrary.swift in Sources */,
+				E91C00000000000000000015 /* EpicDownloader.swift in Sources */,
+				E91C00000000000000000013 /* EpicManifest.swift in Sources */,
 				CC59B1A5372C0EB45684D59C /* SteamSession.swift in Sources */,
 				CB5E91BED3A190DD11EB4998 /* SteamSessionHost.swift in Sources */,
 				2A2C09FAC615425F0CE05D14 /* WineProcessIdentity.swift in Sources */,
