@@ -34,6 +34,22 @@ account that can only be online in one place.
 - Never touch the production app's data (`~/Library/Application Support/Pufflet`)
   or the user's real Steam library unless the user asks.
 
+## Game files for Dev testing
+
+Games are large. Don't keep a second copy of a game the production app (or the
+user's Steam library) already has, and don't re-download it into `PuffletDev`.
+
+- **Reuse by link.** For a Dev test, symlink the installed game folder (and its
+  `appmanifest_<appid>.acf`) into the Dev library, run the test, then **unlink**
+  it. Remove only the links you made, never the target, and never let Dev
+  "repair", update or uninstall a linked game: it would change the production
+  copy. Note the links in your handoff if you have to leave mid-test.
+- **Copy only when the test needs to change game files**, and delete the copy
+  when the test ends.
+- **Download only when the test is about downloading** (install, update,
+  repair). Delete what you downloaded afterwards unless the user wants to keep it.
+- Production game files are the user's: read and link them; don't write to them.
+
 ## Wine test teardown
 
 Every test or probe that starts Wine in a temporary prefix must run that
