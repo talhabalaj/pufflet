@@ -14,7 +14,7 @@ nonisolated struct EpicInstallSource: Sendable {
 }
 
 extension EpicAPI {
-    func installSource(namespace: String, catalogItemID: String, appName: String, accessToken: String) async throws -> EpicInstallSource {
+    @concurrent func installSource(namespace: String, catalogItemID: String, appName: String, accessToken: String) async throws -> EpicInstallSource {
         guard Self.isIdentifier(namespace), Self.isIdentifier(catalogItemID), GameID(store: .epic, id: appName) != nil,
               let app = appName.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-_."))) else {
             throw EpicError.invalidResponse
@@ -84,7 +84,7 @@ nonisolated struct EpicDownloader: Sendable {
 
     /// Downloads every file that is missing or does not match the manifest.
     /// Interrupted or damaged installs resume by downloading only what fails verification.
-    func install(_ source: EpicInstallSource, into root: URL, progress: @Sendable (Progress) -> Void = { _ in }) async throws {
+    @concurrent func install(_ source: EpicInstallSource, into root: URL, progress: @Sendable (Progress) -> Void = { _ in }) async throws {
         let manifest = source.manifest
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let needed = try await Self.verify(manifest, at: root)
@@ -107,6 +107,7 @@ nonisolated struct EpicDownloader: Sendable {
         progress(status)
 
         var handles: [Int: FileHandle] = [:]
+        var completed = 0
         defer { for handle in handles.values { try? handle.close() } }
         try await withThrowingTaskGroup(of: (EpicGUID, Data, Int64).self) { group in
             var pending = order[...]
@@ -129,7 +130,9 @@ nonisolated struct EpicDownloader: Sendable {
                     status.writtenBytes += Int64(use.part.size)
                 }
                 status.downloadedBytes += downloaded
-                progress(status)
+                completed += 1
+                // Thousands of chunks: report about every 2% rather than each one.
+                if completed == order.count || completed % max(1, order.count / 50) == 0 { progress(status) }
                 next()
             }
         }
@@ -139,7 +142,7 @@ nonisolated struct EpicDownloader: Sendable {
     }
 
     /// Paths that are missing, the wrong size, or fail the manifest's SHA-1.
-    static func verify(_ manifest: EpicManifest, at root: URL, only: Set<String>? = nil) async throws -> Set<String> {
+    @concurrent static func verify(_ manifest: EpicManifest, at root: URL, only: Set<String>? = nil) async throws -> Set<String> {
         var bad = Set<String>()
         for file in manifest.files where only?.contains(file.path) ?? true {
             try Task.checkCancellation()

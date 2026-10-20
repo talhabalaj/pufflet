@@ -103,7 +103,7 @@ struct EpicAccountSettings: View {
                         Button("Refresh Library") { Task { await account.refreshLibrary() } }.disabled(account.isBusy)
                     }
                 } footer: {
-                    Text("Epic games can’t be installed or played in Pufflet yet.")
+                    Text("Epic games appear in your library and can be installed. Playing them in Pufflet is coming soon.")
                 }
             }
         }

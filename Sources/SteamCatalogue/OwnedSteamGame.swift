@@ -43,13 +43,30 @@ nonisolated struct OwnedSteamGame: Codable, Equatable, Identifiable, Sendable {
 nonisolated struct LibraryGame: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
+    /// Steam only: Steam's installed and owned records.
     let installation: SteamGame?
     let owned: OwnedSteamGame?
+    /// Epic only.
+    var epic: EpicOwnedGame? = nil
+    var epicInstallation: EpicInstalledGame? = nil
 
-    static func merge(installed: [SteamGame], owned: [OwnedSteamGame]) -> [Self] {
+    var store: GameStore { epic != nil || epicInstallation != nil ? .epic : .steam }
+    var isInstalled: Bool { installation != nil || epicInstallation != nil }
+
+    static func merge(installed: [SteamGame], owned: [OwnedSteamGame],
+                      epicOwned: [EpicOwnedGame] = [], epicInstalled: [EpicInstalledGame] = []) -> [Self] {
         var result = Dictionary(owned.map { ($0.id, Self(id: $0.id, name: $0.name, installation: nil, owned: $0)) }, uniquingKeysWith: { first, _ in first })
         for game in installed {
             result[game.id] = Self(id: game.id, name: game.name, installation: game, owned: result[game.id]?.owned)
+        }
+        // Epic IDs are namespaced ("epic:<AppName>"), so they never collide with Steam's.
+        for game in epicOwned {
+            result[game.id] = Self(id: game.id, name: game.title, installation: nil, owned: nil, epic: game)
+        }
+        for game in epicInstalled {
+            guard let id = game.gameID?.description else { continue }
+            let owned = result[id]?.epic
+            result[id] = Self(id: id, name: owned?.title ?? game.title, installation: nil, owned: nil, epic: owned, epicInstallation: game)
         }
         return result.values.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }

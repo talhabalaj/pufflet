@@ -7,6 +7,8 @@ import Foundation
 nonisolated struct EpicOwnedGame: Codable, Equatable, Identifiable, Sendable {
     let appName: String
     let title: String
+    /// The folder Epic installs into, from the catalog; safe as one path component.
+    let folderName: String
     let namespace: String
     let catalogItemID: String
     let buildVersion: String
@@ -31,6 +33,7 @@ nonisolated struct EpicOwnedGame: Codable, Equatable, Identifiable, Sendable {
         guard !title.isEmpty, title.utf8.count <= 1024 else { return nil }
         appName = asset.appName
         self.title = title
+        folderName = item.attribute("FolderName").flatMap(Self.folderName) ?? asset.appName
         namespace = asset.namespace
         catalogItemID = asset.catalogItemId
         buildVersion = String(asset.buildVersion.prefix(128))
@@ -44,6 +47,13 @@ nonisolated struct EpicOwnedGame: Codable, Equatable, Identifiable, Sendable {
         thirdPartyStore = provider.map { String($0.prefix(64)) }.flatMap { $0.isEmpty ? nil : $0 }
         needsOwnershipToken = item.attribute("OwnershipToken")?.lowercased() == "true"
         hasCloudSaves = item.attribute("CloudSaveFolder") != nil
+    }
+
+    static func folderName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (1...128).contains(trimmed.utf8.count), trimmed != ".", trimmed != "..", !trimmed.hasPrefix("."),
+              trimmed.unicodeScalars.allSatisfy({ !"/\\:\0".unicodeScalars.contains($0) && !CharacterSet.controlCharacters.contains($0) }) else { return nil }
+        return trimmed
     }
 
     /// Artwork is only loaded over HTTPS from Epic's own hosts.
@@ -64,7 +74,7 @@ nonisolated struct EpicLibraryFetcher: Sendable {
     }
 
     private struct Cache: Codable {
-        var version = 1
+        var version = 2
         var games: [EpicOwnedGame]
         /// Add-ons and other non-games, by AppName and build, so a refresh does not ask about them again.
         var skipped: [String: String] = [:]
@@ -76,7 +86,7 @@ nonisolated struct EpicLibraryFetcher: Sendable {
         let file = cacheFile(accountID)
         guard let size = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 8 * 1024 * 1024,
               let data = try? Data(contentsOf: file), let cache = try? JSONDecoder().decode(Cache.self, from: data),
-              cache.version == 1 else { return nil }
+              cache.version == 2 else { return nil }
         return cache
     }
 

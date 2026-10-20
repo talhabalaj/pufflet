@@ -137,8 +137,10 @@ struct EpicKeychain: EpicCredentialStore {
         games = fetched
     }
 
+    var accountID: String? { credentials?.accountID }
+
     /// Refresh tokens rotate, so every refresh is saved before it is used.
-    private func accessToken() async throws -> String {
+    func accessToken() async throws -> String {
         if let access, access.expires > Date().addingTimeInterval(120) { return access.token }
         guard let refresh = credentials?.refreshToken else { throw EpicError.signedOut }
         do { try store(try await api.token(.refreshToken(refresh))) }
