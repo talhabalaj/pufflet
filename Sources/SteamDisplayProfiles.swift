@@ -58,7 +58,7 @@ nonisolated struct SteamDisplayProfiles: Sendable {
         try preferences().games[appID] ?? .inherit
     }
     func set(_ preference: SteamDisplayPreference, for appID: String) throws {
-        guard let id = UInt32(appID), id > 0, id <= Int32.max, String(id) == appID else { throw Failure.invalidSettings }
+        guard GameID(appID) != nil else { throw Failure.invalidSettings }
         var value = try preferences()
         value.games[appID] = preference == .inherit ? nil : preference
         try FileManager.default.createDirectory(at: preferencesURL.deletingLastPathComponent(), withIntermediateDirectories: true)

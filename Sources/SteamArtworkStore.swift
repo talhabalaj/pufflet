@@ -47,7 +47,9 @@ final class SteamArtworkStore {
     }
 
     func image(appID: String, installation: SteamInstallation, kind: SteamArtworkKind = .hero) async -> NSImage? {
-        let key = appID + "-" + kind.rawValue
+        // Only Steam artwork has a source so far; other stores add theirs with their library.
+        guard let game = GameID(appID), game.store == .steam else { return nil }
+        let key = game.fileComponent + "-" + kind.rawValue
         if let image = images.object(forKey: key as NSString) { return image }
         let stored = cache.appendingPathComponent(key + ".image")
         if let image = NSImage(contentsOf: stored) { images.setObject(image, forKey: key as NSString); return image }
