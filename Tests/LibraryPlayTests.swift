@@ -172,6 +172,20 @@ import Testing
         #expect(try JSONDecoder().decode(GameDownload.self, from: legacy).kind == nil)
     }
 
+    @Test func repairOfAnOutdatedGameBecomesAnUpdate() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pufflet-queue-repair-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let queue = SteamDownloadQueue(root: root); queue.activate(account: 1)
+        queue.enqueue(.init(id: "10", name: "Repair", estimatedBytes: 1), destination: root, kind: .repair)
+        queue.enqueue(.init(id: "20", name: "Finished", estimatedBytes: 1), destination: root, kind: .repair)
+        queue.update("20", state: .completed)
+        queue.enqueue(.init(id: "30", name: "Install", estimatedBytes: 1), destination: root)
+        for id in ["10", "20", "30"] { queue.markUpdate(id) }
+        #expect(queue.jobs.map(\.kind) == [.update, .repair, .install])
+        let restored = SteamDownloadQueue(root: root); restored.activate(account: 1)
+        #expect(restored.jobs.first?.kind == .update)
+    }
+
     private func game(_ root: URL, id: String) -> SteamGame {
         .init(id: id, name: "Fixture \(id)", installDirectory: "Fixture\(id)", bytes: 1, folder: root.appendingPathComponent("steamapps/common/Fixture\(id)"))
     }

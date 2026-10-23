@@ -213,6 +213,7 @@ import os
             let found = try installation.library()
             let builds = latestBuilds(for: found)
             games = found.map { $0.marked(latestBuild: builds[$0.id]) }
+            for game in games where game.isUpdatePending { downloads.markUpdate(game.id) }
             errorMessage = nil
         } catch {
             errorMessage = "Your Steam library could not be read. Check its location in Settings, then refresh."
@@ -232,6 +233,7 @@ import os
         cachedBuilds = (caches, stamps, ids, branches, builds)
         return builds
     }
+    @ObservationIgnored private var nextRepairCheck = ContinuousClock.now
     @ObservationIgnored private var cachedBuilds: (caches: [URL], stamps: [Date?], ids: [String], branches: [String], builds: [String: UInt64])?
 
     private(set) var isCheckingForUpdates = false
@@ -276,6 +278,11 @@ import os
             if current != snapshot { snapshot = current }
             headless.poll()
             if epicDownloads.revision != epicRevision { epicRevision = epicDownloads.revision; refreshLibrary() }
+            // Steam flags the manifest, or its cache learns a newer build, while a repair runs.
+            if downloads.active?.kind == .repair, ContinuousClock.now >= nextRepairCheck {
+                nextRepairCheck = .now + .seconds(10)
+                refreshLibrary()
+            }
             if headless.persistentEnabled {
                 finishPersistentDownloads()
                 if let error = headless.takeError() { errorMessage = error }
@@ -781,7 +788,8 @@ import os
     }
 
     func repair(_ entry: LibraryGame) {
-        guard enqueueInstalled(entry, kind: .repair) else { return }
+        // Steam installs the newer build while verifying, so say so.
+        guard enqueueInstalled(entry, kind: entry.installation?.isUpdatePending == true ? .update : .repair) else { return }
         repairGameID = nil
         showsDownloads = true
     }
@@ -1084,7 +1092,9 @@ import os
         if job.state == .preparing { return "Preparing…" }
         if !headless.persistentEnabled { return bytes ?? headless.status }
         if let waiting = report.installWaitStatus { return waiting }
-        if report.fields["install-verifying"] == 1 { return "Verifying and restoring game files…" }
+        if report.fields["install-verifying"] == 1 {
+            return job.kind == .update ? "Checking game files, then updating…" : "Verifying and restoring game files…"
+        }
         if job.kind == .update, bytes == nil { return "Steam is downloading the update…" }
         return bytes ?? report.installStatus
     }

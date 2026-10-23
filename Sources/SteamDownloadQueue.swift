@@ -70,6 +70,14 @@ nonisolated struct GameDownload: Codable, Identifiable, Equatable, Sendable {
         jobs[index].state = state; jobs[index].error = error; save()
     }
 
+    /// Relabels a pending repair as an update once Steam serves a newer build;
+    /// the request is the same, so the running job continues unchanged.
+    func markUpdate(_ id: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == id && $0.kind == .repair }),
+              [.queued, .preparing, .installing, .paused].contains(jobs[index].state) else { return }
+        jobs[index].kind = .update; save()
+    }
+
     func removeQueued(_ id: String) {
         jobs.removeAll { $0.id == id && $0.state == .queued }; save()
     }
