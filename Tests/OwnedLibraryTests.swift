@@ -51,6 +51,26 @@ import Testing
         #expect(LibraryGame.merge(installed: [installed], owned: []).map(\.id) == ["10"])
     }
 
+    @Test func catalogueBranchBuildsMarkOutdatedInstalls() throws {
+        let info = Data(#"""
+        "10" { "common" { "name" "Fixture" "type" "game" }
+          "depots" { "11" { "manifests" { "public" { "download" "5" } } }
+            "branches" { "public" { "buildid" "200" } "Beta" { "buildid" "300" "pwdrequired" "1" } } } }
+        """#.utf8)
+        let owned = try #require(OwnedSteamGame.parse(appID: 10, from: info))
+        #expect(owned.builds == ["public": 200, "beta": 300])
+        var installed = SteamGame(id: "10", name: "Fixture", installDirectory: "Fixture", bytes: 1,
+                                  folder: URL(filePath: "/fixture/steamapps/common/Fixture"), buildID: 200)
+        #expect(LibraryGame.merge(installed: [installed], owned: [owned]).first?.installation?.isUpdatePending == false)
+        installed.branch = "beta"
+        #expect(LibraryGame.merge(installed: [installed], owned: [owned]).first?.installation?.isUpdatePending == true)
+        installed.branch = "missing"
+        #expect(LibraryGame.merge(installed: [installed], owned: [owned]).first?.installation?.isUpdatePending == false)
+        // Catalogues cached before builds were recorded still decode.
+        let legacy = try JSONDecoder().decode([OwnedSteamGame].self, from: Data(#"[{"id":"10","name":"Fixture"}]"#.utf8))
+        #expect(legacy.first?.builds == nil)
+    }
+
     @Test func gridIdentityDeduplicatesAppsWithoutMergingTestServersOrNames() {
         let owned = [
             OwnedSteamGame(id: "578080", name: "PUBG: BATTLEGROUNDS", estimatedBytes: nil),

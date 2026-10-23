@@ -210,10 +210,48 @@ import os
         let found = EpicInstallStore(library: library).installed()
         if found != epicInstalled { epicInstalled = found }
         do {
-            games = try installation.library()
+            let found = try installation.library()
+            let builds = latestBuilds(for: found)
+            games = found.map { $0.marked(latestBuild: builds[$0.id]) }
             errorMessage = nil
         } catch {
             errorMessage = "Your Steam library could not be read. Check its location in Settings, then refresh."
+        }
+    }
+
+    /// Steam's current builds from its app info caches. The Dock session keeps
+    /// Pufflet's cache fresh while the native catalogue is disconnected.
+    private func latestBuilds(for games: [SteamGame]) -> [String: UInt64] {
+        let caches = [nativeRuntime.installation.steam, installation.steam].map { $0.appendingPathComponent("appcache/appinfo.vdf") }
+        let stamps = caches.map { try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }
+        let ids = games.map(\.id), branches = games.map(\.branch)
+        if let cached = cachedBuilds, cached.caches == caches, cached.stamps == stamps, cached.ids == ids, cached.branches == branches {
+            return cached.builds
+        }
+        let builds = SteamLaunchConfiguration.latestBuilds(for: games, caches: caches)
+        cachedBuilds = (caches, stamps, ids, branches, builds)
+        return builds
+    }
+    @ObservationIgnored private var cachedBuilds: (caches: [URL], stamps: [Date?], ids: [String], branches: [String], builds: [String: UInt64])?
+
+    private(set) var isCheckingForUpdates = false
+
+    /// Rereads the library, asks Steam for current builds when the catalogue
+    /// may connect, and reports which installed games have updates.
+    func checkForGameUpdates() async {
+        guard !isCheckingForUpdates else { return }
+        isCheckingForUpdates = true
+        defer { isCheckingForUpdates = false }
+        message = "Checking for game updates…"
+        refreshLibrary()
+        refreshCatalogue()
+        await catalogueTask?.value
+        guard ownedLibrary.errorMessage == nil else { message = nil; return }
+        let outdated = entries.filter { $0.installation?.isUpdatePending == true }
+        message = switch outdated.count {
+        case 0: "Your installed Steam games are up to date."
+        case 1: "\(outdated[0].name) has an update."
+        default: "\(outdated.count) games have updates."
         }
     }
 

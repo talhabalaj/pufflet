@@ -54,10 +54,31 @@ nonisolated enum SteamLaunchConfiguration {
         }.min()
     }
 
-    // Steam's local appinfo cache v40/v41. Only the requested app record is
-    // decoded; header access tokens and unrelated app data are never interpreted.
+    /// Steam's current build of each game's branch, newest across `caches`.
+    static func latestBuilds(for games: [SteamGame], caches: [URL]) -> [String: UInt64] {
+        let ids = Set(games.compactMap { UInt32($0.id) })
+        var result: [String: UInt64] = [:]
+        for cache in caches {
+            guard let size = try? cache.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 256 * 1024 * 1024,
+                  let bytes = try? Data(contentsOf: cache, options: .mappedIfSafe),
+                  let records = try? metadata(for: ids, in: bytes) else { continue }
+            for game in games {
+                guard let id = UInt32(game.id), let build = records[id]?.branchBuilds[game.branch.lowercased()] else { continue }
+                result[game.id] = max(result[game.id] ?? 0, build)
+            }
+        }
+        return result
+    }
+
     static func metadata(for appID: String, in data: Data) throws -> VDFValue {
         guard let requested = UInt32(appID) else { throw ConfigurationError.invalidCache }
+        guard let record = try metadata(for: [requested], in: data)[requested] else { throw ConfigurationError.missingEntry }
+        return record
+    }
+
+    // Steam's local appinfo cache v40/v41. Only the requested app records are
+    // decoded; header access tokens and unrelated app data are never interpreted.
+    static func metadata(for appIDs: Set<UInt32>, in data: Data) throws -> [UInt32: VDFValue] {
         var header = Reader(data: data)
         let version = try header.integer(UInt32.self)
         guard [0x07564428, 0x07564429].contains(version) else { throw ConfigurationError.invalidCache }
@@ -73,20 +94,21 @@ nonisolated enum SteamLaunchConfiguration {
             guard count <= 1_000_000 else { throw ConfigurationError.invalidCache }
             for _ in 0..<count { strings.append(try table.string()) }
         }
-        while header.offset + 4 <= end {
+        var records: [UInt32: VDFValue] = [:]
+        while header.offset + 4 <= end, records.count < appIDs.count {
             let record = header.offset
             let id = try header.integer(UInt32.self)
             if id == 0 { break }
             let size = try header.integer(UInt32.self)
             guard size >= 60, UInt64(size) <= UInt64(end - header.offset) else { throw ConfigurationError.invalidCache }
             let next = header.offset + Int(size)
-            if id == requested {
+            if appIDs.contains(id), records[id] == nil {
                 var reader = Reader(data: data.subdata(in: record + 68..<next))
-                return try reader.object(strings: version == 0x07564429 ? strings : nil)
+                records[id] = try reader.object(strings: version == 0x07564429 ? strings : nil)
             }
             header.offset = next
         }
-        throw ConfigurationError.missingEntry
+        return records
     }
 
     private struct Reader {

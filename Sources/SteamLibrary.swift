@@ -7,7 +7,18 @@ nonisolated struct SteamGame: Identifiable, Equatable, Sendable {
     let bytes: Int64
     let folder: URL
     var branch = "public"
+    /// The build Steam last installed, from the manifest.
+    var buildID: UInt64? = nil
     var isUpdatePending = false
+
+    /// Marks an update pending when Steam serves a newer build of this game's
+    /// branch. Valve's client can know the build without flagging the manifest.
+    func marked(latestBuild: UInt64?) -> SteamGame {
+        guard let latestBuild, let buildID, buildID > 0, latestBuild > buildID else { return self }
+        var game = self
+        game.isUpdatePending = true
+        return game
+    }
 
     var sizeDescription: String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
@@ -195,6 +206,7 @@ nonisolated struct SteamInstallation: Sendable {
                          bytes: state?["SizeOnDisk"]?.text.flatMap(Int64.init) ?? 0,
                          folder: steamApps.appendingPathComponent("common").appendingPathComponent(directory),
                          branch: state?["UserConfig"]?["BetaKey"]?.text ?? "public",
+                         buildID: state?["buildid"]?.text.flatMap(UInt64.init),
                          isUpdatePending: flags & (2 | 1024) != 0)
     }
 
@@ -210,6 +222,15 @@ nonisolated struct SteamInstallation: Sendable {
 }
 
 nonisolated extension VDFValue {
+    /// The current build of each branch, keyed by lowercased name, from an
+    /// app's PICS or appinfo record.
+    var branchBuilds: [String: UInt64] {
+        let branches = (self["appinfo"] ?? self)["depots"]?["branches"]?.values ?? [:]
+        return Dictionary(branches.compactMap { name, branch in
+            branch["buildid"]?.text.flatMap(UInt64.init).map { (name.lowercased(), $0) }
+        }, uniquingKeysWith: max)
+    }
+
     var encoded: String {
         func quote(_ value: String) -> String { "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
         switch self {

@@ -8,6 +8,8 @@ nonisolated struct OwnedSteamGame: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let name: String
     let estimatedBytes: Int64?
+    /// Steam's current build of each branch, keyed by lowercased name.
+    var builds: [String: UInt64]? = nil
 
     var isValid: Bool {
         GameID(id)?.steamAppID != nil && !name.isEmpty && name.utf8.count <= 1024
@@ -36,7 +38,8 @@ nonisolated struct OwnedSteamGame: Codable, Equatable, Identifiable, Sendable {
             let (sum, overflow) = total.addingReportingOverflow(size)
             if !overflow { total = sum }
         }
-        return .init(id: String(appID), name: name, estimatedBytes: total > 0 ? total : nil)
+        let builds = app.branchBuilds
+        return .init(id: String(appID), name: name, estimatedBytes: total > 0 ? total : nil, builds: builds.isEmpty ? nil : builds)
     }
 }
 
@@ -57,7 +60,8 @@ nonisolated struct LibraryGame: Identifiable, Equatable, Sendable {
                       epicOwned: [EpicOwnedGame] = [], epicInstalled: [EpicInstalledGame] = []) -> [Self] {
         var result = Dictionary(owned.map { ($0.id, Self(id: $0.id, name: $0.name, installation: nil, owned: $0)) }, uniquingKeysWith: { first, _ in first })
         for game in installed {
-            result[game.id] = Self(id: game.id, name: game.name, installation: game, owned: result[game.id]?.owned)
+            let owned = result[game.id]?.owned
+            result[game.id] = Self(id: game.id, name: game.name, installation: game.marked(latestBuild: owned?.builds?[game.branch.lowercased()]), owned: owned)
         }
         // Epic IDs are namespaced ("epic:<AppName>"), so they never collide with Steam's.
         for game in epicOwned {

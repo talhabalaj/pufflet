@@ -26,8 +26,14 @@ struct DownloadsView: View {
     var body: some View {
         let updates = model.updatableGames, jobs = jobs
         if jobs.isEmpty && updates.isEmpty {
-            ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle", description: Text("Games you install appear here."))
-                .frame(width: 340, height: 200)
+            ContentUnavailableView {
+                Label("No Downloads", systemImage: "arrow.down.circle")
+            } description: {
+                Text("Games you install appear here.")
+            } actions: {
+                checkButton
+            }
+            .frame(width: 340, height: 220)
         } else {
             VStack(spacing: 0) {
                 if let error = model.downloads.storageError ?? model.epicDownloads.queue.storageError {
@@ -51,7 +57,9 @@ struct DownloadsView: View {
                 HStack {
                     Text(summary(updates: updates.count)).font(.callout).foregroundStyle(.secondary)
                     Spacer()
-                    if !updates.isEmpty {
+                    if updates.isEmpty {
+                        checkButton
+                    } else {
                         Button("Update All") { model.updateAll() }
                             .help("Download Steam updates for " + ListFormatter.localizedString(byJoining: updates.map(\.name)))
                     }
@@ -63,6 +71,12 @@ struct DownloadsView: View {
             }
             .frame(width: 380)
         }
+    }
+
+    private var checkButton: some View {
+        Button("Check for Updates") { Task { await model.checkForGameUpdates() } }
+            .disabled(model.isCheckingForUpdates || model.ownedLibrary.isRefreshing)
+            .help("Ask Steam whether your installed games have updates")
     }
 
     private func summary(updates: Int) -> String {
