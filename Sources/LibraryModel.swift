@@ -235,24 +235,32 @@ import os
     @ObservationIgnored private var cachedBuilds: (caches: [URL], stamps: [Date?], ids: [String], branches: [String], builds: [String: UInt64])?
 
     private(set) var isCheckingForUpdates = false
+    /// Shows the Check for Game Updates result until dismissed. Kept apart
+    /// from `message`, which the Steam session status would hide.
+    var showsUpdateCheck = false
+
+    /// The current update check result, kept live as updates finish.
+    var updateCheckResult: String? {
+        guard showsUpdateCheck else { return nil }
+        if isCheckingForUpdates { return "Checking for game updates…" }
+        let outdated = entries.filter { $0.installation?.isUpdatePending == true }
+        return switch outdated.count {
+        case 0: "No updates found for your installed Steam games."
+        case 1: "\(outdated[0].name) has an update."
+        default: "\(outdated.count) games have updates."
+        }
+    }
 
     /// Rereads the library, asks Steam for current builds when the catalogue
     /// may connect, and reports which installed games have updates.
     func checkForGameUpdates() async {
         guard !isCheckingForUpdates else { return }
-        isCheckingForUpdates = true
+        isCheckingForUpdates = true; showsUpdateCheck = true
         defer { isCheckingForUpdates = false }
-        message = "Checking for game updates…"
         refreshLibrary()
         refreshCatalogue()
         await catalogueTask?.value
-        guard ownedLibrary.errorMessage == nil else { message = nil; return }
-        let outdated = entries.filter { $0.installation?.isUpdatePending == true }
-        message = switch outdated.count {
-        case 0: "Your installed Steam games are up to date."
-        case 1: "\(outdated[0].name) has an update."
-        default: "\(outdated.count) games have updates."
-        }
+        if ownedLibrary.errorMessage != nil { showsUpdateCheck = false }
     }
 
     func observeRuntime() async {

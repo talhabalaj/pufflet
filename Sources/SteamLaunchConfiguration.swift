@@ -60,7 +60,7 @@ nonisolated enum SteamLaunchConfiguration {
         var result: [String: UInt64] = [:]
         for cache in caches {
             guard let size = try? cache.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 256 * 1024 * 1024,
-                  let bytes = try? Data(contentsOf: cache, options: .mappedIfSafe),
+                  let bytes = try? Data(contentsOf: cache),
                   let records = try? metadata(for: ids, in: bytes) else { continue }
             for game in games {
                 guard let id = UInt32(game.id), let build = records[id]?.branchBuilds[game.branch.lowercased()] else { continue }

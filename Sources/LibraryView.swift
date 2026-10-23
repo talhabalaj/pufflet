@@ -703,6 +703,16 @@ private struct StatusBar: View {
                 Spacer()
                 Button("Retry") { model.refresh() }.controlSize(.small)
             }
+        } else if let result = model.updateCheckResult {
+            bar {
+                Image(systemName: model.isCheckingForUpdates ? "arrow.triangle.2.circlepath" : "checkmark.circle")
+                Text(result)
+                Spacer()
+                if !model.updatableGames.isEmpty {
+                    Button("Update All") { model.updateAll() }.controlSize(.small)
+                }
+                Button("Dismiss") { model.showsUpdateCheck = false }.controlSize(.small).disabled(model.isCheckingForUpdates)
+            }
         } else if model.headless.isActive {
             bar { ProgressView().controlSize(.small); Text(model.headless.status); Spacer() }
         } else if let message = model.message {
