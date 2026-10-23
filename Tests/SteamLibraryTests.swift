@@ -56,6 +56,18 @@ struct SteamLibraryTests {
         #expect(!game.isUpdatePending)
     }
 
+    @Test func newerBranchBuildMarksAnUnflaggedGameOutdated() throws {
+        let game = try #require(try SteamInstallation.game(from: manifest, steamApps: URL(filePath: "/tmp/steamapps")))
+        #expect(game.buildID == 25_931_885)
+        #expect(game.marked(latestBuild: 26_136_884).isUpdatePending)
+        // A stale cache or catalogue never marks the installed build outdated.
+        #expect(!game.marked(latestBuild: 25_931_885).isUpdatePending)
+        #expect(!game.marked(latestBuild: 25_000_000).isUpdatePending)
+        #expect(!game.marked(latestBuild: nil).isUpdatePending)
+        var unknown = game; unknown.buildID = 0
+        #expect(!unknown.marked(latestBuild: 26_136_884).isUpdatePending)
+    }
+
     @Test(arguments: [4, 6, 1028, 1030])
     func fullyInstalledBitKeepsUpdatingGamesInstalled(_ flags: Int) throws {
         let changed = manifest.replacingOccurrences(of: #""StateFlags" "4""#, with: "\"StateFlags\" \"\(flags)\"")

@@ -60,4 +60,41 @@ struct SteamLaunchConfigurationTests {
         #expect(throws: SteamLaunchConfiguration.ConfigurationError.self) { try SteamLaunchConfiguration.metadata(for: "20", in: cache) }
         #expect(throws: SteamLaunchConfiguration.ConfigurationError.self) { try SteamLaunchConfiguration.metadata(for: "10", in: Data(cache.prefix(20))) }
     }
+
+    @Test func latestBuildsTakeTheNewestCacheForEachBranch() throws {
+        func integer<T: FixedWidthInteger>(_ value: T) -> Data {
+            var value = value.littleEndian
+            return withUnsafeBytes(of: &value) { Data($0) }
+        }
+        // v41 cache: appinfo { depots { branches { public { buildid } beta { buildid } } } }.
+        let strings = ["appinfo", "depots", "branches", "public", "beta", "buildid"]
+        func key(_ type: UInt8, _ name: String) -> Data { Data([type]) + integer(UInt32(strings.firstIndex(of: name)!)) }
+        func cache(_ apps: [(UInt32, public: String, beta: String)]) -> Data {
+            var records = Data()
+            for app in apps {
+                var payload = key(0, "appinfo") + key(0, "depots") + key(0, "branches")
+                payload += key(0, "public") + key(1, "buildid") + Data(app.public.utf8) + Data([0, 8])
+                payload += key(0, "beta") + key(1, "buildid") + Data(app.beta.utf8) + Data([0, 8])
+                payload += Data([8, 8, 8, 8])
+                records += integer(app.0) + integer(UInt32(60 + payload.count)) + Data(repeating: 0, count: 60) + payload
+            }
+            var data = integer(UInt32(0x07564429)) + integer(UInt32(1)) + integer(UInt64(16 + records.count + 4))
+            data += records + integer(UInt32(0)) + integer(UInt32(strings.count))
+            for string in strings { data += Data(string.utf8) + Data([0]) }
+            return data
+        }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fresh = root.appendingPathComponent("fresh.vdf"), stale = root.appendingPathComponent("stale.vdf")
+        try cache([(10, "200", "300"), (20, "50", "60")]).write(to: fresh)
+        try cache([(10, "150", "400")]).write(to: stale)
+        var beta = SteamGame(id: "10", name: "Beta", installDirectory: "Beta", bytes: 1, folder: root)
+        beta.branch = "Beta"
+        let games = [SteamGame(id: "10", name: "Public", installDirectory: "Public", bytes: 1, folder: root),
+                     SteamGame(id: "20", name: "Other", installDirectory: "Other", bytes: 1, folder: root),
+                     SteamGame(id: "30", name: "Missing", installDirectory: "Missing", bytes: 1, folder: root)]
+        #expect(SteamLaunchConfiguration.latestBuilds(for: games, caches: [stale, fresh, root.appendingPathComponent("none.vdf")]) == ["10": 200, "20": 50])
+        #expect(SteamLaunchConfiguration.latestBuilds(for: [beta], caches: [fresh, stale]) == ["10": 400])
+    }
 }

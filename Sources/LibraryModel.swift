@@ -210,11 +210,59 @@ import os
         let found = EpicInstallStore(library: library).installed()
         if found != epicInstalled { epicInstalled = found }
         do {
-            games = try installation.library()
+            let found = try installation.library()
+            let builds = latestBuilds(for: found)
+            games = found.map { $0.marked(latestBuild: builds[$0.id]) }
+            for game in games where game.isUpdatePending { downloads.markUpdate(game.id) }
             errorMessage = nil
         } catch {
             errorMessage = "Your Steam library could not be read. Check its location in Settings, then refresh."
         }
+    }
+
+    /// Steam's current builds from its app info caches. The Dock session keeps
+    /// Pufflet's cache fresh while the native catalogue is disconnected.
+    private func latestBuilds(for games: [SteamGame]) -> [String: UInt64] {
+        let caches = [nativeRuntime.installation.steam, installation.steam].map { $0.appendingPathComponent("appcache/appinfo.vdf") }
+        let stamps = caches.map { try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }
+        let ids = games.map(\.id), branches = games.map(\.branch)
+        if let cached = cachedBuilds, cached.caches == caches, cached.stamps == stamps, cached.ids == ids, cached.branches == branches {
+            return cached.builds
+        }
+        let builds = SteamLaunchConfiguration.latestBuilds(for: games, caches: caches)
+        cachedBuilds = (caches, stamps, ids, branches, builds)
+        return builds
+    }
+    @ObservationIgnored private var nextRepairCheck = ContinuousClock.now
+    @ObservationIgnored private var cachedBuilds: (caches: [URL], stamps: [Date?], ids: [String], branches: [String], builds: [String: UInt64])?
+
+    private(set) var isCheckingForUpdates = false
+    /// Shows the Check for Game Updates result until dismissed. Kept apart
+    /// from `message`, which the Steam session status would hide.
+    var showsUpdateCheck = false
+
+    /// The current update check result, kept live as updates finish.
+    var updateCheckResult: String? {
+        guard showsUpdateCheck else { return nil }
+        if isCheckingForUpdates { return "Checking for game updates…" }
+        let outdated = entries.filter { $0.installation?.isUpdatePending == true }
+        return switch outdated.count {
+        case 0: "No updates found for your installed Steam games."
+        case 1: "\(outdated[0].name) has an update."
+        default: "\(outdated.count) games have updates."
+        }
+    }
+
+    /// Rereads the library, asks Steam for current builds when the catalogue
+    /// may connect, and reports which installed games have updates.
+    func checkForGameUpdates() async {
+        guard !isCheckingForUpdates else { return }
+        isCheckingForUpdates = true; showsUpdateCheck = true
+        defer { isCheckingForUpdates = false }
+        refreshLibrary()
+        refreshCatalogue()
+        await catalogueTask?.value
+        if ownedLibrary.errorMessage != nil { showsUpdateCheck = false }
     }
 
     func observeRuntime() async {
@@ -230,6 +278,11 @@ import os
             if current != snapshot { snapshot = current }
             headless.poll()
             if epicDownloads.revision != epicRevision { epicRevision = epicDownloads.revision; refreshLibrary() }
+            // Steam flags the manifest, or its cache learns a newer build, while a repair runs.
+            if downloads.active?.kind == .repair, ContinuousClock.now >= nextRepairCheck {
+                nextRepairCheck = .now + .seconds(10)
+                refreshLibrary()
+            }
             if headless.persistentEnabled {
                 finishPersistentDownloads()
                 if let error = headless.takeError() { errorMessage = error }
@@ -735,7 +788,8 @@ import os
     }
 
     func repair(_ entry: LibraryGame) {
-        guard enqueueInstalled(entry, kind: .repair) else { return }
+        // Steam installs the newer build while verifying, so say so.
+        guard enqueueInstalled(entry, kind: entry.installation?.isUpdatePending == true ? .update : .repair) else { return }
         repairGameID = nil
         showsDownloads = true
     }
@@ -1038,7 +1092,9 @@ import os
         if job.state == .preparing { return "Preparing…" }
         if !headless.persistentEnabled { return bytes ?? headless.status }
         if let waiting = report.installWaitStatus { return waiting }
-        if report.fields["install-verifying"] == 1 { return "Verifying and restoring game files…" }
+        if report.fields["install-verifying"] == 1 {
+            return job.kind == .update ? "Checking game files, then updating…" : "Verifying and restoring game files…"
+        }
         if job.kind == .update, bytes == nil { return "Steam is downloading the update…" }
         return bytes ?? report.installStatus
     }

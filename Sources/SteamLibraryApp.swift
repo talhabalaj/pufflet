@@ -131,6 +131,8 @@ struct LibraryCommands: Commands {
                 Button("Sign Out…") { model.confirmsSignOut = true }.disabled(!model.canManageAccount)
             }
             Divider()
+            Button("Check for Game Updates") { Task { await model.checkForGameUpdates() } }
+                .disabled(model.isCheckingForUpdates || model.ownedLibrary.isRefreshing)
             Button("Prepare Steam Support…") { Task { await model.prepareSteamSupport() } }.disabled(model.headless.isActive)
             Divider()
             Button("Open Desktop Steam") { Task { await model.openSteam() } }.disabled(model.headless.isActive)
